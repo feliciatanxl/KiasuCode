@@ -1,5 +1,5 @@
 import { Context } from "telegraf";
-import { CommandContext, GRADING_SCALES } from "../types";
+import { CommandContext, getScaleForSchool } from "../types";
 import { replyWithFlavor } from "../middleware/devLingua";
 import { getDatabase } from "../database/connection";
 import { 
@@ -58,7 +58,7 @@ export async function handleCommitCommand(
     }
 
     const activeSchool = activeContext.activeSchool;
-    const schoolScale = GRADING_SCALES[activeSchool] || GRADING_SCALES.DEFAULT;
+    const schoolScale = getScaleForSchool(activeSchool);
 
     const parsed = parseCommitArgs(commandCtx.args, schoolScale);
 
