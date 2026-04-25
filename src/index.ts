@@ -28,6 +28,7 @@ import { registerCheckoutCommand } from "./commands/checkout";
 import { registerSpecsCommand } from "./commands/specs";
 import { registerLogsCommand } from "./commands/logs";
 import { registerCopiumCommand } from "./commands/copium";
+import { registerChiongCommand } from "./commands/chiong";
 
 /**
  * Global bot instance
@@ -65,6 +66,7 @@ async function initializeBot(): Promise<void> {
       { command: 'patch', description: 'Apply a hotfix to a module grade' },
       { command: 'specs', description: 'Show GPA system' },
       { command: 'copium', description: 'Simulate GPA if you score straight As (Thoughts and Prayers)' },
+      { command: 'chiong', description: 'Stress test your target CGPA. See how much you can slack.' },
       { command: 'logs', description: 'View full commit history and CGPA summary' },
       { command: 'lobang', description: 'Pull the dev manual (Help)' }
     ]);
@@ -88,6 +90,7 @@ async function initializeBot(): Promise<void> {
     // /commit - add a module grade to student transcript
     registerCheckoutCommand(bot);
     registerCommitCommand(bot);
+    registerChiongCommand(bot);
     registerGpaCommand(bot);
     registerCopiumCommand(bot);
     registerKaypohCommand(bot);
