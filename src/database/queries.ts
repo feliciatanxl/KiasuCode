@@ -172,3 +172,16 @@ export async function patchModuleGrade(
     return { success: false, message: "Patch failed - database conflict lor", error: String(error) };
   }
 }
+
+/**
+ * Fetch the full commit history (all modules) for a student
+ * Returns an array of module grades sorted by newest first
+ */
+export async function getStudentHistory(userId: number): Promise<ModuleGrade[]> {
+  const db = getDatabase();
+  const [rows]: any = await db.query(
+    "SELECT * FROM module_grades WHERE userId = ? ORDER BY committedAt DESC",
+    [userId]
+  );
+  return rows;
+}

@@ -23,6 +23,7 @@ import { registerGpaCommand } from "./commands/gpa";
 import { registerDropCommand } from "./commands/drop";
 import { registerLobangCommand } from "./commands/lobang";
 import { registerPatchCommand } from "./commands/patch";
+import { registerKaypohCommand } from "./commands/kaypoh";
 
 /**
  * Global bot instance
@@ -54,6 +55,7 @@ async function initializeBot(): Promise<void> {
     await bot.telegram.setMyCommands([
       { command: 'commit', description: 'Chiong your grades into the system' },
       { command: 'gpa', description: 'Check your current Academic Build Status' },
+      { command: 'kaypoh', description: 'View your full module repository' },
       { command: 'drop', description: 'Drop a module from your repo' },
       { command: 'patch', description: 'Apply a hotfix to a module grade' },
       { command: 'lobang', description: 'Pull the dev manual (Help)' }
@@ -78,6 +80,7 @@ async function initializeBot(): Promise<void> {
     // /commit - add a module grade to student transcript
     registerCommitCommand(bot);
     registerGpaCommand(bot);
+    registerKaypohCommand(bot);
     registerDropCommand(bot);
     registerPatchCommand(bot);
     registerLobangCommand(bot);

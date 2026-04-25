@@ -57,7 +57,7 @@ export async function handleCommitCommand(
     );
 
     if (!result.success) {
-      throw new Error(result.message);
+      throw new Error(`${result.message} | Details: ${result.error}`);
     }
 
     // 4. Recalculate GPA
