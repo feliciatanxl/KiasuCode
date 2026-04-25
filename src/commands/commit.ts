@@ -1,5 +1,5 @@
 import { Context } from "telegraf";
-import { CommandContext, GRADE_POINTS } from "../types";
+import { CommandContext, GRADING_SCALES } from "../types";
 import { replyWithFlavor } from "../middleware/devLingua";
 import { getDatabase } from "../database/connection";
 import { 
@@ -10,10 +10,9 @@ import {
 } from "../database/queries";
 
 /**
- * Enhanced Parser: Now captures Module Name!
- * Format: /commit <CODE> <CREDITS> <GRADE> <FULL NAME>
+ * Enhanced Parser: Now supports ITE, Poly, and Uni codes!
  */
-function parseCommitArgs(args: string[]) {
+function parseCommitArgs(args: string[], schoolScale: any) {
   if (args.length < 3) return null;
 
   const moduleCode = args[0].toUpperCase();
@@ -21,9 +20,14 @@ function parseCommitArgs(args: string[]) {
   const grade = args[2].toUpperCase();
   const moduleName = args.length > 3 ? args.slice(3).join(" ") : "Unnamed Module";
 
-  if (!/^[A-Z]{2,3}\d{3,4}$/.test(moduleCode)) return null;
-  if (isNaN(creditValue) || creditValue < 1 || creditValue > 6) return null;
-  if (!(grade in GRADE_POINTS)) return null;
+  // 🔥 THE FIX: Regex updated to allow alphanumeric codes (4-10 chars)
+  // This supports NYP (IT1111) and ITE (AI33001FP)
+  if (!/^[A-Z0-9]{4,10}$/.test(moduleCode)) return null;
+
+  // 🔥 Increased credit limit to 10 for ITE/Uni flexibility
+  if (isNaN(creditValue) || creditValue < 1 || creditValue > 10) return null;
+  
+  if (!(grade in schoolScale.points)) return null;
 
   return { moduleCode, creditValue, grade, moduleName };
 }
@@ -42,7 +46,6 @@ export async function handleCommitCommand(
 
     const activeContext = studentRows[0];
 
-    // Guardrail: HTML styled warning
     if (!activeContext || !activeContext.activeSchool) {
       await replyWithFlavor(
         ctx, 
@@ -54,21 +57,24 @@ export async function handleCommitCommand(
       return;
     }
 
-    const parsed = parseCommitArgs(commandCtx.args);
+    const activeSchool = activeContext.activeSchool;
+    const schoolScale = GRADING_SCALES[activeSchool] || GRADING_SCALES.DEFAULT;
+
+    const parsed = parseCommitArgs(commandCtx.args, schoolScale);
 
     if (!parsed) {
       await replyWithFlavor(
         ctx, 
         "<b>⚠️ INVALID COMMIT FORMAT</b>\n\n" +
         "Usage: <code>/commit &lt;CODE&gt; &lt;CR&gt; &lt;GRADE&gt; &lt;NAME&gt;</code>\n" +
-        "Example: <code>/commit IT1111 4 A Applied Math</code>", 
+        "Example: <code>/commit AI33001FP 4 DIST Coding for AI</code>", 
         "negative"
       );
       return;
     }
 
     const { moduleCode, creditValue, grade, moduleName } = parsed;
-    const pointValue = GRADE_POINTS[grade];
+    const pointValue = schoolScale.points[grade];
 
     await ensureStudentProfile(commandCtx.userId, commandCtx.username);
 
@@ -106,13 +112,14 @@ export async function handleCommitCommand(
 
     await updateStudentGPA(commandCtx.userId);
 
-    // 🔥 The "Shiok" Success UI
+    const maxGpa = schoolScale.max.toFixed(1);
+
     const responseMessage = 
         `<b>🚀 DEPLOYMENT SUCCESSFUL</b>\n\n` +
         `<b>Branch:</b> <code>${activeContext.activeSchool} ➜ ${activeContext.activeSem}</code>\n` +
         `<b>Module:</b> <code>${moduleCode}</code>\n` +
         `<b>Title:</b> <i>${moduleName}</i>\n` +
-        `<b>Result:</b> <b>${grade}</b> (<code>${creditValue} CR</code>)`;
+        `<b>Result:</b> <b>${grade}</b> (<code>${pointValue.toFixed(1)} / ${maxGpa}</code>)`;
                                
     await replyWithFlavor(ctx, responseMessage, "positive");
 

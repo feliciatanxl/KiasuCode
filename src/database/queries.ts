@@ -2,7 +2,7 @@ import { getDatabase } from "./connection";
 import {
   StudentProfile,
   ModuleGrade,
-  GRADE_POINTS,
+//   GRADE_POINTS,
   ApiResponse,
 } from "../types";
 
@@ -132,15 +132,15 @@ export async function patchModuleGrade(
 
 /**
  * Calculate GPA dynamically for a specific school.
- * Excludes 'P' grades from the denominator.
+ * Excludes 'P', 'S', and 'U' grades from the denominator.
  */
 export async function calculateSchoolGPA(userId: number, school: string): Promise<{ gpa: number, credits: number, count: number }> {
   const db = getDatabase();
   
   const [rows]: any = await db.query(
     `SELECT 
-        SUM(CASE WHEN UPPER(grade) != 'P' THEN (creditValue * pointValue) ELSE 0 END) as totalPoints,
-        SUM(CASE WHEN UPPER(grade) != 'P' THEN creditValue ELSE 0 END) as gradedCredits,
+        SUM(CASE WHEN UPPER(grade) NOT IN ('P', 'S', 'U') THEN (creditValue * pointValue) ELSE 0 END) as totalPoints,
+        SUM(CASE WHEN UPPER(grade) NOT IN ('P', 'S', 'U') THEN creditValue ELSE 0 END) as gradedCredits,
         SUM(creditValue) as totalCredits,
         COUNT(id) as moduleCount
       FROM module_grades 

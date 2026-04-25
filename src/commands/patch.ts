@@ -1,7 +1,7 @@
 import { Context, Telegraf, Markup } from "telegraf";
 import { getModuleGrade, patchModuleGrade } from "../database/queries";
 import { replyWithFlavor } from "../middleware/devLingua";
-import { GRADE_POINTS } from "../types";
+import { GRADING_SCALES } from "../types"; // Using the new multi-scale system
 
 /**
  * Handle the /patch command
@@ -77,7 +77,6 @@ export function registerPatchCommand(bot: Telegraf): void {
       `${prompt}\n\n` +
       `<b>Command:</b>\n<code>/patch_val ${modCode} ${field} &lt;value&gt;</code>`;
 
-    // Note: We use ctx.reply directly here to keep the instruction clear
     await ctx.reply(response, { parse_mode: 'HTML' });
   });
 
@@ -109,9 +108,22 @@ export function registerPatchCommand(bot: Telegraf): void {
     if (field === "code") moduleCode = newValue.toUpperCase();
     if (field === "name") moduleName = newValue;
     if (field === "cred") creditValue = parseInt(newValue, 10);
+    
     if (field === "grade") {
       grade = newValue.toUpperCase();
-      pointValue = GRADE_POINTS[grade] ?? current.pointValue;
+      
+      // 🔥 THE FIX: Identify the scale based on the module's school
+      const schoolScale = GRADING_SCALES[current.school] || GRADING_SCALES.DEFAULT;
+      
+      if (!(grade in schoolScale.points)) {
+        await replyWithFlavor(
+          ctx, 
+          `<b>❌ INVALID GRADE</b>\nGrade <code>${grade}</code> is not valid for the <b>${current.school}</b> scale!`, 
+          "negative"
+        );
+        return;
+      }
+      pointValue = schoolScale.points[grade];
     }
 
     const result = await patchModuleGrade(
