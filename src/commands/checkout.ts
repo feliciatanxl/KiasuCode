@@ -29,14 +29,45 @@ export async function handleCheckoutCommand(ctx: Context): Promise<void> {
   const [school, year, sem] = args.map(arg => arg.toUpperCase());
   const db = getDatabase();
 
+  // try {
+  //   // Update the student's active folder in the database
+  //   await db.query(
+  //     `UPDATE students 
+  //      SET activeSchool = ?, activeYear = ?, activeSem = ? 
+  //      WHERE userId = ?`,
+  //     [school, year, sem, userId]
+  //   );
+
+  //   const responseMessage = 
+  //     "<b>📂 BRANCH SWITCH SUCCESSFUL</b>\n\n" +
+  //     "Target: <code>" + school + " ➜ " + year + " ➜ " + sem + "</code>\n\n" +
+  //     "All new commits will be deployed to this repository branch lor!";
+
+  //   await replyWithFlavor(ctx, responseMessage, "positive");
+    
+  // } catch (error) {
+  //   console.error("❌ Checkout command error:", error);
+  //   await replyWithFlavor(
+  //     ctx, 
+  //     "<b>⚠️ MERGE CONFLICT</b>\nError changing branches! Database might be locked lor.", 
+  //     "negative"
+  //   );
+  // }
+
   try {
-    // Update the student's active folder in the database
-    await db.query(
-      `UPDATE students 
-       SET activeSchool = ?, activeYear = ?, activeSem = ? 
-       WHERE userId = ?`,
-      [school, year, sem, userId]
-    );
+    // 🚀 UPSERT Logic: 
+    // If the userId doesn't exist, it INSERTs a new row.
+    // If it exists, it UPDATEs the existing row.
+    const query = `
+      INSERT INTO students (userId, activeSchool, activeYear, activeSem)
+      VALUES (?, ?, ?, ?)
+      ON DUPLICATE KEY UPDATE
+        activeSchool = VALUES(activeSchool),
+        activeYear = VALUES(activeYear),
+        activeSem = VALUES(activeSem);
+    `;
+
+    await db.query(query, [userId, school, year, sem]);
 
     const responseMessage = 
       "<b>📂 BRANCH SWITCH SUCCESSFUL</b>\n\n" +
@@ -49,7 +80,7 @@ export async function handleCheckoutCommand(ctx: Context): Promise<void> {
     console.error("❌ Checkout command error:", error);
     await replyWithFlavor(
       ctx, 
-      "<b>⚠️ MERGE CONFLICT</b>\nError changing branches! Database might be locked lor.", 
+      "<b>⚠️ MERGE CONFLICT</b>\nSomething went wrong with the database update lor.", 
       "negative"
     );
   }
