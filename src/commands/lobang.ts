@@ -3,36 +3,53 @@ import { replyWithFlavor } from "../middleware/devLingua";
 
 /**
  * Handle the /lobang command
- * Displays the developer manual with build instructions
+ * Displays the updated developer manual with all new drill-down features!
  */
 export async function handleLobangCommand(ctx: Context): Promise<void> {
   const manual = `
-KiasuCode Developer Manual
+📂 **KiasuCode Dev Manual v2.0**
+_Build Status: STABLE_ ✅
 
-🚀 \`/commit <MOD> <CR> <GR>\`
-Add a module to your build.
-_Usage: /commit IT101 4 A_
+🔄 **BRANCHING**
+\`/checkout <SCHOOL> <YEAR> <SEM>\`
+Switch your active repository branch.
+_Example: /checkout NYP Y1 S1_
 
-📊 \`/gpa\`
-Fetch your current Academic Build Status.
+🚀 **COMMITTING**
+\`/commit <CODE> <CR> <GRADE> <NAME>\`
+Deploy a module to your current branch.
+_Example: /commit IT1121 4 A AI & Data Analytics_
 
-🗑️ \`/drop <MOD>\`
-Drop a module from your repository.
-_Usage: /remove IT101_
+🔍 **KAYPOH (HISTORY)**
+\`/kaypoh [SCHOOL] [YEAR] [SEM]\`
+Drill down into your repo. Calculates local GPA automatically!
+_Example: /kaypoh NYP Y1_
 
-🛠️ \`/lobang\` or \`/help\`
-Pull this manual from the repo.
+🛠️ **PATCHING**
+\`/patch <CODE>\`
+Open the interactive hotfix menu to edit a module.
 
-*Build Status:* STABLE ✅
+📊 **BUILD STATUS**
+\`/gpa\`
+Fetch CGPA and module count for your current school.
+
+🗑️ **ROLLBACK**
+\`/drop <CODE>\`
+Remove a module from your active branch.
+
+---
+*Help:* \`/lobang\` or \`/help\`
+- no merge conflict here -
   `.trim();
 
   await replyWithFlavor(ctx, manual, "casual");
 }
 
 /**
- * Register lobang command - LGTM pattern
+ * Register lobang command
  */
 export function registerLobangCommand(bot: Telegraf): void {
   bot.command("lobang", handleLobangCommand);
-  bot.command("help", handleLobangCommand); // Alias for compatibility
+  bot.command("help", handleLobangCommand);
+  bot.command("man", handleLobangCommand); // Added 'man' for that true Linux feel!
 }

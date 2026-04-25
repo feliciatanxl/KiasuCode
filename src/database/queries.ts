@@ -56,8 +56,8 @@ export async function insertModuleGrade(
   try {
     await db.query(
       `INSERT INTO module_grades 
-       (userId, moduleCode, moduleName, creditValue, grade, pointValue, school, academicYear, semester) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (userId, moduleCode, moduleName, creditValue, grade, pointValue, school, academicYear, semester) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [userId, moduleCode.toUpperCase(), moduleName, creditValue, grade.toUpperCase(), pointValue, school.toUpperCase(), year.toUpperCase(), sem.toUpperCase()]
     );
     return { success: true, message: "Module committed to branch!" };
@@ -93,22 +93,20 @@ export async function patchModuleGrade(
   userId: number,
   oldModuleCode: string,
   newModuleCode: string,
-  newModuleName: string, // Added for the new Name feature!
+  newModuleName: string, 
   newCreditValue: number,
   newGrade: string,
   newPointValue: number
 ): Promise<ApiResponse<null>> {
   const db = getDatabase();
   try {
-    // 1. Identify active school context
     const [student]: any = await db.query("SELECT activeSchool FROM students WHERE userId = ?", [userId]);
     const activeSchool = student[0]?.activeSchool;
 
-    // 2. Perform the update strictly within that school "folder"
     const [result]: any = await db.query(
       `UPDATE module_grades 
-       SET moduleCode = ?, moduleName = ?, creditValue = ?, grade = ?, pointValue = ? 
-       WHERE userId = ? AND moduleCode = ? AND school = ?`,
+        SET moduleCode = ?, moduleName = ?, creditValue = ?, grade = ?, pointValue = ? 
+        WHERE userId = ? AND moduleCode = ? AND school = ?`,
       [
         newModuleCode.toUpperCase(), 
         newModuleName,
@@ -145,8 +143,8 @@ export async function calculateSchoolGPA(userId: number, school: string): Promis
         SUM(CASE WHEN UPPER(grade) != 'P' THEN creditValue ELSE 0 END) as gradedCredits,
         SUM(creditValue) as totalCredits,
         COUNT(id) as moduleCount
-     FROM module_grades 
-     WHERE userId = ? AND school = ?`,
+      FROM module_grades 
+      WHERE userId = ? AND school = ?`,
     [userId, school.toUpperCase()]
   );
 
@@ -219,14 +217,36 @@ export async function removeModuleGrade(
 }
 
 /**
- * Fetch history sorted by Year and Sem
+ * Fetch history with dynamic drilling: School -> Year -> Sem
+ * If no filters are provided, it returns the entire global history.
  */
-export async function getStudentHistory(userId: number): Promise<ModuleGrade[]> {
+export async function getStudentHistory(
+  userId: number, 
+  school?: string, 
+  year?: string, 
+  sem?: string
+): Promise<ModuleGrade[]> {
   const db = getDatabase();
-  const [rows]: any = await db.query(
-    "SELECT * FROM module_grades WHERE userId = ? ORDER BY academicYear DESC, semester DESC, committedAt DESC",
-    [userId]
-  );
+  
+  let sql = "SELECT * FROM module_grades WHERE userId = ?";
+  const params: any[] = [userId];
+
+  if (school) {
+    sql += " AND school = ?";
+    params.push(school.toUpperCase());
+  }
+  if (year) {
+    sql += " AND academicYear = ?";
+    params.push(year.toUpperCase());
+  }
+  if (sem) {
+    sql += " AND semester = ?";
+    params.push(sem.toUpperCase());
+  }
+
+  // Final sort: Group by school, then newest years and semesters first
+  sql += " ORDER BY school ASC, academicYear DESC, semester DESC, committedAt DESC";
+  
+  const [rows]: any = await db.query(sql, params);
   return rows;
 }
-
