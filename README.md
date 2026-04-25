@@ -15,25 +15,30 @@ This project was developed with the assistance of AI. I acted as the Technical L
 
 ## 📁 Project Structure
 
+```
 KiasuCode/
 ├── src/
 │   ├── index.ts                 # Bot entry point - initializes everything
 │   ├── config/
-│   │   └── index.ts             # MySQL env variables & config management
+│   │   └── index.ts             # Environment variables & config management
 │   ├── database/
-│   │   ├── connection.ts        # MySQL connection pooling setup
-│   │   ├── schema.ts            # Auto-create MySQL tables on startup
-│   │   └── queries.ts           # CRUD operations (GPA logic, inserts)
+│   │   ├── connection.ts        # SQLite database connection setup
+│   │   ├── schema.ts            # Auto-create database schema on startup
+│   │   └── queries.ts           # TODO: Database query functions
 │   ├── middleware/
-│   │   └── devLingua.ts         # ✨ Personality injection middleware
+│   │   └── devLingua.ts         # ✨ The magic: personality injection middleware
 │   ├── commands/
 │   │   └── commit.ts            # /commit command - add grades
+│   │   └── (more commands here)
 │   └── types/
-│       └── index.ts             # TypeScript interfaces
-├── .env.example                 # Env variables template
-├── package.json                 # Dependencies (mysql2, telegraf)
+│       └── index.ts             # TypeScript interfaces & constants
+├── schema.sql                   # SQLite database schema (DDL) - for reference
+├── kiasucode.db                 # SQLite database file (auto-created)
+├── .env.example                 # Environment variables template
+├── package.json                 # Dependencies & scripts
 ├── tsconfig.json                # TypeScript configuration
 └── README.md                    # This file!
+```
 
 
 ## 🏗️ Architecture Decisions
