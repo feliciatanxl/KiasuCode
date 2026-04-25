@@ -24,6 +24,7 @@ import { registerDropCommand } from "./commands/drop";
 import { registerLobangCommand } from "./commands/lobang";
 import { registerPatchCommand } from "./commands/patch";
 import { registerKaypohCommand } from "./commands/kaypoh";
+import { registerCheckoutCommand } from "./commands/checkout";
 
 /**
  * Global bot instance
@@ -53,6 +54,7 @@ async function initializeBot(): Promise<void> {
 
     // This tells Telegram which commands to show in the menu lor!
     await bot.telegram.setMyCommands([
+      { command: 'checkout', description: 'Change your active School/Sem branch' },
       { command: 'commit', description: 'Chiong your grades into the system' },
       { command: 'gpa', description: 'Check your current Academic Build Status' },
       { command: 'kaypoh', description: 'View your full module repository' },
@@ -78,6 +80,7 @@ async function initializeBot(): Promise<void> {
 
     // Step 4: Register command handlers
     // /commit - add a module grade to student transcript
+    registerCheckoutCommand(bot);
     registerCommitCommand(bot);
     registerGpaCommand(bot);
     registerKaypohCommand(bot);

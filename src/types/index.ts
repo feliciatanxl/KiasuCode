@@ -5,28 +5,35 @@
 
 /**
  * Student profile structure - store student info in DB
- * LGTM types, no merge conflict here
+ * LGTM types, now with Active Branch support
  */
 export interface StudentProfile {
   userId: number;
   username: string;
   totalGPA: number;
   moduleCount: number;
+  activeSchool?: string; // e.g., NYP, SP, NP
+  activeYear?: string;   // e.g., Y1, Y2
+  activeSem?: string;    // e.g., S1, S2
   createdAt: Date;
   updatedAt: Date;
 }
 
 /**
  * Module grade entry - each module + grade combination
- * Commit this to the database lor
+ * Now enriched with Name and School context for the multi-tenant architecture
  */
 export interface ModuleGrade {
   id: number;
   userId: number;
   moduleCode: string;
-  creditValue: number; // e.g., 4 for 4-credit modules
-  grade: string; // A, B+, B, C+, C, D+, D, F
-  pointValue: number; // Calculated from grade (A=4.0, B+=3.5, etc.)
+  moduleName: string;   // NEW: For human-readable titles!
+  creditValue: number;  // e.g., 4 for 4-credit modules
+  grade: string;        // A, B+, B, C+, C, D+, D, F, DIST, P
+  pointValue: number;   // Calculated from grade (A=4.0, B+=3.5, etc.)
+  school: string;       // Tagging the institution
+  academicYear: string; // Tagging the year
+  semester: string;     // Tagging the semester
   committedAt: Date;
 }
 
@@ -43,10 +50,10 @@ export interface CommandContext {
 
 /**
  * Grade to point mapping (Singapore system)
- * Wah lau, must convert grades to points lor
+ * Added 'P' for those elective modules that don't affect GPA math
  */
 export const GRADE_POINTS: Record<string, number> = {
-DIST: 4.0, 
+  DIST: 4.0, 
   A: 4.0,
   "B+": 3.5,
   B: 3.0,
@@ -55,11 +62,11 @@ DIST: 4.0,
   "D+": 1.5,
   D: 1.0,
   F: 0.0,
+  P: 0.0, // Pass modules: 0 points, but excluded from divisor in queries.ts
 };
 
 /**
  * Dev-Lingua flavor text pool
- * Inject these randomly into bot responses (middleware handles this!)
  */
 export const DEV_LINGUA_FLAVORS = {
   positive: [
@@ -91,7 +98,6 @@ export const DEV_LINGUA_FLAVORS = {
 
 /**
  * API Response wrapper - consistent response format
- * All responses follow this structure, production-ready style
  */
 export interface ApiResponse<T> {
   success: boolean;
