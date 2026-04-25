@@ -50,10 +50,10 @@ async function initializeBot(): Promise<void> {
 
     // Step 2: Initialize SQLite database
     // No async pool setup needed - SQLite is synchronous, steady lah!
-    initializeDatabase();
+    await initializeDatabase();
 
     // Step 2b: Create database schema (tables, indexes, etc.)
-    initializeSchema();
+    await initializeSchema();
 
     // Step 3: Register global middleware
     // Dev-Lingua middleware runs on EVERY message - injects personality everywhere!
@@ -146,7 +146,7 @@ async function shutdownBot(): Promise<void> {
 
     // Step 2: Close SQLite database (synchronous operation)
     // No async needed - SQLite closes instantly, steady lah!
-    closeDatabase();
+    await closeDatabase();
     console.log("✅ Database closed - steady lah!");
 
     console.log("🚀 Graceful shutdown complete - code shipped successfully!");

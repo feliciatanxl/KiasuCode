@@ -1,10 +1,3 @@
-/**
- * Database Queries Module
- * Placeholder for SQLite operations - steady lah, fill these in next!
- * These functions handle all direct database interactions
- * Synchronous patterns: better-sqlite3 uses sync API
- */
-
 import { getDatabase } from "./connection";
 import {
   StudentProfile,
@@ -14,142 +7,74 @@ import {
 } from "../types";
 
 /**
- * TODO: Create student profile
- * Called when user starts using the bot with /start command
- * Creates new row in students table
- *
- * @param userId - Telegram user ID
- * @param username - Telegram username
- * @returns ApiResponse<StudentProfile>
- *
- * SQL: INSERT INTO students (userId, username, totalGPA, moduleCount)
- *      VALUES (?, ?, 0.0, 0)
+ * Ensures a student profile exists in the DB.
+ * If they don't exist, it creates one. Steady lah!
  */
-export function createStudentProfile(
+export async function ensureStudentProfile(
   userId: number,
   username: string
-): ApiResponse<StudentProfile> {
-  // TODO: Implement
-  throw new Error("Not implemented - chiong this next!");
+): Promise<void> {
+  const db = getDatabase();
+  await db.query(
+    "INSERT IGNORE INTO students (userId, username) VALUES (?, ?)",
+    [userId, username]
+  );
 }
 
 /**
- * TODO: Insert module grade
- * This is called by /commit command
- * Adds a new module grade to the student's transcript
- *
- * @param userId - Telegram user ID
- * @param moduleCode - Module code (e.g., "IT101")
- * @param creditValue - Credits for this module (1-4)
- * @param grade - Letter grade (A, B+, B, C+, C, D+, D, F)
- * @param pointValue - Numeric point value from GRADE_POINTS
- * @returns ApiResponse<ModuleGrade>
- *
- * SQL: INSERT INTO module_grades (userId, moduleCode, creditValue, grade, pointValue)
- *      VALUES (?, ?, ?, ?, ?)
- *
- * Notes:
- * - Use GRADE_POINTS lookup to convert grade to pointValue
- * - committedAt timestamp captures when grade was added
- * - Include validation to prevent duplicate module codes for same user
+ * Check if module already exists for student
  */
-export function insertModuleGrade(
+export async function moduleExists(
+  userId: number,
+  moduleCode: string
+): Promise<boolean> {
+  const db = getDatabase();
+  const [rows]: any = await db.query(
+    "SELECT 1 FROM module_grades WHERE userId = ? AND moduleCode = ?",
+    [userId, moduleCode]
+  );
+  return rows.length > 0;
+}
+
+/**
+ * Insert module grade and return the result
+ */
+export async function insertModuleGrade(
   userId: number,
   moduleCode: string,
   creditValue: number,
   grade: string,
   pointValue: number
-): ApiResponse<ModuleGrade> {
-  // TODO: Implement
-  throw new Error("Not implemented - wah lau, need this function lor!");
+): Promise<ApiResponse<null>> {
+  const db = getDatabase();
+  try {
+    await db.query(
+      "INSERT INTO module_grades (userId, moduleCode, creditValue, grade, pointValue) VALUES (?, ?, ?, ?, ?)",
+      [userId, moduleCode, creditValue, grade, pointValue]
+    );
+    return { success: true, message: "Module committed to DB!" };
+  } catch (error) {
+    return { success: false, message: "Database insert failed lor", error: String(error) };
+  }
 }
 
 /**
- * TODO: Update student GPA
- * Called after inserting a new module grade
- * Recalculates weighted GPA and updates student record
- *
- * @param userId - Telegram user ID
- * @returns ApiResponse<StudentProfile>
- *
- * Algorithm:
- * 1. Query all grades for this student: SELECT * FROM module_grades WHERE userId = ?
- * 2. Calculate GPA: sum(creditValue * pointValue) / sum(creditValue)
- * 3. Count modules: COUNT(*) FROM module_grades
- * 4. Update student record: UPDATE students SET totalGPA = ?, moduleCount = ? WHERE userId = ?
- *
- * Example:
- * - Module 1: 4 credits, Grade A (4.0 points) = 4 * 4.0 = 16
- * - Module 2: 3 credits, Grade B+ (3.5 points) = 3 * 3.5 = 10.5
- * - Total: (16 + 10.5) / (4 + 3) = 26.5 / 7 = 3.79 GPA
+ * Recalculate weighted GPA and update student record
  */
-export function updateStudentGPA(
-  userId: number
-): ApiResponse<StudentProfile> {
-  // TODO: Implement
-  throw new Error(
-    "Not implemented - must recalculate GPA, steady lah commit this!"
+export async function updateStudentGPA(userId: number): Promise<void> {
+  const db = getDatabase();
+  
+  // 1. Calculate new GPA and count
+  const [rows]: any = await db.query(
+    "SELECT SUM(creditValue * pointValue) / SUM(creditValue) as newGPA, COUNT(*) as count FROM module_grades WHERE userId = ?",
+    [userId]
+  );
+
+  const { newGPA, count } = rows[0];
+
+  // 2. Update the students table
+  await db.query(
+    "UPDATE students SET totalGPA = ?, moduleCount = ? WHERE userId = ?",
+    [newGPA || 0, count, userId]
   );
 }
-
-/**
- * TODO: Get student profile
- * Retrieve student's current GPA and module count
- * Used by /gpa command
- *
- * @param userId - Telegram user ID
- * @returns ApiResponse<StudentProfile>
- *
- * SQL: SELECT * FROM students WHERE userId = ?
- */
-export function getStudentProfile(
-  userId: number
-): ApiResponse<StudentProfile> {
-  // TODO: Implement
-  throw new Error("Not implemented - need this for /gpa command!");
-}
-
-/**
- * TODO: Get all modules for student
- * Used by /history command to show all committed modules
- *
- * @param userId - Telegram user ID
- * @returns ApiResponse<ModuleGrade[]>
- *
- * SQL: SELECT * FROM module_grades WHERE userId = ? ORDER BY committedAt DESC
- */
-export function getStudentModules(
-  userId: number
-): ApiResponse<ModuleGrade[]> {
-  // TODO: Implement
-  throw new Error("Not implemented - need this for /history command!");
-}
-
-/**
- * TODO: Check if module already exists for student
- * Prevent duplicate module entries - keep data clean lor
- *
- * @param userId - Telegram user ID
- * @param moduleCode - Module code
- * @returns boolean - true if exists, false otherwise
- *
- * SQL: SELECT COUNT(*) FROM module_grades WHERE userId = ? AND moduleCode = ?
- */
-export function moduleExists(
-  userId: number,
-  moduleCode: string
-): boolean {
-  // TODO: Implement
-  throw new Error(
-    "Not implemented - need duplicate check for /commit command!"
-  );
-}
-
-export default {
-  createStudentProfile,
-  insertModuleGrade,
-  updateStudentGPA,
-  getStudentProfile,
-  getStudentModules,
-  moduleExists,
-};

@@ -12,7 +12,8 @@ dotenv.config();
  * Validate required environment variables
  * Wah lau, cannot proceed without these lor
  */
-const requiredEnvVars = ["TELEGRAM_TOKEN", "DB_PATH"];
+// Changed from DB_PATH to our new MySQL variables
+const requiredEnvVars = ["TELEGRAM_TOKEN", "DB_HOST", "DB_USER", "DB_NAME"];
 
 const missingVars = requiredEnvVars.filter((envVar) => !process.env[envVar]);
 
@@ -34,9 +35,12 @@ export const config = {
     debug: process.env.DEBUG === "true",
   },
 
-  // Database Configuration (SQLite)
+  // Database Configuration (MySQL)
   database: {
-    path: process.env.DB_PATH || "./kiasucode.db",
+    host: process.env.DB_HOST || "localhost",
+    user: process.env.DB_USER || "root",
+    password: process.env.DB_PASSWORD || "",
+    name: process.env.DB_NAME || "kiasucode",
   },
 
   // Application Environment
