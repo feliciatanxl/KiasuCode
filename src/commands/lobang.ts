@@ -3,42 +3,42 @@ import { replyWithFlavor } from "../middleware/devLingua";
 
 /**
  * Handle the /lobang command
- * Displays the updated developer manual with all new drill-down features!
+ * Displays the updated developer manual with HTML-safe entities
  */
 export async function handleLobangCommand(ctx: Context): Promise<void> {
   const manual = `
-📂 **KiasuCode Dev Manual v2.0**
-_Build Status: STABLE_ ✅
+📂 <b>KiasuCode Dev Manual v2.0</b>
+<i>Build Status: STABLE</i> ✅
 
-🔄 **BRANCHING**
-\`/checkout <SCHOOL> <YEAR> <SEM>\`
+🔄 <b>BRANCHING</b>
+<code>/checkout &lt;SCHOOL&gt; &lt;YEAR&gt; &lt;SEM&gt;</code>
 Switch your active repository branch.
-_Example: /checkout NYP Y1 S1_
+<i>Example: /checkout NYP Y1 S1</i>
 
-🚀 **COMMITTING**
-\`/commit <CODE> <CR> <GRADE> <NAME>\`
+🚀 <b>COMMITTING</b>
+<code>/commit &lt;CODE&gt; &lt;CR&gt; &lt;GRADE&gt; &lt;NAME&gt;</code>
 Deploy a module to your current branch.
-_Example: /commit IT1121 4 A AI & Data Analytics_
+<i>Example: /commit IT1121 4 A AI &amp; Data Analytics</i>
 
-🔍 **KAYPOH (HISTORY)**
-\`/kaypoh [SCHOOL] [YEAR] [SEM]\`
+🔍 <b>KAYPOH (HISTORY)</b>
+<code>/kaypoh [SCHOOL] [YEAR] [SEM]</code>
 Drill down into your repo. Calculates local GPA automatically!
-_Example: /kaypoh NYP Y1_
+<i>Example: /kaypoh NYP Y1</i>
 
-🛠️ **PATCHING**
-\`/patch <CODE>\`
+🛠️ <b>PATCHING</b>
+<code>/patch &lt;CODE&gt;</code>
 Open the interactive hotfix menu to edit a module.
 
-📊 **BUILD STATUS**
-\`/gpa\`
+📊 <b>BUILD STATUS</b>
+<code>/gpa</code>
 Fetch CGPA and module count for your current school.
 
-🗑️ **ROLLBACK**
-\`/drop <CODE>\`
+🗑️ <b>ROLLBACK</b>
+<code>/drop &lt;CODE&gt;</code>
 Remove a module from your active branch.
 
----
-*Help:* \`/lobang\` or \`/help\`
+<b>━━━━━━━━━━━━━━━━━━</b>
+<i>Help:</i> <code>/lobang</code> or <code>/help</code>
 - no merge conflict here -
   `.trim();
 

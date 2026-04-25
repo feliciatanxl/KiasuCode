@@ -17,24 +17,38 @@ export async function handlePatchCommand(ctx: Context): Promise<void> {
   const moduleCode = args[0]?.toUpperCase();
 
   if (!moduleCode) {
-    await replyWithFlavor(ctx, "Usage: `/patch <module_code>`\nExample: `/patch IT101`", "negative");
+    await replyWithFlavor(
+      ctx, 
+      "<b>🛠️ PATCH USAGE</b>\n\n" +
+      "Usage: <code>/patch &lt;module_code&gt;</code>\n" +
+      "Example: <code>/patch IT1111</code>", 
+      "negative"
+    );
     return;
   }
 
   const module = await getModuleGrade(userId, moduleCode);
   if (!module) {
-    await replyWithFlavor(ctx, `Wah lau, ${moduleCode} not found in your current branch!`, "negative");
+    await replyWithFlavor(
+      ctx, 
+      `<b>❌ MODULE NOT FOUND</b>\n` +
+      `Wah lau, <code>${moduleCode}</code> not found in your current branch!`, 
+      "negative"
+    );
     return;
   }
 
-  // Send buttons to ask what to change - Now with Name support!
-  await ctx.reply(
-    `Editing *${moduleCode}* (${module.moduleName})... what you want to change?`,
-    {
-      parse_mode: 'Markdown',
+  // Send buttons to ask what to change
+  const menuMessage = 
+    `<b>🛠️ MODULE HOTFIX:</b> <code>${moduleCode}</code>\n` +
+    `<i>Title: ${module.moduleName}</i>\n\n` +
+    `What field do you want to patch in the repository?`;
+
+  await ctx.reply(menuMessage, {
+      parse_mode: 'HTML',
       ...Markup.inlineKeyboard([
         [Markup.button.callback("📝 Change Code", `edit_code:${moduleCode}`)],
-        [Markup.button.callback("🏷️ Change Name", `edit_name:${moduleCode}`)], // Added this lor!
+        [Markup.button.callback("🏷️ Change Name", `edit_name:${moduleCode}`)],
         [Markup.button.callback("🔢 Change Credits", `edit_cred:${moduleCode}`)],
         [Markup.button.callback("🎯 Change Grade", `edit_grade:${moduleCode}`)]
       ])
@@ -51,17 +65,20 @@ export function registerPatchCommand(bot: Telegraf): void {
     const modCode = ctx.match[2];
     
     let prompt = "";
-    if (field === "code") prompt = `Type the NEW module code for ${modCode}:`;
-    if (field === "name") prompt = `Type the NEW name for ${modCode}:`;
-    if (field === "cred") prompt = `Type the NEW credit value for ${modCode} (1-6):`;
-    if (field === "grade") prompt = `Type the NEW grade for ${modCode} (e.g. DIST, A, B+):`;
+    if (field === "code") prompt = "Type the <b>NEW module code</b>:";
+    if (field === "name") prompt = "Type the <b>NEW module name</b>:";
+    if (field === "cred") prompt = "Type the <b>NEW credit value</b> (1-6):";
+    if (field === "grade") prompt = "Type the <b>NEW grade</b> (e.g. DIST, A, B+):";
 
     await ctx.answerCbQuery();
     
-    await ctx.reply(
-      `*Patching ${modCode}*\n${prompt}\n\n*Format:* \`/patch_val ${modCode} ${field} <value>\``, 
-      { parse_mode: 'Markdown' }
-    );
+    const response = 
+      `<b>🔧 PATCHING:</b> <code>${modCode}</code>\n` +
+      `${prompt}\n\n` +
+      `<b>Command:</b>\n<code>/patch_val ${modCode} ${field} &lt;value&gt;</code>`;
+
+    // Note: We use ctx.reply directly here to keep the instruction clear
+    await ctx.reply(response, { parse_mode: 'HTML' });
   });
 
   // Final step: Receive the new value and deploy hotfix
@@ -73,21 +90,22 @@ export function registerPatchCommand(bot: Telegraf): void {
     if (!message || !("text" in message)) return;
 
     const args = message.text.split(/\s+/).slice(1);
-    if (args.length < 3) return;
+    if (args.length < 3) {
+      await replyWithFlavor(ctx, "<b>⚠️ INVALID FORMAT</b>\nMissing patch values lor!", "negative");
+      return;
+    }
 
     const [modCode, field, ...valueParts] = args;
-    const newValue = valueParts.join(" "); // Handles names with multiple words
+    const newValue = valueParts.join(" ");
 
     const current = await getModuleGrade(userId, modCode);
     if (!current) {
-        await replyWithFlavor(ctx, `Cannot find ${modCode} to patch!`, "negative");
+        await replyWithFlavor(ctx, `<b>❌ PATCH FAILED</b>\nCannot find <code>${modCode}</code> to patch!`, "negative");
         return;
     }
 
-    // Prepare current values as baseline
     let { moduleCode, moduleName, creditValue, grade, pointValue } = current;
 
-    // Apply the specific patch
     if (field === "code") moduleCode = newValue.toUpperCase();
     if (field === "name") moduleName = newValue;
     if (field === "cred") creditValue = parseInt(newValue, 10);
@@ -96,7 +114,6 @@ export function registerPatchCommand(bot: Telegraf): void {
       pointValue = GRADE_POINTS[grade] ?? current.pointValue;
     }
 
-    // 🔥 THE FIX: Calling with all 7 arguments in the correct order
     const result = await patchModuleGrade(
         userId, 
         modCode, 
@@ -108,9 +125,13 @@ export function registerPatchCommand(bot: Telegraf): void {
     );
 
     if (result.success) {
-      await replyWithFlavor(ctx, `✅ Hotfix deployed! *${modCode}* updated successfully.`, "positive");
+      await replyWithFlavor(
+        ctx, 
+        `<b>✅ HOTFIX DEPLOYED</b>\nModule <code>${modCode}</code> updated successfully in the branch.`, 
+        "positive"
+      );
     } else {
-      await replyWithFlavor(ctx, result.message, "negative");
+      await replyWithFlavor(ctx, `<b>❌ BUILD FAILED</b>\n${result.message}`, "negative");
     }
   });
 }

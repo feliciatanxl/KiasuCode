@@ -1,7 +1,6 @@
 /**
  * Dev-Lingua Persona Middleware
- * This middleware injects Singlish + developer jargon into every bot response
- * LGTM - no need to hardcode slang into each command, steady lah
+ * Now with HTML styling for a cleaner, steady UI!
  */
 
 import { Context, Middleware } from "telegraf";
@@ -16,6 +15,7 @@ function getRandomElement<T>(array: T[]): T {
 
 /**
  * Inject a random Dev-Lingua flavor into the message
+ * Uses HTML <i> tags to make the persona stand out
  */
 function injectDevLingua(
   message: string,
@@ -24,26 +24,24 @@ function injectDevLingua(
   const flavor = getRandomElement(DEV_LINGUA_FLAVORS[flavorType]);
 
   // Randomly choose whether to put flavor at start or end
+  // Styled with italics for that "Developer Comment" look
   if (Math.random() > 0.5) {
-    return `${message} - ${flavor}`;
+    return `${message}\n\n<i>- ${flavor} -</i>`;
   } else {
-    return `${flavor}: ${message}`;
+    return `<b>${flavor.toUpperCase()}:</b> ${message}`;
   }
 }
 
 /**
  * Main Dev-Lingua Middleware
- * Wraps the context's reply method to automatically inject flavor
+ * Wraps ctx.reply to automatically inject flavor and force HTML mode
  */
 export const devLinguaMiddleware: Middleware<Context> = async (
   ctx,
   next
 ) => {
-  // Save the original reply method and bind it directly to ctx
-  // This completely avoids the 'this' context error!
   const originalReply = ctx.reply.bind(ctx);
 
-  // Use an arrow function so TypeScript doesn't panic over 'this'
   ctx.reply = ((
     text: string,
     extra?: Parameters<Context["reply"]>[1]
@@ -51,42 +49,55 @@ export const devLinguaMiddleware: Middleware<Context> = async (
     let flavorType: keyof typeof DEV_LINGUA_FLAVORS = "casual";
 
     // Auto-detect flavor based on common response patterns
+    const lowerText = text.toLowerCase();
     if (
-      text.toLowerCase().includes("error") ||
-      text.toLowerCase().includes("failed") ||
-      text.toLowerCase().includes("invalid") ||
-      text.toLowerCase().includes("cannot")
+      lowerText.includes("error") ||
+      lowerText.includes("failed") ||
+      lowerText.includes("invalid") ||
+      lowerText.includes("cannot") ||
+      lowerText.includes("conflict")
     ) {
       flavorType = "negative";
     } else if (
-      text.toLowerCase().includes("success") ||
-      text.toLowerCase().includes("added") ||
-      text.toLowerCase().includes("updated") ||
-      text.toLowerCase().includes("committed")
+      lowerText.includes("success") ||
+      lowerText.includes("added") ||
+      lowerText.includes("updated") ||
+      lowerText.includes("committed") ||
+      lowerText.includes("deployed")
     ) {
       flavorType = "positive";
     }
 
-    // Inject the flavor and send
     const enhancedText = injectDevLingua(text, flavorType);
-    return originalReply(enhancedText, extra);
+
+    // Merge parse_mode: 'HTML' into extra options
+    const finalExtra = {
+      parse_mode: 'HTML' as const,
+      ...extra
+    };
+
+    return originalReply(enhancedText, finalExtra);
   }) as typeof ctx.reply;
 
-  // Continue to next middleware
   await next();
 };
 
 /**
  * Alternative: Selective Dev-Lingua Middleware
- * Use this explicitly in your command handlers for fine-grained control
+ * For manual calls where you want to specify the flavor type
  */
 export async function replyWithFlavor(
   ctx: Context,
   message: string,
-  flavorType: keyof typeof DEV_LINGUA_FLAVORS = "casual"
+  flavorType: keyof typeof DEV_LINGUA_FLAVORS = "casual",
+  extra: any = {} // Added this to pass options
 ): Promise<void> {
   const enhancedMessage = injectDevLingua(message, flavorType);
-  await ctx.reply(enhancedMessage);
+  // 🔥 THE FIX: Must include parse_mode HTML here!
+  await ctx.reply(enhancedMessage, { 
+    parse_mode: 'HTML', 
+    ...extra 
+  });
 }
 
 export default devLinguaMiddleware;

@@ -4,56 +4,63 @@ import { replyWithFlavor } from "../middleware/devLingua";
 
 /**
  * Handle the /drop command
- * Removes a module from the student's academic build and updates GPA
+ * Removes a module from the user's active branch
  */
 export async function handleDropCommand(ctx: Context): Promise<void> {
   const userId = ctx.from?.id;
+  if (!userId) return;
+
   const message = ctx.message;
+  if (!message || !("text" in message)) return;
 
-  // Type guard for message text - LGTM pattern to ensure safety
-  if (!userId || !message || !("text" in message)) return;
-
-  // Parse argument: "/drop IT101" -> "IT101"
-  const args = message.text.split(/\s+/);
-  const moduleCode = args[1]?.toUpperCase();
+  // 1. Parse argument
+  const args = message.text.split(/\s+/).slice(1);
+  const moduleCode = args[0]?.toUpperCase();
 
   if (!moduleCode) {
     await replyWithFlavor(
       ctx, 
-      "Usage: /drop <module_code>\nExample: /drop IT101", 
+      "<b>🗑️ DROP USAGE</b>\n\n" +
+      "Usage: <code>/drop &lt;module_code&gt;</code>\n" +
+      "Example: <code>/drop IT1111</code>", 
       "negative"
     );
     return;
   }
 
   try {
-    // Calling the existing query logic to drop the module from MySQL
+    // 2. Call the database query
     const result = await removeModuleGrade(userId, moduleCode);
-    
+
     if (result.success) {
       await replyWithFlavor(
         ctx, 
-        `✅ Build updated: ${moduleCode} has been dropped from the repository. GPA recalculated!`, 
+        `<b>✅ ROLLBACK SUCCESSFUL</b>\n\n` +
+        `Module <code>${moduleCode}</code> has been removed from your active branch repository.`, 
         "positive"
       );
     } else {
-      // Handles cases where moduleCode doesn't exist in DB
-      await replyWithFlavor(ctx, result.message, "negative");
+      await replyWithFlavor(
+        ctx, 
+        `<b>❌ DROP FAILED</b>\n${result.message}`, 
+        "negative"
+      );
     }
   } catch (error) {
     console.error("❌ Drop command error:", error);
     await replyWithFlavor(
       ctx, 
-      "Merge conflict during drop process lor! Check your connection.", 
+      "<b>⚠️ MERGE CONFLICT</b>\nError dropping module from the database lor!", 
       "negative"
     );
   }
 }
 
 /**
- * Register drop command handler
- * @param bot - Telegraf bot instance
+ * Register drop command handlers
  */
 export function registerDropCommand(bot: Telegraf): void {
   bot.command("drop", handleDropCommand);
+  bot.command("remove", handleDropCommand);
+  bot.command("delete", handleDropCommand);
 }

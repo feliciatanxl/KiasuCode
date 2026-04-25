@@ -18,13 +18,15 @@ export async function handleCheckoutCommand(ctx: Context): Promise<void> {
   if (args.length < 3) {
     await replyWithFlavor(
       ctx, 
-      "Wah lau, missing arguments! \nUsage: `/checkout <SCHOOL> <YEAR> <SEM>`\nExample: `/checkout NYP Y1 S1`", 
+      "<b>⚠️ MISSING ARGUMENTS</b>\n\n" +
+      "Usage: <code>/checkout &lt;SCHOOL&gt; &lt;YEAR&gt; &lt;SEM&gt;</code>\n" +
+      "Example: <code>/checkout NYP Y1 S1</code>", 
       "negative"
     );
     return;
   }
 
-  const [school, year, sem] = args;
+  const [school, year, sem] = args.map(arg => arg.toUpperCase());
   const db = getDatabase();
 
   try {
@@ -33,17 +35,23 @@ export async function handleCheckoutCommand(ctx: Context): Promise<void> {
       `UPDATE students 
        SET activeSchool = ?, activeYear = ?, activeSem = ? 
        WHERE userId = ?`,
-      [school.toUpperCase(), year.toUpperCase(), sem.toUpperCase(), userId]
+      [school, year, sem, userId]
     );
 
-    await replyWithFlavor(
-      ctx, 
-      `✅ Switched to branch: *${school.toUpperCase()} ➔ ${year.toUpperCase()} ➔ ${sem.toUpperCase()}*\nAll new commits will go here lor!`, 
-      "positive"
-    );
+    const responseMessage = 
+      "<b>📂 BRANCH SWITCH SUCCESSFUL</b>\n\n" +
+      "Target: <code>" + school + " ➜ " + year + " ➜ " + sem + "</code>\n\n" +
+      "All new commits will be deployed to this repository branch lor!";
+
+    await replyWithFlavor(ctx, responseMessage, "positive");
+    
   } catch (error) {
     console.error("❌ Checkout command error:", error);
-    await replyWithFlavor(ctx, "Merge conflict changing branches lor!", "negative");
+    await replyWithFlavor(
+      ctx, 
+      "<b>⚠️ MERGE CONFLICT</b>\nError changing branches! Database might be locked lor.", 
+      "negative"
+    );
   }
 }
 
@@ -52,5 +60,5 @@ export async function handleCheckoutCommand(ctx: Context): Promise<void> {
  */
 export function registerCheckoutCommand(bot: Telegraf): void {
   bot.command("checkout", handleCheckoutCommand);
-  bot.command("branch", handleCheckoutCommand); // Alias for Git lovers
+  bot.command("branch", handleCheckoutCommand); 
 }

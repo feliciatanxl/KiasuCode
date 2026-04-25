@@ -1,7 +1,7 @@
 import { Context } from "telegraf";
 import { CommandContext, GRADE_POINTS } from "../types";
 import { replyWithFlavor } from "../middleware/devLingua";
-import { getDatabase } from "../database/connection"; // Added to fetch context
+import { getDatabase } from "../database/connection";
 import { 
   ensureStudentProfile, 
   moduleExists, 
@@ -12,7 +12,6 @@ import {
 /**
  * Enhanced Parser: Now captures Module Name!
  * Format: /commit <CODE> <CREDITS> <GRADE> <FULL NAME>
- * Example: /commit IT1111 2 B Applied Math in Computing
  */
 function parseCommitArgs(args: string[]) {
   if (args.length < 3) return null;
@@ -20,12 +19,10 @@ function parseCommitArgs(args: string[]) {
   const moduleCode = args[0].toUpperCase();
   const creditValue = parseInt(args[1], 10);
   const grade = args[2].toUpperCase();
-  
-  // Grab everything after the 3rd argument as the name
   const moduleName = args.length > 3 ? args.slice(3).join(" ") : "Unnamed Module";
 
   if (!/^[A-Z]{2,3}\d{3,4}$/.test(moduleCode)) return null;
-  if (isNaN(creditValue) || creditValue < 1 || creditValue > 6) return null; // Increased max to 6 for flexibility
+  if (isNaN(creditValue) || creditValue < 1 || creditValue > 6) return null;
   if (!(grade in GRADE_POINTS)) return null;
 
   return { moduleCode, creditValue, grade, moduleName };
@@ -38,7 +35,6 @@ export async function handleCommitCommand(
   const db = getDatabase();
 
   try {
-    // 1. Fetch Active Branch Context first
     const [studentRows]: any = await db.query(
       "SELECT activeSchool, activeYear, activeSem FROM students WHERE userId = ?",
       [commandCtx.userId]
@@ -46,11 +42,13 @@ export async function handleCommitCommand(
 
     const activeContext = studentRows[0];
 
-    // Guardrail: Force user to /checkout if they haven't set a school yet
+    // Guardrail: HTML styled warning
     if (!activeContext || !activeContext.activeSchool) {
       await replyWithFlavor(
         ctx, 
-        "Wah lau, you haven't told me which school you are in! \nRun `/checkout <SCHOOL> <YEAR> <SEM>` first lor.", 
+        "<b>⚠️ NO ACTIVE BRANCH</b>\n\n" +
+        "Wah lau, you haven't told me which school you are in! \n" +
+        "Run <code>/checkout &lt;SCHOOL&gt; &lt;YEAR&gt; &lt;SEM&gt;</code> first lor.", 
         "negative"
       );
       return;
@@ -59,18 +57,21 @@ export async function handleCommitCommand(
     const parsed = parseCommitArgs(commandCtx.args);
 
     if (!parsed) {
-      await replyWithFlavor(ctx, "Invalid format! Use: `/commit IT101 4 A Module Name`", "negative");
+      await replyWithFlavor(
+        ctx, 
+        "<b>⚠️ INVALID COMMIT FORMAT</b>\n\n" +
+        "Usage: <code>/commit &lt;CODE&gt; &lt;CR&gt; &lt;GRADE&gt; &lt;NAME&gt;</code>\n" +
+        "Example: <code>/commit IT1111 4 A Applied Math</code>", 
+        "negative"
+      );
       return;
     }
 
     const { moduleCode, creditValue, grade, moduleName } = parsed;
     const pointValue = GRADE_POINTS[grade];
 
-    // 2. Ensure user exists in our logs
     await ensureStudentProfile(commandCtx.userId, commandCtx.username);
 
-    // 3. Check for duplicates in THIS specific branch
-    // (We pass school/sem info to avoid cross-school conflicts)
     const exists = await moduleExists(
         commandCtx.userId, 
         moduleCode, 
@@ -80,16 +81,19 @@ export async function handleCommitCommand(
     );
     
     if (exists) {
-      await replyWithFlavor(ctx, `You already committed ${moduleCode} in ${activeContext.activeSchool} ${activeContext.activeSem} lah!`, "negative");
+      await replyWithFlavor(
+        ctx, 
+        `<b>❌ MERGE CONFLICT</b>\n\n` +
+        `You already committed <code>${moduleCode}</code> to <b>${activeContext.activeSchool}</b> branch lah!`, 
+        "negative"
+      );
       return;
     }
 
-    // 4. Insert into DB with full enrichment
-    // Note: Make sure you update your insertModuleGrade in queries.ts to accept these extra fields!
     const result = await insertModuleGrade(
       commandCtx.userId,
       moduleCode,
-      moduleName, // New field
+      moduleName,
       creditValue,
       grade,
       pointValue,
@@ -98,24 +102,27 @@ export async function handleCommitCommand(
       activeContext.activeSem
     );
 
-    if (!result.success) {
-      throw new Error(`${result.message} | Details: ${result.error}`);
-    }
+    if (!result.success) throw new Error(result.message);
 
-    // 5. Recalculate GPA for the active school repository
     await updateStudentGPA(commandCtx.userId);
 
-    const responseMessage = `✅ **Module Deployed to ${activeContext.activeSchool}!**\n\n` +
-                             `Code: \`${moduleCode}\`\n` +
-                             `Name: *${moduleName}*\n` +
-                             `Credits: ${creditValue} CR\n` +
-                             `Grade: ${grade} (${pointValue} points)`;
-                             
+    // 🔥 The "Shiok" Success UI
+    const responseMessage = 
+        `<b>🚀 DEPLOYMENT SUCCESSFUL</b>\n\n` +
+        `<b>Branch:</b> <code>${activeContext.activeSchool} ➜ ${activeContext.activeSem}</code>\n` +
+        `<b>Module:</b> <code>${moduleCode}</code>\n` +
+        `<b>Title:</b> <i>${moduleName}</i>\n` +
+        `<b>Result:</b> <b>${grade}</b> (<code>${creditValue} CR</code>)`;
+                               
     await replyWithFlavor(ctx, responseMessage, "positive");
 
   } catch (error) {
-    console.error("❌ Commit command error:", error);
-    await replyWithFlavor(ctx, "Merge conflict during commit! Check your database connection lor.", "negative");
+    console.error("❌ Commit error:", error);
+    await replyWithFlavor(
+        ctx, 
+        "<b>⚠️ BUILD FAILED</b>\nMerge conflict during commit! Check your DB connection lor.", 
+        "negative"
+      );
   }
 }
 
@@ -123,7 +130,6 @@ export function registerCommitCommand(bot: any): void {
   bot.command("commit", async (ctx: Context) => {
     const from = ctx.message?.from;
     const message = ctx.message;
-
     if (!message || !("text" in message) || !from) return;
 
     const text = message.text;
