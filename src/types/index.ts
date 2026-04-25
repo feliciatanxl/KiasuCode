@@ -8,7 +8,7 @@ export interface StudentProfile {
   username: string;
   totalGPA: number;
   moduleCount: number;
-  activeSchool?: string; // e.g., NYP, ITE, NUS
+  activeSchool?: string; // The specific name, e.g., "NTU", "NYP"
   activeYear?: string; 
   activeSem?: string; 
   createdAt: Date;
@@ -36,33 +36,30 @@ export interface CommandContext {
   rawText: string;
 }
 
-/**
- * NEW: Grade Scale Architecture
- * We define the max GPA and the specific points for each institution type.
- */
 export interface GradeScale {
   max: number;
   points: Record<string, number>;
 }
 
+/**
+ * Grade Scale Architecture
+ * The "Mathematical Rules" for each system.
+ */
 export const GRADING_SCALES: Record<string, GradeScale> = {
-  // Poly System (4.0 Scale)
   POLY: {
     max: 4.0,
     points: { 
-      'DIST': 4.0, 'A': 4.0, 'B+': 3.5, 'B': 3.0, 
+      'ADIST': 4.0, 'A': 4.0, 'B+': 3.5, 'B': 3.0, 
       'C+': 2.5, 'C': 2.0, 'D+': 1.5, 'D': 1.0, 
       'F': 0.0, 'P': 0.0 
     }
   },
-  // ITE System (4.0 Scale)
   ITE: {
     max: 4.0,
     points: { 
       'DIST': 4.0, 'A': 4.0, 'B': 3.0, 'C': 2.0, 'D': 1.0, 'F': 0.0, 'P': 0.0 
     }
   },
-  // Local University System (5.0 Scale - NUS/NTU/SIT)
   UNI: {
     max: 5.0,
     points: { 
@@ -72,7 +69,6 @@ export const GRADING_SCALES: Record<string, GradeScale> = {
       'D+': 1.5, 'D': 1.0, 'F': 0.0, 'S': 0.0, 'U': 0.0 
     }
   },
-  // Fallback for unknown institutions
   DEFAULT: {
     max: 4.0,
     points: { 'A': 4.0, 'B': 3.0, 'C': 2.0, 'D': 1.0, 'F': 0.0 }
@@ -80,33 +76,40 @@ export const GRADING_SCALES: Record<string, GradeScale> = {
 };
 
 /**
+ * 🔥 THE SCHOOL RESOLVER
+ * Maps specific institutions to their respective grading scales.
+ */
+export const SCHOOL_RESOLVER: Record<string, string> = {
+  // Poly cluster
+  'NYP': 'POLY', 'SP': 'POLY', 'NP': 'POLY', 'RP': 'POLY', 'TP': 'POLY',
+  // ITE cluster
+  'ITE': 'ITE',
+  // University cluster (5.0 scale)
+  'NTU': 'UNI', 'NUS': 'UNI', 'SIT': 'UNI', 'SUTD': 'UNI', 'SMU': 'UNI'
+};
+
+/**
+ * Helper: Get the scale for a school name
+ */
+export function getScaleForSchool(schoolName: string): GradeScale {
+  const scaleKey = SCHOOL_RESOLVER[schoolName.toUpperCase()] || 'DEFAULT';
+  return GRADING_SCALES[scaleKey] || GRADING_SCALES.DEFAULT;
+}
+
+/**
  * Dev-Lingua flavor text pool
  */
 export const DEV_LINGUA_FLAVORS = {
   positive: [
-    "steady lah",
-    "LGTM",
-    "code shiok shiok",
-    "commit accepted",
-    "push accepted",
-    "no merge conflict here",
-    "wah shiok",
+    "steady lah", "LGTM", "code shiok shiok", "commit accepted", 
+    "push accepted", "no merge conflict here", "wah shiok"
   ],
   negative: [
-    "wah lau",
-    "error lah",
-    "git push rejected",
-    "merge conflict bro",
-    "debug needed",
-    "cannot lah",
+    "wah lau", "error lah", "git push rejected", 
+    "merge conflict bro", "debug needed", "cannot lah"
   ],
   casual: [
-    "chiong ah",
-    "lobang lor",
-    "can can",
-    "no problem lah",
-    "done deal",
-    "ship it",
+    "chiong ah", "lobang lor", "can can", "no problem lah", "done deal", "ship it"
   ],
 };
 
