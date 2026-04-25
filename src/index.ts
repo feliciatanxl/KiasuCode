@@ -25,7 +25,9 @@ import { registerLobangCommand } from "./commands/lobang";
 import { registerPatchCommand } from "./commands/patch";
 import { registerKaypohCommand } from "./commands/kaypoh";
 import { registerCheckoutCommand } from "./commands/checkout";
+import { registerSpecsCommand } from "./commands/specs";
 import { registerLogsCommand } from "./commands/logs";
+import { registerCopiumCommand } from "./commands/copium";
 
 /**
  * Global bot instance
@@ -61,6 +63,8 @@ async function initializeBot(): Promise<void> {
       { command: 'kaypoh', description: 'View your full module repository' },
       { command: 'drop', description: 'Drop a module from your repo' },
       { command: 'patch', description: 'Apply a hotfix to a module grade' },
+      { command: 'specs', description: 'Show GPA system' },
+      { command: 'copium', description: 'Simulate GPA if you score straight As (Thoughts and Prayers)' },
       { command: 'logs', description: 'View full commit history and CGPA summary' },
       { command: 'lobang', description: 'Pull the dev manual (Help)' }
     ]);
@@ -85,10 +89,12 @@ async function initializeBot(): Promise<void> {
     registerCheckoutCommand(bot);
     registerCommitCommand(bot);
     registerGpaCommand(bot);
+    registerCopiumCommand(bot);
     registerKaypohCommand(bot);
     registerDropCommand(bot);
     registerPatchCommand(bot);
     registerLobangCommand(bot);
+    registerSpecsCommand(bot);
     registerLogsCommand(bot);
     // TODO: Register more commands as we build:
     // - /start - welcome message + student profile creation
