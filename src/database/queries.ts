@@ -78,3 +78,97 @@ export async function updateStudentGPA(userId: number): Promise<void> {
     [newGPA || 0, count, userId]
   );
 }
+
+/**
+ * Retrieve student's current GPA and module count
+ */
+export async function getStudentProfile(userId: number): Promise<StudentProfile | null> {
+  const db = getDatabase();
+  const [rows]: any = await db.query(
+    "SELECT * FROM students WHERE userId = ?",
+    [userId]
+  );
+  return rows[0] || null;
+}
+
+/**
+ * Remove a specific module grade and recalculate GPA
+ * Steady lah, clean up the repo!
+ */
+export async function removeModuleGrade(
+  userId: number,
+  moduleCode: string
+): Promise<ApiResponse<null>> {
+  const db = getDatabase();
+  try {
+    const [result]: any = await db.query(
+      "DELETE FROM module_grades WHERE userId = ? AND moduleCode = ?",
+      [userId, moduleCode.toUpperCase()]
+    );
+
+    if (result.affectedRows === 0) {
+      return { success: false, message: "Module not found in your repo lor!" };
+    }
+
+    // Recalculate GPA after removal
+    await updateStudentGPA(userId);
+    
+    return { success: true, message: "Module removed and GPA updated!" };
+  } catch (error) {
+    return { success: false, message: "Remove failed lor", error: String(error) };
+  }
+}
+
+/**
+ * Retrieve a specific module grade for a student
+ */
+export async function getModuleGrade(
+  userId: number,
+  moduleCode: string
+): Promise<ModuleGrade | null> {
+  const db = getDatabase();
+  const [rows]: any = await db.query(
+    "SELECT * FROM module_grades WHERE userId = ? AND moduleCode = ?",
+    [userId, moduleCode.toUpperCase()]
+  );
+  return rows[0] || null;
+}
+
+/**
+ * Patch/Edit an existing module record
+ * Updates specific fields while keeping the build stable
+ */
+export async function patchModuleGrade(
+  userId: number,
+  oldModuleCode: string,
+  newModuleCode: string,
+  newCreditValue: number,
+  newGrade: string,
+  newPointValue: number
+): Promise<ApiResponse<null>> {
+  const db = getDatabase();
+  try {
+    const [result]: any = await db.query(
+      `UPDATE module_grades 
+       SET moduleCode = ?, creditValue = ?, grade = ?, pointValue = ? 
+       WHERE userId = ? AND moduleCode = ?`,
+      [
+        newModuleCode.toUpperCase(), 
+        newCreditValue, 
+        newGrade.toUpperCase(), 
+        newPointValue, 
+        userId, 
+        oldModuleCode.toUpperCase()
+      ]
+    );
+
+    if (result.affectedRows === 0) {
+      return { success: false, message: "Module not found in your repo lor!" };
+    }
+
+    await updateStudentGPA(userId);
+    return { success: true, message: "Module patched and GPA recalculated!" };
+  } catch (error) {
+    return { success: false, message: "Patch failed - database conflict lor", error: String(error) };
+  }
+}

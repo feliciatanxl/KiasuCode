@@ -46,6 +46,7 @@ export interface CommandContext {
  * Wah lau, must convert grades to points lor
  */
 export const GRADE_POINTS: Record<string, number> = {
+DIST: 4.0, 
   A: 4.0,
   "B+": 3.5,
   B: 3.0,

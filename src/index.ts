@@ -19,6 +19,10 @@ import { initializeDatabase, closeDatabase } from "./database/connection";
 import { initializeSchema } from "./database/schema";
 import { devLinguaMiddleware } from "./middleware/devLingua";
 import { registerCommitCommand } from "./commands/commit";
+import { registerGpaCommand } from "./commands/gpa";
+import { registerDropCommand } from "./commands/drop";
+import { registerLobangCommand } from "./commands/lobang";
+import { registerPatchCommand } from "./commands/patch";
 
 /**
  * Global bot instance
@@ -46,6 +50,15 @@ async function initializeBot(): Promise<void> {
     // The token comes from BotFather - chiong lah!
     bot = new Telegraf(config.telegram.token);
 
+    // This tells Telegram which commands to show in the menu lor!
+    await bot.telegram.setMyCommands([
+      { command: 'commit', description: 'Chiong your grades into the system' },
+      { command: 'gpa', description: 'Check your current Academic Build Status' },
+      { command: 'drop', description: 'Drop a module from your repo' },
+      { command: 'patch', description: 'Apply a hotfix to a module grade' },
+      { command: 'lobang', description: 'Pull the dev manual (Help)' }
+    ]);
+
     console.log("✅ Telegraf instance created - ready to chiong!");
 
     // Step 2: Initialize SQLite database
@@ -64,7 +77,10 @@ async function initializeBot(): Promise<void> {
     // Step 4: Register command handlers
     // /commit - add a module grade to student transcript
     registerCommitCommand(bot);
-
+    registerGpaCommand(bot);
+    registerDropCommand(bot);
+    registerPatchCommand(bot);
+    registerLobangCommand(bot);
     // TODO: Register more commands as we build:
     // - /start - welcome message + student profile creation
     // - /gpa - show current GPA
