@@ -3,12 +3,12 @@ import { replyWithFlavor } from "../middleware/devLingua";
 
 /**
  * Handle the /lobang command
- * Displays the updated developer manual with HTML-safe entities
+ * Displays the updated developer manual v2.1
  */
 export async function handleLobangCommand(ctx: Context): Promise<void> {
   const manual = `
-📂 <b>KiasuCode Dev Manual v2.0</b>
-<i>Build Status: STABLE</i> ✅
+📂 <b>KiasuCode Dev Manual v2.1</b>
+<i>Build Status: STABLE (SGT Synced)</i> ✅
 
 🔄 <b>BRANCHING</b>
 <code>/checkout &lt;SCHOOL&gt; &lt;YEAR&gt; &lt;SEM&gt;</code>

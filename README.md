@@ -1,148 +1,81 @@
-## KiasuCode v2.0 🚀
+## 📄 PROJECT\_MANIFEST: KiasuCode v2.1
 
-A Telegram bot for tracking academic progress across multiple schools, years, and semesters — with a unique Dev-Lingua personality combining Singlish and developer slang 🤖💬
+**"The Senior Pair Programmer for your Academic Build"**
 
-🟢 Status: Stable 
+🟢 **Status:** Stable | 🔵 **Environment:** Production (Cloud)
 
-🔵 Environment: Production (Cloud) 
+🟦 **Built With:** TypeScript, Telegraf | 🟠 **Database:** MySQL (Railway)
 
-🟦 Built With: TypeScript, Telegraf 
+---
 
-🟠 Database: MySQL (Railway)
+### 🚀 OVERVIEW
 
-━━━━━━━━━━━━━━━━━━
+KiasuCode is a production-grade Telegram bot architected to streamline academic grade tracking for students in Singapore. Developed with a "Senior Dev" persona, it guides users through their academic deployment cycle using a hybrid of Singlish and developer jargon.
 
-### Overview
+Unlike traditional calculators, KiasuCode uses a **Branching Architecture**. Instead of one messy list, records are separated by school, year, and semester. This prevents data pollution, ensures weighted GPA accuracy, and allows students to manage transitions (e.g., Poly to University) within a single repository.
 
-KiasuCode is a transcript and GPA tracking bot built for students who want to manage academic records across different institutions without mixing data together.
+---
 
-Instead of dumping everything into one messy system, KiasuCode uses a branch-like structure to separate records by school, year, and semester. This makes it easier to track progress accurately, calculate weighted GPA properly, and avoid data pollution.
+### 🏛️ TECHNICAL IMPLEMENTATION DETAILS
 
-━━━━━━━━━━━━━━━━━━
+This project highlights technical maturity through several key architectural decisions:
 
-### Key Features
+* **Targeted "Dev-Lingua" Utility:** Originally a global middleware, the personality layer was refactored into a targeted utility function (`replyWithFlavor`). This prevents state conflicts (like the "Double Wah Lau" bug) and ensures context-aware messaging for "Success," "Error," and "Casual" states.
+* **Robust Data Integrity:** Implemented a fail-safe onboarding logic. Since Telegram usernames are optional, the system automatically falls back to `first_name` or a generic "Student" identifier, ensuring 100% user capture without null values.
+* **SGT Timezone Synchronization:** To solve cloud server timezone discrepancies, the system leverages the `Intl.DateTimeFormat` API to sync all user reports to **Singapore Standard Time (SGT)**.
+* **State Management:** Utilizes `UPSERT` logic (`INSERT ... ON DUPLICATE KEY UPDATE`) to ensure student profiles and active branches are always in sync with the latest user interaction.
 
-🌿 Branching Architecture (/checkout) Switch between different academic contexts such as NYP Y1 S1 or future university semesters.
+---
 
-🎯 Chiong Projection Engine (/chiong) Dynamically calculates your grade "Error Budget" to tell you exactly how many B's or C's you can afford while still hitting your target CGPA.
+### 🎯 KEY FEATURES
 
-🛠️ Interactive Hotfixes (/patch) Edit module codes, names, or grades through inline buttons without touching the database manually.
+* 🌿 **Branching Architecture (**`/checkout`**):** Switch between academic contexts (e.g., NYP Y1 S1) to keep data isolated.
+* 📈 **Chiong Projection Engine (**`/chiong`**):** Dynamically calculates your "Error Budget"—telling you exactly how many B's or C's you can afford while hitting your target CGPA.
+* 🛠️ **Interactive Hotfixes (**`/patch`**):** Edit module codes, names, or grades through inline buttons.
+* 📊 **Dynamic GPA Engine:** Correctly handles Pass/Fail (P/S/U) modules by excluding them from GPA denominators while still counting total credits.
+* 🕵️ **Drill-Down Explorer (**`/kaypoh`**):** Audit full global history or inspect specific semesters for localized performance.
+* 💊 **Copium Simulator (**`/copium`**):** Forecast your final GPA by simulating "Dream Build" scenarios.
 
-📊 Dynamic GPA Engine Correctly handles Pass/Fail (P) modules by excluding them from GPA calculations while still counting total credits.
+---
 
-🕵️ Drill-Down Explorer (/kaypoh) View overall CGPA or inspect a specific branch to see localized semester performance.
+### 📁 PROJECT STRUCTURE
 
-🗣️ Dev-Lingua Personality Layer Adds Singlish + developer-style flavor text to bot responses for a more distinctive and fun user experience.
+* `src/index.ts`: Entry point, registers commands and error handling.
+* `src/commands/`: Individual modules for `/checkout`, `/commit`, `/chiong`, `/kaypoh`, etc.
+* `src/database/`: MySQL connection pooling and CRUD query logic.
+* `src/middleware/`: Dev-Lingua personality injection and response flavoring.
+* `src/types/`: Shared TypeScript interfaces for strict type-safety.
 
-━━━━━━━━━━━━━━━━━━
+---
 
-### Architecture
+### 🛠️ COMMAND REFERENCE
 
-🗄️ 1. Data Isolation Layer Uses MySQL with mysql2/promise for asynchronous queries and connection pooling. This allows the bot to:
+* `/start`: Initialize repository and capture profile data.
+* `/checkout <SCH> <YR> <SEM>`: Switch the active branch.
+* `/commit <CODE> <CR> <GR> <NAME>`: Deploy a new grade to the active branch.
+* `/kaypoh [SCH] [YR] [SEM]`: View filtered build history.
+* `/patch <CODE>`: Open the hotfix menu for a specific module.
+* `/chiong <CR_LEFT> <TARGET>`: Calculate your safety margin budget.
+* `/gpa`: Fetch instant Build Status and CGPA.
+* `/lobang`: Pull the Developer Manual (Help).
 
-* Separate records by institution and semester
-* Support weighted GPA calculations
-* Avoid data pollution across branches
+---
 
-🧩 2. Type-Safe Development Built with TypeScript using strict interfaces such as ModuleGrade and StudentProfile. This improves maintainability and reduces runtime mistakes.
+### 📈 RECENT UPDATES (v2.1)
 
-🎭 3. Personality Middleware A custom middleware wraps ctx.reply() globally and injects random Dev-Lingua flavor text. This keeps command handlers focused on logic while preserving a fun and consistent bot personality.
+* **Feature:** Integrated `/start` onboarding flow for immediate profile persistence.
+* **Fix:** Refactored middleware to utility function to prevent response duplication.
+* **Optimization:** Synchronized all bot timestamps to `Asia/Singapore` timezone.
+* **Security:** Implemented type-safe validation for all incoming command arguments.
 
-━━━━━━━━━━━━━━━━━━
+---
 
-### Project Structure
+### 🚀 AUTHOR & PHILOSOPHY
 
-```css
-KiasuCode/
-┣ src/
-┃ ┣ index.ts — Entry point, registers commands and middleware
-┃ ┣ commands/
-┃ ┃ ┣ checkout.ts — Branch switching logic
-┃ ┃ ┣ commit.ts — Add new grades
-┃ ┃ ┣ chiong.ts — Safety margin projection calculator
-┃ ┃ ┣ kaypoh.ts — Search and filtered history
-┃ ┃ ┣ lobang.ts — Developer manual & help UI
-┃ ┃ ┣ drop.ts — Delete modules
-┃ ┃ ┗ patch.ts — Interactive edit workflow
-┃ ┣ database/
-┃ ┃ ┣ connection.ts — MySQL connection pooling
-┃ ┃ ┗ queries.ts — CRUD and filtered queries
-┃ ┣ middleware/ — Personality injection and logging
-┃ ┗ types/ — Shared TypeScript interfaces
-┣ .env — Secrets and database credentials
-┗ package.json — Scripts and dependencies
-```
+**Developed by Felicia Tan** 
 
-━━━━━━━━━━━━━━━━━━
+KiasuCode is about more than just the math—it's about the vibes.
 
-### Getting Started
-
-✅ Prerequisites
-
-* Node.js 20+
-* MySQL Server
-* Telegram Bot Token from BotFather
-
-⚙️ Installation
-
-1. Clone the repository
-2. Move into the project folder
-3. Install dependencies
-4. Configure environment variables in .env
-5. Start development mode
-
-🔗 Repository URL [https://github.com/feliciatanxl/KiasuCode]
-
-━━━━━━━━━━━━━━━━━━
-
-### Commands
-
-📌 /checkout Switch active school, year, and semester Example: /checkout NYP Y1 S1
-
-📌 /commit Add a new grade to the active branch Example: /commit IT1111 4 A Applied Math
-
-📌 /chiong \<CREDITS\_LEFT> \<TARGET\_CGPA> Calculate the safety margin needed to hit your target. Example: /chiong 20 3.7
-
-📌 /kaypoh \[SCHOOL] \[YEAR] \[SEM] View GPA summary or filtered records Example: /kaypoh NYP Y1
-
-📌 /patch Open interactive edit menu to hotfix a grade Example: /patch IT1111
-
-📌 /drop Rollback/remove a module from your active branch. Example: /drop IT1111
-
-📌 /gpa Fetch instant CGPA and module count for your current school.
-
-📌 /lobang Displays the KiasuCode Developer Manual.
-
-━━━━━━━━━━━━━━━━━━
-
-### Engineering Notes
-
-This project was developed with AI-assisted prototyping for faster iteration and scaffolding.
-
-Core logic successfully designed, refined, and validated for production:
-
-* Multi-school branch isolation and GPA rules
-* Upsert (INSERT ... ON DUPLICATE KEY UPDATE) state management
-* Live schema migrations and strict MySQL handling (VARCHAR truncation, PK rules)
-* Middleware-based response injection
-
-━━━━━━━━━━━━━━━━━━
-
-### Project Status
-
-Shipped and steady lah 💪
-
-Currently live in production and fully functional. Successfully deployed to cloud infrastructure via Railway with a connected remote MySQL instance.
-
-Room for future enhancements:
-
-* 🔔 Reminder workflows
-* 🔗 FocusFlow integration
-
-━━━━━━━━━━━━━━━━━━
-
-Author
-
-Developed by Felicia Tan
-
-⭐ If you like this project, give it a star on GitHub.
+* **Build Status:** STABLE
+* **Merge Conflicts:** ZERO
+* **GPA:** Chiong-ing
