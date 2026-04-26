@@ -12,6 +12,7 @@ export async function handleAgakAgakCommand(ctx: Context): Promise<void> {
   const message = ctx.message;
   if (!userId || !message || !("text" in message)) return;
 
+  // Split by spaces but allow for better parsing
   const args = message.text.split(/\s+/).slice(1);
 
   // Usage: /agak_agak <MOD> <NAME> <SCORE> <WEIGHT> [TARGET]
@@ -21,8 +22,10 @@ export async function handleAgakAgakCommand(ctx: Context): Promise<void> {
   }
 
   const [mod, name, rawScore, rawWeight, rawTarget] = args;
-  const weight = parseFloat(rawWeight);
-  const targetPercentage = rawTarget ? parseFloat(rawTarget) : 80; // Default to 'A' (80%)
+  
+  // HOTFIX: Strip out '%' if the user accidentally types it
+  const weight = parseFloat(rawWeight.replace('%', ''));
+  const targetPercentage = rawTarget ? parseFloat(rawTarget.replace('%', '')) : 80; // Default to 'A' (80%)
   
   if (isNaN(weight)) {
     await replyWithFlavor(ctx, "Eh, the weightage must be a number leh! (e.g., 20)", "negative");
@@ -40,9 +43,10 @@ export async function handleAgakAgakCommand(ctx: Context): Promise<void> {
       achievedPercentage = (score / max);
     }
   } else {
-    const baseline = GRADE_THRESHOLDS[rawScore.toUpperCase()];
+    // HOTFIX: Explicit any cast to prevent TS indexing errors on custom types
+    const baseline = (GRADE_THRESHOLDS as any)[rawScore.toUpperCase()];
     if (baseline === undefined) {
-      await replyWithFlavor(ctx, "Wah lau, what grade is that? Use 18/20 or B+ format lor.", "negative");
+      await replyWithFlavor(ctx, `Wah lau, what is "${rawScore}"? Use 18/20 or B+ format lor.`, "negative");
       return;
     }
     achievedPercentage = baseline / 100;
@@ -58,7 +62,13 @@ export async function handleAgakAgakCommand(ctx: Context): Promise<void> {
   try {
     // 2. Commit to staging (Database)
     await queries.addModuleComponent(userId, mod, name, contributedPoints, weight);
-    const progress = await queries.getModuleProgress(userId, mod);
+    const rawProgress = await queries.getModuleProgress(userId, mod);
+    
+    // HOTFIX: Cast MySQL string decimals back to standard JavaScript Numbers
+    const progress = {
+      securedPoints: Number(rawProgress.securedPoints || 0),
+      totalWeightUsed: Number(rawProgress.totalWeightUsed || 0)
+    };
     
     const remainingWeight = 100 - progress.totalWeightUsed;
     
@@ -72,18 +82,21 @@ export async function handleAgakAgakCommand(ctx: Context): Promise<void> {
     // 4. Calculate needed marks for the remaining weightage
     const neededOnRemaining = ((targetPercentage - progress.securedPoints) / remainingWeight) * 100;
 
+    // Output formatter (prevents showing negative needed marks if they already secured the bag)
+    const displayNeeded = neededOnRemaining > 0 ? neededOnRemaining.toFixed(1) : "0.0";
+
     const response = 
       `📊 <b>SIMULATION: ${mod.toUpperCase()}</b>\n` +
       `Component <code>${name}</code> logged at <b>${(achievedPercentage * 100).toFixed(0)}%</b> intensity. ✅\n\n` +
       `<b>Secured:</b> ${progress.securedPoints.toFixed(1)} / ${progress.totalWeightUsed} pts\n` +
       `<b>Target:</b> ${targetPercentage}% overall\n\n` +
-      `👉 You need <b>${neededOnRemaining.toFixed(1)}%</b> on your remaining ${remainingWeight}% weightage.`;
+      `👉 You need <b>${displayNeeded}%</b> on your remaining ${remainingWeight}% weightage.`;
 
     await replyWithFlavor(ctx, response, "positive");
 
   } catch (error) {
     console.error("❌ Agak-Agak Error:", error);
-    await replyWithFlavor(ctx, "Simulation failed! Brain.exe stopped working.", "negative");
+    await replyWithFlavor(ctx, "GIT PUSH REJECTED: Simulation failed! Brain.exe stopped working.", "negative");
   }
 }
 
