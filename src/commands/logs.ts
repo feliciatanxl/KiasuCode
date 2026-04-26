@@ -2,7 +2,7 @@ import { Context, Telegraf, Markup } from "telegraf";
 import { getStudentHistory } from "../database/queries";
 import { getDatabase } from "../database/connection";
 import { replyWithFlavor } from "../middleware/devLingua";
-import { GRADING_SCALES } from "../types"; // 🔥 Critical Import
+import { GRADING_SCALES } from "../types"; 
 
 /**
  * Logic to generate the actual text report for a specific school
@@ -20,7 +20,7 @@ async function generateSchoolLog(ctx: Context, userId: number, school: string) {
   const maxGpa = schoolScale.max.toFixed(1);
 
   let report = `<b>📄 SYSTEM_LOG: ${school}_BUILD_HISTORY</b>\n`;
-  report += `<b>Timestamp:</b> <code>${new Date().toLocaleString()}</code>\n`;
+  report += `<b>Timestamp:</b> <code>${new Date().toLocaleString('en-SG', { timeZone: 'Asia/Singapore' })}</code>\n`;
   report += `<b>━━━━━━━━━━━━━━━━━━━━</b>\n\n`;
 
   let currentTerm = "";

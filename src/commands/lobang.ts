@@ -59,5 +59,5 @@ Remove a module from your active branch.
 export function registerLobangCommand(bot: Telegraf): void {
   bot.command("lobang", handleLobangCommand);
   bot.command("help", handleLobangCommand);
-  bot.command("man", handleLobangCommand); // Added 'man' for that true Linux feel!
+  bot.command("man", handleLobangCommand); 
 }
