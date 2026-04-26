@@ -29,6 +29,7 @@ import { registerSpecsCommand } from "./commands/specs";
 import { registerLogsCommand } from "./commands/logs";
 import { registerCopiumCommand } from "./commands/copium";
 import { registerChiongCommand } from "./commands/chiong";
+import { registerStartCommand } from "./commands/start";
 
 /**
  * Global bot instance
@@ -99,6 +100,7 @@ async function initializeBot(): Promise<void> {
     registerLobangCommand(bot);
     registerSpecsCommand(bot);
     registerLogsCommand(bot);
+    registerStartCommand(bot);
     // TODO: Register more commands as we build:
     // - /start - welcome message + student profile creation
     // - /gpa - show current GPA
