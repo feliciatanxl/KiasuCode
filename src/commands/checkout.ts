@@ -1,5 +1,5 @@
 import { Context, Telegraf } from "telegraf";
-import { getDatabase } from "../database/connection";
+import * as queries from "../database/queries";
 import { replyWithFlavor } from "../middleware/devLingua";
 
 /**
@@ -27,33 +27,22 @@ export async function handleCheckoutCommand(ctx: Context): Promise<void> {
   }
 
   const [school, year, sem] = args.map(arg => arg.toUpperCase());
-  const db = getDatabase();
 
   // 1. 🚀 THE USERNAME FIX: Extract and Fallback!
   const rawUsername = ctx.from?.username;
   const firstName = ctx.from?.first_name;
-  const dbUsername = rawUsername || firstName || "Student";
 
   try {
-    // 🚀 UPSERT Logic: 
-    // Now includes the username! If it changes, it updates automatically.
-    const query = `
-      INSERT INTO students (userId, username, activeSchool, activeYear, activeSem)
-      VALUES (?, ?, ?, ?, ?)
-      ON DUPLICATE KEY UPDATE
-        username = VALUES(username),
-        activeSchool = VALUES(activeSchool),
-        activeYear = VALUES(activeYear),
-        activeSem = VALUES(activeSem);
-    `;
+    // 2. Ensure the student profile exists first (this handles the username logic)
+    await queries.ensureStudentProfile(userId, rawUsername, firstName);
 
-    // 2. Pass dbUsername into the query parameters
-    await db.query(query, [userId, dbUsername, school, year, sem]);
+    // 3. Update the branch and save the OLD one into 'prev' columns automatically
+    await queries.updateStudentBranch(userId, school, year, sem);
 
     const responseMessage = 
       "<b>📂 BRANCH SWITCH SUCCESSFUL</b>\n\n" +
       "Target: <code>" + school + " ➜ " + year + " ➜ " + sem + "</code>\n\n" +
-      "All new commits will be deployed to this repository branch lor!";
+      "<i>Previous branch saved to reflog. Run <code>/revert_branch</code> to jump back!</i>";
 
     await replyWithFlavor(ctx, responseMessage, "positive");
     

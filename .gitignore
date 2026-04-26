@@ -432,3 +432,4 @@ FodyWeavers.xsd
 .env
 .env.example
 schema.sql
+dist/

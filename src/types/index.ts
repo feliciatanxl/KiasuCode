@@ -6,13 +6,14 @@
 export interface StudentProfile {
   userId: number;
   username: string;
+  activeSchool: string;
+  activeYear: string;     // Add this
+  activeSemester: string; // Add this
   totalGPA: number;
   moduleCount: number;
-  activeSchool?: string; // The specific name, e.g., "NTU", "NYP"
-  activeYear?: string; 
-  activeSem?: string; 
-  createdAt: Date;
-  updatedAt: Date;
+  prevSchool?: string;    // Add this (optional since it might be null)
+  prevYear?: string;      // Add this (optional)
+  prevSemester?: string;  // Add this (optional)
 }
 
 export interface ModuleGrade {
@@ -73,6 +74,14 @@ export const GRADING_SCALES: Record<string, GradeScale> = {
     max: 4.0,
     points: { 'A': 4.0, 'B': 3.0, 'C': 2.0, 'D': 1.0, 'F': 0.0 }
   }
+};
+
+export const GRADE_THRESHOLDS: Record<string, number> = {
+  'DIST': 80, 'A': 80, 
+  'B+': 75,   'B': 70, 
+  'C+': 65,   'C': 60, 
+  'D+': 55,   'D': 50, 
+  'F': 0
 };
 
 /**

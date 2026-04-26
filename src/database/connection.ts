@@ -50,21 +50,23 @@ export async function initializeDatabase(): Promise<void> {
     const connectionUri = process.env.MYSQL_URL;
 
     if (connectionUri) {
-      // 🚀 CLOUD MODE: Connect using the single URL string
+      // 🚀 CLOUD MODE: Railway provides the full string (Host, User, Pass, Port, DB)
       pool = mysql.createPool(connectionUri);
       console.log("🚀 Connected via Railway MYSQL_URL - Cloud deployment active!");
     } else {
-      // 💻 LOCAL MODE: Connect using separate ENV variables
+      // 💻 LOCAL MODE: Connect using your separate .env variables
       pool = mysql.createPool({
         host: process.env.DB_HOST || "localhost",
+        // Convert the string from .env to a Number, fallback to 3306
+        port: Number(process.env.DB_PORT) || 3306, 
         user: process.env.DB_USER || "root",
         password: process.env.DB_PASSWORD || "",
-        database: process.env.DB_NAME || "kiasucode",
+        database: process.env.DB_NAME || "kiasucode_test",
         waitForConnections: true,
         connectionLimit: 10,
         queueLimit: 0,
       });
-      console.log("💻 Connected via Local Config - Development mode steady!");
+      console.log(`💻 Connected via Local Config (Port: ${process.env.DB_PORT || 3306}) - Development mode steady!`);
     }
 
     // 2. Test the connection
