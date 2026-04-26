@@ -8,15 +8,22 @@ import {
 
 /**
  * Ensures a student profile exists in the DB.
+ * Safely falls back to first name, and updates if username changes!
  */
 export async function ensureStudentProfile(
   userId: number,
-  username: string
+  rawUsername?: string,
+  firstName?: string
 ): Promise<void> {
   const db = getDatabase();
+  
+  // 1. The Fallback Fix
+  const dbUsername = rawUsername || firstName || "Student";
+
+  // 2. ON DUPLICATE KEY UPDATE (fixes the "stuck empty" bug)
   await db.query(
-    "INSERT IGNORE INTO students (userId, username) VALUES (?, ?)",
-    [userId, username]
+    "INSERT INTO students (userId, username) VALUES (?, ?) ON DUPLICATE KEY UPDATE username = ?",
+    [userId, dbUsername, dbUsername]
   );
 }
 

@@ -29,45 +29,26 @@ export async function handleCheckoutCommand(ctx: Context): Promise<void> {
   const [school, year, sem] = args.map(arg => arg.toUpperCase());
   const db = getDatabase();
 
-  // try {
-  //   // Update the student's active folder in the database
-  //   await db.query(
-  //     `UPDATE students 
-  //      SET activeSchool = ?, activeYear = ?, activeSem = ? 
-  //      WHERE userId = ?`,
-  //     [school, year, sem, userId]
-  //   );
-
-  //   const responseMessage = 
-  //     "<b>📂 BRANCH SWITCH SUCCESSFUL</b>\n\n" +
-  //     "Target: <code>" + school + " ➜ " + year + " ➜ " + sem + "</code>\n\n" +
-  //     "All new commits will be deployed to this repository branch lor!";
-
-  //   await replyWithFlavor(ctx, responseMessage, "positive");
-    
-  // } catch (error) {
-  //   console.error("❌ Checkout command error:", error);
-  //   await replyWithFlavor(
-  //     ctx, 
-  //     "<b>⚠️ MERGE CONFLICT</b>\nError changing branches! Database might be locked lor.", 
-  //     "negative"
-  //   );
-  // }
+  // 1. 🚀 THE USERNAME FIX: Extract and Fallback!
+  const rawUsername = ctx.from?.username;
+  const firstName = ctx.from?.first_name;
+  const dbUsername = rawUsername || firstName || "Student";
 
   try {
     // 🚀 UPSERT Logic: 
-    // If the userId doesn't exist, it INSERTs a new row.
-    // If it exists, it UPDATEs the existing row.
+    // Now includes the username! If it changes, it updates automatically.
     const query = `
-      INSERT INTO students (userId, activeSchool, activeYear, activeSem)
-      VALUES (?, ?, ?, ?)
+      INSERT INTO students (userId, username, activeSchool, activeYear, activeSem)
+      VALUES (?, ?, ?, ?, ?)
       ON DUPLICATE KEY UPDATE
+        username = VALUES(username),
         activeSchool = VALUES(activeSchool),
         activeYear = VALUES(activeYear),
         activeSem = VALUES(activeSem);
     `;
 
-    await db.query(query, [userId, school, year, sem]);
+    // 2. Pass dbUsername into the query parameters
+    await db.query(query, [userId, dbUsername, school, year, sem]);
 
     const responseMessage = 
       "<b>📂 BRANCH SWITCH SUCCESSFUL</b>\n\n" +
