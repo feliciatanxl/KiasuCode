@@ -32,7 +32,7 @@ export async function handleStartCommand(ctx: Context): Promise<void> {
     const welcome = 
       `<b>🚀 WELCOME TO KIASUCODE v2.1</b>\n` +
       `<i>Status: Student Repo Initialized</i>\n\n` +
-      `Hello <b>\${dbUsername}</b>! I'm your Senior Pair Programmer for your GPA build.\n\n` +
+      `Hello <b>${dbUsername}</b>! I'm your Senior Pair Programmer for your GPA build.\n\n` +
       `<b>HOW TO CHIONG:</b>\n` +
       `1. Run <code>/checkout &lt;SCH&gt; &lt;YR&gt; &lt;SEM&gt;</code> to set your branch.\n` +
       `2. Use <code>/commit</code> to deploy your grades.\n` +
