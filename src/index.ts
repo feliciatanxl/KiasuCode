@@ -82,7 +82,7 @@ async function initializeBot(): Promise<void> {
 
     // Step 3: Register global middleware
     // Dev-Lingua middleware runs on EVERY message - injects personality everywhere!
-    bot.use(devLinguaMiddleware);
+    // bot.use(devLinguaMiddleware);
 
     console.log("✅ Dev-Lingua middleware attached - all responses shiok!");
 

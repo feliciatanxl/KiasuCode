@@ -38,6 +38,10 @@ Fetch CGPA and module count for your current school.
 Calculate the safety margin needed to hit your target.
 <i>Example: /chiong 20 3.7</i>
 
+💊 <b>COPIUM INJECTION</b>
+<code>/copium</code>
+Emergency motivation when your build is failing.
+
 🗑️ <b>ROLLBACK</b>
 <code>/drop &lt;CODE&gt;</code>
 Remove a module from your active branch.
