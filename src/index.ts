@@ -35,6 +35,7 @@ import { registerRevertBranchCommand } from "./commands/revert_branch";
 import { registerRestoreCommand } from "./commands/restore";
 import { registerAgakAgakCommand } from "./commands/agak_agak";
 import { registerFlushCommand } from "./commands/flush";
+import { registerSpillCommand } from "./commands/spill";
 
 /**
  * Global bot instance
@@ -77,6 +78,7 @@ async function initializeBot(): Promise<void> {
       { command: 'agak_agak', description: 'Staging Environment: Forecast your exam targets (Can survive or not?)' },
       { command: 'salah', description: 'Alamak! Undo last /agak_agak entry' },
       { command: 'flush', description: 'Purge staging data (Target mod or --all)' },
+      { command: 'spill', description: 'Pull up the receipts for your simulated grades' },
       { command: 'copium', description: 'Simulate GPA if you score straight As (Thoughts and Prayers)' },
       { command: 'chiong', description: 'Stress test your target CGPA. See how much you can slack.' },
       { command: 'logs', description: 'View full commit history and CGPA summary' },
@@ -109,6 +111,7 @@ async function initializeBot(): Promise<void> {
     registerKaypohCommand(bot);
     registerDropCommand(bot);
     registerPatchCommand(bot);
+    registerSpillCommand(bot);
     registerLobangCommand(bot);
     registerFlushCommand(bot);
     registerRollbackCommand(bot);

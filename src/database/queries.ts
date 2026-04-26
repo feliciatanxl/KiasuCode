@@ -329,3 +329,25 @@ export async function resetModuleComponents(userId: number, moduleCode?: string)
     );
   }
 }
+
+/**
+ * Retrieve all individual components for a module (For the Overview Receipt)
+ */
+export async function getModuleComponents(userId: number, moduleCode: string): Promise<any[]> {
+  const db = getDatabase();
+  
+  // Notice the "AS" aliases. This ensures the output perfectly matches 
+  // the overview.ts code I gave you earlier!
+  const [rows]: any = await db.query(
+    `SELECT 
+      componentName AS component_name, 
+      pointsContributed AS points_contributed, 
+      weightage 
+     FROM module_components 
+     WHERE userId = ? AND moduleCode = ? 
+     ORDER BY createdAt ASC`,
+    [userId, moduleCode.toUpperCase()]
+  );
+  
+  return rows;
+}
