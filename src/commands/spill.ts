@@ -4,7 +4,7 @@ import { replyWithFlavor } from "../middleware/devLingua";
 
 /**
  * The Spill Command 
- * Vibe: Spilling the tea / Git Log style history
+ * Vibe: PIPELINE PASSED / Final Simulation Report
  */
 export async function handleSpillCommand(ctx: Context): Promise<void> {
   const userId = ctx.from?.id;
@@ -13,71 +13,72 @@ export async function handleSpillCommand(ctx: Context): Promise<void> {
 
   const args = message.text.split(/\s+/).slice(1);
   const mod = args[0];
+  
+  // 1. Get the Target (A, B+, or a number). Default to 'A' (80) if not provided.
+  const targetInput = args[1] || "A";
 
   if (!mod) {
-    await replyWithFlavor(ctx, "<b>⚠️ USAGE ERROR</b>\nUsage: <code>/spill &lt;MOD&gt;</code> (e.g., /spill IT1111)", "negative");
+    await replyWithFlavor(ctx, "<b>⚠️ USAGE ERROR</b>\nUsage: <code>/spill &lt;MOD&gt; &lt;TARGET&gt;</code>", "negative");
     return;
   }
 
   try {
-    // 1. Fetch Module Receipts & Student Profile
-    const components: any[] = await queries.getModuleComponents(userId, mod);
+    const components = await queries.getModuleComponents(userId, mod);
     const progress = await queries.getModuleProgress(userId, mod);
     const profile = await queries.getStudentProfile(userId);
     
     if (!components || components.length === 0) {
-      await replyWithFlavor(ctx, `Nothing to spill leh. Your staging area for <b>${mod.toUpperCase()}</b> is totally empty.`, "casual");
+      await replyWithFlavor(ctx, `Nothing to spill leh. Staging area for <b>${mod.toUpperCase()}</b> is empty!`, "casual");
       return;
     }
 
+    // --- MATH SECTION ---
+    const gradeMap: Record<string, number> = { "A": 80, "B+": 75, "B": 70, "C+": 65, "C": 60, "D+": 55, "D": 50 };
+    const targetPoints = gradeMap[targetInput.toUpperCase()] || Number(targetInput) || 80;
+    
     const securedPoints = Number(progress.securedPoints || 0);
     const totalWeightUsed = Number(progress.totalWeightUsed || 0);
-
-    // 2. Build the "Receipt" (Git Log Aesthetic)
-    let spillMsg = `☕ <b>SPILLING THE TEA: ${mod.toUpperCase()}</b>\n`;
-    spillMsg += `<code>Branch: staging/history</code>\n`;
-    spillMsg += `━━━━━━━━━━━━━━━━━━━━━\n`;
-
-    components.forEach((comp, index) => {
-      const pts = Number(comp.points_contributed || 0).toFixed(1);
-      const weight = Number(comp.weightage || 0);
-      // Logic: formatted to look like a git log entry
-      spillMsg += `[commit ${index + 1}] <b>${comp.component_name}</b>: +${pts} pts <i>(${weight}%)</i>\n`;
-    });
-
-    spillMsg += `━━━━━━━━━━━━━━━━━━━━━\n`;
-    spillMsg += `📊 <b>MODULE DAMAGE:</b>\n`;
-    spillMsg += `• Secured: ${securedPoints.toFixed(1)} / ${totalWeightUsed}%\n`;
-    
     const remainingWeight = 100 - totalWeightUsed;
-    if (remainingWeight > 0) {
-      spillMsg += `⏳ <b>Remaining:</b> ${remainingWeight}%\n\n`;
+    
+    // Calculate required average on remaining
+    const pointsNeeded = targetPoints - securedPoints;
+    const requiredAvg = (pointsNeeded / remainingWeight) * 100;
+
+    // --- THE PIPELINE UI ---
+    let spillMsg = `🚀 <b>PIPELINE PASSED:</b> 📊 <b>SIMULATION: ${mod.toUpperCase()}</b>\n`;
+    
+    // Log the latest component
+    const latestComp = components[components.length - 1];
+    spillMsg += `Component <b>${latestComp.component_name}</b> logged at 100% intensity. ✅\n\n`;
+
+    spillMsg += `• <b>Secured:</b> ${securedPoints.toFixed(1)} / ${totalWeightUsed} pts\n`;
+    spillMsg += `• <b>Target:</b> ${targetInput.toUpperCase()} (${targetPoints}% overall)\n`;
+    spillMsg += `━━━━━━━━━━━━━━━━━━━━━\n`;
+
+    if (requiredAvg > 100) {
+      spillMsg += `💀 <b>STATUS: FAILED</b>\nEven 100% on remaining can't hit target liao.`;
+    } else if (requiredAvg <= 0) {
+      spillMsg += `😎 <b>STATUS: SECURED</b>\nYou can literally 0% the rest and still hit target.`;
     } else {
-      spillMsg += `🏁 <b>Status:</b> Deployment Complete. GG!\n\n`;
+      spillMsg += `👉 You need <b>${requiredAvg.toFixed(1)}%</b> on your remaining <b>${remainingWeight}%</b> weightage.\n`;
+      spillMsg += `<i>(this message is agak agak)</i>\n`;
     }
 
-    // 3. Add the CGPA Summary (The "Master Branch" Status)
+    // --- CGPA SUMMARY (Footer) ---
     if (profile) {
       const gpa = Number(profile.totalGPA || 0).toFixed(2);
-      spillMsg += `🖥️ <b>SYSTEM CGPA SUMMARY:</b>\n`;
-      spillMsg += `• Current GPA: <code>${gpa}</code>\n`;
-      spillMsg += `• Env: <b>Production</b> 🚀`;
+      spillMsg += `\n🖥️ <b>SYSTEM CGPA:</b> <code>${gpa}</code> | 🚀 <b>Production</b>`;
     }
 
     await replyWithFlavor(ctx, spillMsg, "positive");
 
   } catch (error) {
     console.error("❌ Spill Error:", error);
-    await replyWithFlavor(ctx, "Failed to pull the receipts. Database.exe stopped working.", "negative");
+    await replyWithFlavor(ctx, "FAILED TO SPILL: Pipeline encountered an error.", "negative");
   }
 }
 
-/**
- * Register all Overview/Spill commands
- */
 export function registerSpillCommand(bot: Telegraf): void {
-  bot.command("spill", handleSpillCommand);     // The Tea
-  bot.command("logs", handleSpillCommand);      // The Dev favorite
-  bot.command("kaypoh", handleSpillCommand);    // The Singlish
-  bot.command("status", handleSpillCommand);    // The System check
+  bot.command("spill", handleSpillCommand);
+  bot.command("kaypoh", handleSpillCommand);
 }
