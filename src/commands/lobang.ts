@@ -48,7 +48,6 @@ Remove a module from your active branch.
 
 <b>━━━━━━━━━━━━━━━━━━</b>
 <i>Help:</i> <code>/lobang</code> or <code>/help</code>
-- no merge conflict here -
   `.trim();
 
   await replyWithFlavor(ctx, manual, "casual");

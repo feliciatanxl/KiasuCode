@@ -98,18 +98,25 @@ export function getScaleForSchool(schoolName: string): GradeScale {
 
 /**
  * Dev-Lingua flavor text pool
+ * Expanded with extra Singlish and DevOps flavor!
  */
 export const DEV_LINGUA_FLAVORS = {
   positive: [
     "steady lah", "LGTM", "code shiok shiok", "commit accepted", 
-    "push accepted", "no merge conflict here", "wah shiok"
+    "push accepted", "no merge conflict here", "wah shiok",
+    "swee lah", "pipeline passed", "deploy huat ah", "zero warnings bro",
+    "production ready sia", "solid code", "champion build"
   ],
   negative: [
     "wah lau", "error lah", "git push rejected", 
-    "merge conflict bro", "debug needed", "cannot lah"
+    "merge conflict bro", "debug needed", "cannot lah",
+    "jialat", "ggwp", "build rabak", "alamak syntax error",
+    "siao liao memory leak", "server down lor", "rollback required sia"
   ],
   casual: [
-    "chiong ah", "lobang lor", "can can", "no problem lah", "done deal", "ship it"
+    "chiong ah", "lobang lor", "can can", "no problem lah", "done deal", "ship it",
+    "relak one corner", "chin chai deploy", "syncing upstream",
+    "agak agak compiling", "kopi break first", "ping pong successful"
   ],
 };
 
