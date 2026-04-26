@@ -33,6 +33,11 @@ Open the interactive hotfix menu to edit a module.
 <code>/gpa</code>
 Fetch CGPA and module count for your current school.
 
+🎯 <b>CHIONG (PROJECTION)</b>
+<code>/chiong &lt;CREDITS_LEFT&gt; &lt;TARGET_CGPA&gt;</code>
+Calculate the safety margin needed to hit your target.
+<i>Example: /chiong 20 3.7</i>
+
 🗑️ <b>ROLLBACK</b>
 <code>/drop &lt;CODE&gt;</code>
 Remove a module from your active branch.
