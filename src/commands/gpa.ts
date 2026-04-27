@@ -12,7 +12,7 @@ export async function handleGpaCommand(ctx: Context): Promise<void> {
     
     // 1. Fetch the user's current environment context
     const [studentRows]: any = await db.query(
-      "SELECT activeSchool, activeYear, activeSem FROM students WHERE userId = ?",
+      "SELECT activeSchool, activeYear, activeSemester FROM students WHERE userId = ?",
       [userId]
     );
 
