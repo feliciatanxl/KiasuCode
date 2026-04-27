@@ -24,6 +24,7 @@ Push a component to staging.
 <i>Example: /agak_agak IT1234 Quiz 18/20 20</i>
 
 <code>/spill &lt;MOD&gt; [TARGET]</code>
+
 <b>PIPELINE REPORT:</b> Pull up the receipts and maintenance targets. ☕
 <i>Aliases: /logs, /kaypoh</i>
 
@@ -41,7 +42,7 @@ Stress test your target. See how much you can slack! 📈
 <code>/gpa</code>
 Check current Production CGPA.
 
-<code>/view [SCHOOL] [YEAR] [SEM]</code>
+<code>/kaypoh [SCHOOL] [YEAR] [SEM]</code>
 Drill down into your historical repo branches.
 
 🛠️ <b>MAINTENANCE</b>
