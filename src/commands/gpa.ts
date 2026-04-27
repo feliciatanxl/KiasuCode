@@ -48,7 +48,7 @@ export async function handleGpaCommand(ctx: Context): Promise<void> {
     const responseMessage = 
       `<b>📊 ACADEMIC BUILD STATUS</b>\n\n` +
       `<b>Institution:</b> <code>${currentSchool}</code>\n` +
-      `<b>Active Branch:</b> <code>${student.activeYear} ${student.activeSem}</code>\n` +
+      `<b>Active Branch:</b> <code>${student.activeYear} ${student.activeSemester}</code>\n` +
       `<b>━━━━━━━━━━━━━━━━━━</b>\n` +
       `📦 <b>Modules:</b> <code>${stats.count}</code>\n` +
       `📜 <b>Total Credits:</b> <code>${stats.credits} CR</code>\n` +
