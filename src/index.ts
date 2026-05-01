@@ -2,15 +2,6 @@
  * KiasuCode Telegram Bot - Main Entry Point
  * Initialize bot, attach middleware, register commands
  * Steady lah, let's ship this code!
- *
- * Architecture:
- * - Telegraf bot instance (core)
- * - Dev-Lingua middleware (personality)
- * - Commands handlers (functionality)
- * - Database connection (persistence)
- * - Error handling (reliability)
- *
- * LGTM - production-ready bot structure, no merge conflict here!
  */
 
 import { Telegraf } from "telegraf";
@@ -35,71 +26,55 @@ import { registerRevertBranchCommand } from "./commands/revert_branch";
 import { registerRestoreCommand } from "./commands/restore";
 import { registerAgakAgakCommand } from "./commands/agak_agak";
 import { registerFlushCommand } from "./commands/flush";
+import { registerDeadlineCommand } from "./commands/deadline";
+import { registerPipelineCommand } from "./commands/pipeline";
 
-/**
- * Global bot instance
- * Accessible throughout the application - steady lah
- */
+// --- CRON & QUERIES ---
+import cron from "node-cron"; 
+import * as queries from "./database/queries"; 
+
 let bot: Telegraf;
 
 /**
  * Initialize the bot
- * This function:
- * 1. Creates Telegraf instance with bot token
- * 2. Connects to MySQL database
- * 3. Registers global middleware (Dev-Lingua personality)
- * 4. Registers command handlers
- * 5. Sets up error handling
- *
- * @returns Promise<void>
- * @throws Error if initialization fails - wah lau, cannot proceed
+ * 1. Setup Telegraf
+ * 2. Connect MySQL (Async pool, not synchronous SQLite!)
+ * 3. Attach Dev-Lingua Personality
+ * 4. Register All Commands
  */
 async function initializeBot(): Promise<void> {
   try {
     console.log("🚀 Initializing KiasuCode bot...");
 
-    // Step 1: Create Telegraf bot instance with token
-    // The token comes from BotFather - chiong lah!
     bot = new Telegraf(config.telegram.token);
 
-    // This tells Telegram which commands to show in the menu lor!
+    // Update menu descriptions to reflect "Smart Router" logic
     await bot.telegram.setMyCommands([
       { command: 'checkout', description: 'Change your active School/Sem branch' },
       { command: 'commit', description: 'Chiong your grades into the system' },
       { command: 'gpa', description: 'Check your current Academic Build Status' },
       { command: 'kaypoh', description: 'View your full module repository' },
-      { command: 'drop', description: 'Drop a module from your repo' },
-      { command: 'patch', description: 'Apply a hotfix to a module grade' },
-      { command: 'specs', description: 'Show GPA system' },
-      { command: 'restore', description: 'Recover the last dropped module from the bin (Undo drop)' },
-      { command: 'rollback', description: 'Revert the last module commit (Undo)' },
-      { command: 'revert_branch', description: 'Switch to the previous branch (Undo checkout)' },
-      { command: 'agak_agak', description: 'Staging Environment: Forecast your exam targets (Can survive or not?)' },
-      { command: 'salah', description: 'Alamak! Undo last /agak_agak entry' },
-      { command: 'flush', description: 'Purge staging data (Target mod or --all)' },
-      { command: 'copium', description: 'Simulate GPA if you score straight As (Thoughts and Prayers)' },
-      { command: 'chiong', description: 'Stress test your target CGPA. See how much you can slack.' },
-      { command: 'logs', description: 'View full commit history and CGPA summary' },
+      { command: 'drop', description: 'Smart menu to remove modules or deadlines' },
+      { command: 'patch', description: 'Hotfix menu for modules or deadlines' },
+      { command: 'pipeline', description: 'View all active issues and target dates' },
+      { command: 'deadline', description: 'Pipeline Monitor: Open a new deadline issue' },
+      { command: 'agak_agak', description: 'Forecast exam targets (Can survive or not?)' },
+      { command: 'logs', description: 'View commit history and CGPA summary' },
       { command: 'lobang', description: 'Pull the dev manual (Help)' }
     ]);
 
     console.log("✅ Telegraf instance created - ready to chiong!");
 
-    // Step 2: Initialize SQLite database
-    // No async pool setup needed - SQLite is synchronous, steady lah!
+    // Initialize MySQL Database & Schema
     await initializeDatabase();
-
-    // Step 2b: Create database schema (tables, indexes, etc.)
     await initializeSchema();
 
-    // Step 3: Register global middleware
-    // Dev-Lingua middleware runs on EVERY message - injects personality everywhere!
-    // bot.use(devLinguaMiddleware);
+    // 🌟 UNCOMMENTED: Injecting personality into every response!
+    bot.use(devLinguaMiddleware); 
 
     console.log("✅ Dev-Lingua middleware attached - all responses shiok!");
 
-    // Step 4: Register command handlers
-    // /commit - add a module grade to student transcript
+    // Register all command handlers
     registerCheckoutCommand(bot);
     registerCommitCommand(bot);
     registerChiongCommand(bot);
@@ -107,8 +82,10 @@ async function initializeBot(): Promise<void> {
     registerGpaCommand(bot);
     registerCopiumCommand(bot);
     registerKaypohCommand(bot);
-    registerDropCommand(bot);
-    registerPatchCommand(bot);
+    registerDropCommand(bot);     // Smart Router for /drop
+    registerPatchCommand(bot);    // Smart Router for /patch
+    registerPipelineCommand(bot); // Dashboard view
+    registerDeadlineCommand(bot); // CRITICAL: Handles /deadline, /drop_issue, /patch_issue
     registerLobangCommand(bot);
     registerFlushCommand(bot);
     registerRollbackCommand(bot);
@@ -117,40 +94,24 @@ async function initializeBot(): Promise<void> {
     registerAgakAgakCommand(bot);
     registerStartCommand(bot);
     registerRestoreCommand(bot);
-    // TODO: Register more commands as we build:
-    // - /start - welcome message + student profile creation
-    // - /gpa - show current GPA
-    // - /history - list all committed modules
-    // - /stats - detailed breakdown by semester/module
-    // - /help - command reference
 
     console.log("✅ Commands registered - ready for action!");
 
-    // Step 5: Set up error handling
-    // Catch any unhandled errors from Telegram - must handle gracefully lor
-    bot.catch((err: any, ctx: any) => {
+    // Catch unhandled errors gracefully
+    bot.catch(async (err: any, ctx: any) => {
       console.error("❌ Bot error occurred:", err);
       try {
-        ctx.reply(
-          `Oops, error lor! Our devs are debugging. Error: ${err.message}`
-        );
+        // 🌟 ADDED AWAIT: Ensures the error message actually ships
+        await ctx.reply(`Oops, error lor! Our devs are debugging. Error: ${err.message}`);
       } catch (e) {
         console.error("Failed to send error message:", e);
       }
     });
 
-    console.log(
-      "✅ Error handling configured - production-ready safety net!"
-    );
-
-    // Step 6: Set up graceful shutdown handlers
-    // Clean up resources when process exits - no resource leak!
+    // Handle graceful shutdowns
     process.on("SIGINT", shutdownBot);
     process.on("SIGTERM", shutdownBot);
 
-    console.log("✅ Shutdown handlers registered - steady lah!");
-
-    // ALL SYSTEMS GO! 🚀
     console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     console.log("🎉 KiasuCode bot initialized - wah shiok!");
     console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
@@ -160,48 +121,44 @@ async function initializeBot(): Promise<void> {
   }
 }
 
-/**
- * Start the bot and begin polling for updates
- * Telegraf will continuously check for new messages from Telegram servers
- * This is the main blocking call - bot runs here until SIGINT/SIGTERM
- *
- * @returns Promise<void>
- */
 async function startBot(): Promise<void> {
   try {
     console.log("🤖 Starting bot polling...");
     await bot.launch();
-    console.log("✅ Bot is live and polling! - commit accepted!");
+    console.log("✅ Bot is live! - commit accepted!");
+
+    // --- PIPELINE MONITOR (CRON JOB) ---
+    // Runs every 1 minute for testing; update to hourly for production
+    cron.schedule('* * * * *', async () => {
+      try {
+        const upcoming = await queries.getUpcomingDeadlines(); 
+
+        for (const issue of upcoming) {
+          const dateObj = new Date(issue.due_date);
+          const dateString = dateObj.toLocaleDateString('en-SG');
+
+          const warningMsg = `⚠️ <b>PIPELINE WARNING!</b>\n\nTask: <b>${issue.task_name.replace(/_/g, " ")}</b>\nTarget Deployment: <code>${dateString}</code>\n\nStatus: <b>CRITICAL</b>. You have less than 72 hours. Stop slacking and chiong immediately! 🚀`;
+
+          await bot.telegram.sendMessage(issue.userId, warningMsg, { parse_mode: "HTML" });
+        }
+      } catch (error) {
+        console.error("❌ Pipeline Monitor Error:", error);
+      }
+    }, {
+      timezone: "Asia/Singapore"
+    });
   } catch (error) {
     console.error("❌ Failed to start bot:", error);
     throw error;
   }
 }
 
-/**
- * Graceful shutdown handler
- * Called when process receives SIGINT (Ctrl+C) or SIGTERM (kill signal)
- * Closes database connections and stops bot polling cleanly
- * No resource leaks lor - ship it!
- *
- * @returns Promise<void>
- */
 async function shutdownBot(): Promise<void> {
-  console.log("\n🛑 Shutdown signal received - graceful shutdown initiated...");
-
+  console.log("\n🛑 Shutdown signal received...");
   try {
-    // Step 1: Stop the bot from polling new messages
-    if (bot) {
-      await bot.stop();
-      console.log("✅ Bot stopped - no more polling");
-    }
-
-    // Step 2: Close SQLite database (synchronous operation)
-    // No async needed - SQLite closes instantly, steady lah!
+    if (bot) await bot.stop();
     await closeDatabase();
-    console.log("✅ Database closed - steady lah!");
-
-    console.log("🚀 Graceful shutdown complete - code shipped successfully!");
+    console.log("🚀 Graceful shutdown complete - code shipped!");
     process.exit(0);
   } catch (error) {
     console.error("❌ Error during shutdown:", error);
@@ -209,20 +166,11 @@ async function shutdownBot(): Promise<void> {
   }
 }
 
-/**
- * Main entry point
- * This is where the magic starts - LGTM!
- */
 async function main(): Promise<void> {
-  // Initialize everything
   await initializeBot();
-
-  // Start polling for messages
   await startBot();
 }
 
-// Run the main function
-// If any error occurs, process exits with code 1 - production safety
 main().catch((error) => {
   console.error("Fatal error:", error);
   process.exit(1);

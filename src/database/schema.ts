@@ -30,6 +30,17 @@ export async function initializeSchema(): Promise<void> {
       )
     `);
 
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS deadlines (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        userId BIGINT NOT NULL,
+        task_name VARCHAR(255) NOT NULL,
+        due_date DATETIME NOT NULL,
+        status VARCHAR(50) DEFAULT 'OPEN',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     console.log("✅ MySQL database schema initialized - LGTM!");
   } catch (error) {
     console.error("❌ Schema initialization failed - wah lau:", error);

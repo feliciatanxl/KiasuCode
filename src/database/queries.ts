@@ -61,6 +61,10 @@ export async function insertModuleGrade(
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [userId, moduleCode.toUpperCase(), moduleName, creditValue, grade.toUpperCase(), pointValue, school.toUpperCase(), year.toUpperCase(), sem.toUpperCase()]
     );
+
+    // 🌟 ADD THIS LINE: Recalculate and sync the GPA after inserting!
+    await updateStudentGPA(userId);
+
     return { success: true, message: "Module committed to branch!" };
   } catch (error) {
     return { success: false, message: "Database insert failed lor", error: String(error) };
@@ -328,4 +332,64 @@ export async function resetModuleComponents(userId: number, moduleCode?: string)
       [userId]
     );
   }
+}
+
+// --- DEADLINE / PIPELINE MONITOR QUERIES ---
+
+/**
+ * Open a new deadline issue
+ */
+export async function addDeadline(userId: number, taskName: string, dueDate: Date): Promise<void> {
+  const db = getDatabase();
+  await db.query(
+    "INSERT INTO deadlines (userId, task_name, due_date) VALUES (?, ?, ?)",
+    [userId, taskName, dueDate]
+  );
+}
+
+/**
+ * Fetch upcoming critical deadlines
+ */
+export async function getUpcomingDeadlines(): Promise<any[]> {
+  const db = getDatabase();
+  const [rows]: any = await db.query(
+    "SELECT * FROM deadlines WHERE status = 'OPEN' AND due_date BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 3 DAY)"
+  );
+  return rows;
+}
+
+/**
+ * Fetch all OPEN deadlines for a specific user
+ */
+export async function getUserDeadlines(userId: number): Promise<any[]> {
+  const db = getDatabase();
+  const [rows]: any = await db.query(
+    "SELECT * FROM deadlines WHERE userId = ? AND status = 'OPEN' ORDER BY due_date ASC",
+    [userId]
+  );
+  return rows;
+}
+
+/**
+ * Delete a deadline by its ID (Drop Issue)
+ */
+export async function removeDeadline(userId: number, issueId: number): Promise<boolean> {
+  const db = getDatabase();
+  const [result]: any = await db.query(
+    "DELETE FROM deadlines WHERE userId = ? AND id = ?",
+    [userId, issueId]
+  );
+  return result.affectedRows > 0;
+}
+
+/**
+ * Update a deadline's target date by its ID (Patch Issue)
+ */
+export async function updateDeadline(userId: number, issueId: number, newDueDate: Date): Promise<boolean> {
+  const db = getDatabase();
+  const [result]: any = await db.query(
+    "UPDATE deadlines SET due_date = ? WHERE userId = ? AND id = ?",
+    [newDueDate, userId, issueId]
+  );
+  return result.affectedRows > 0;
 }
