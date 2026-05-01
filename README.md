@@ -1,5 +1,3 @@
----
-
 ### 📄 PROJECT\_MANIFEST: KiasuCode v3.0
 
 **"The Enterprise-Grade Build Partner for your Academic Lifecycle"**

@@ -139,24 +139,43 @@ async function startBot(): Promise<void> {
     console.log("✅ Bot is live! - commit accepted!");
 
     // --- PIPELINE MONITOR (CRON JOB) ---
-    // Runs every 1 minute for testing; update to hourly for production
-    cron.schedule('* * * * *', async () => {
+    // Runs every day at 09:00 Singapore Time
+    cron.schedule('0 9 * * *', async () => {
       try {
         const upcoming = await queries.getUpcomingDeadlines(); 
 
-        for (const issue of upcoming) {
-          const dateObj = new Date(issue.due_date);
-          const dateString = dateObj.toLocaleDateString('en-SG');
+        if (upcoming.length === 0) return; // Silent if the pipeline is clear
 
-          const warningMsg = `⚠️ <b>PIPELINE WARNING!</b>\n\nTask: <b>${issue.task_name.replace(/_/g, " ")}</b>\nTarget Deployment: <code>${dateString}</code>\n\nStatus: <b>CRITICAL</b>. You have less than 72 hours. Stop slacking and chiong immediately! 🚀`;
+        // Group issues by user so we send one consolidated "Daily Briefing"
+        const userGroups: { [key: number]: any[] } = {};
+        upcoming.forEach(issue => {
+          if (!userGroups[issue.userId]) userGroups[issue.userId] = [];
+          userGroups[issue.userId].push(issue);
+        });
 
-          await bot.telegram.sendMessage(issue.userId, warningMsg, { parse_mode: "HTML" });
+        for (const [userId, issues] of Object.entries(userGroups)) {
+          let dailyBriefing = `🚀 <b>DAILY PIPELINE STAND-UP</b>\n`;
+          dailyBriefing += `Build Status: <b>CRITICAL</b> (Issues due < 72h)\n\n`;
+
+          issues.forEach((issue: any) => {
+            const dateObj = new Date(issue.due_date);
+            const displayDate = dateObj.toLocaleDateString('en-SG', { 
+              day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' 
+            });
+            
+            dailyBriefing += `• <b>${issue.task_name.replace(/_/g, " ")}</b>\n`;
+            dailyBriefing += `  └ 🎯 Target: <code>${displayDate}</code>\n\n`;
+          });
+
+          dailyBriefing += `Don't slack, time to chiong! 🔥`;
+
+          await bot.telegram.sendMessage(userId, dailyBriefing, { parse_mode: "HTML" });
         }
       } catch (error) {
         console.error("❌ Pipeline Monitor Error:", error);
       }
     }, {
-      timezone: "Asia/Singapore"
+      timezone: "Asia/Singapore" // 🇸🇬 Stays consistent with your deadline.ts fix
     });
   } catch (error) {
     console.error("❌ Failed to start bot:", error);
