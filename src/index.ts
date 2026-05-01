@@ -26,6 +26,7 @@ import { registerPipelineCommand } from "./commands/pipeline";
 import { registerRevertBranchCommand } from "./commands/revert_branch";
 import { registerRestoreCommand } from "./commands/restore";
 import { registerAgakAgakCommand } from "./commands/agak_agak";
+import { registerDeadlineCommand } from "./commands/deadline";
 import { registerFlushCommand } from "./commands/flush";
 
 import cron from "node-cron"; 
@@ -67,6 +68,8 @@ async function initializeBot(): Promise<void> {
       { command: 'flush', description: 'Purge staging data (Target mod or --all)' },
       { command: 'copium', description: 'Simulate GPA if you score straight As (Thoughts and Prayers)' },
       { command: 'chiong', description: 'Stress test your target CGPA. See how much you can slack.' },
+      { command: 'deadline', description: 'Manage your task deadlines - add, view, drop, patch'},
+      { command: 'pipeline', description: 'View your upcoming deadlines pipeline' },
       { command: 'logs', description: 'View full commit history and CGPA summary' },
       { command: 'lobang', description: 'Pull the dev manual (Help)' }
     ]);
@@ -99,6 +102,8 @@ async function initializeBot(): Promise<void> {
     registerLogsCommand(bot);
     registerAgakAgakCommand(bot);
     registerStartCommand(bot);
+    registerDeadlineCommand(bot);
+    registerPipelineCommand(bot);
     registerRestoreCommand(bot);
 
     console.log("✅ Commands registered - ready for action!");
