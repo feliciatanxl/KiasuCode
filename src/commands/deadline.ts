@@ -6,11 +6,17 @@ import { replyWithFlavor } from "../middleware/devLingua";
  * Helper function to parse multiple date formats and optional times
  */
 function parseFlexibleDate(input: string): Date {
+  // 1. Convert DD/MM/YYYY or DD-MM-YYYY to YYYY-MM-DD
   let normalized = input.replace(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/, '$3-$2-$1');
+  
+  // 2. If no time is provided, default to 11:59 PM
   if (!normalized.includes(':')) {
     normalized += ' 23:59:00';
   }
-  return new Date(normalized);
+
+  // 🌟 THE FIX: Force the string to be interpreted as Singapore Time (UTC+8)
+  // We append '+08:00' to the end of the string
+  return new Date(`${normalized}+08:00`);
 }
 
 /**
