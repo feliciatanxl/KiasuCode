@@ -394,3 +394,14 @@ export async function getUpcomingDeadlines(): Promise<any[]> {
   );
   return rows;
 }
+/**
+ * Retrieve all staging components for a module (Simulation data)
+ */
+export async function getModuleComponents(userId: number, moduleCode: string): Promise<any[]> {
+  const db = getDatabase();
+  const [rows]: any = await db.query(
+    "SELECT * FROM module_components WHERE userId = ? AND moduleCode = ? ORDER BY createdAt ASC",
+    [userId, moduleCode.toUpperCase()]
+  );
+  return rows;
+}
