@@ -77,7 +77,7 @@ Developed with a "Senior Dev" persona, the bot uses a hybrid of Singlish and dev
 
 ### 🚀 AUTHOR & PHILOSOPHY
 
-**Developed by Felicia Tan (Tan Xiu Li)**_Fresh Graduate, Nanyang Polytechnic (Diploma in Information Technology)_
+**Developed by Felicia Tan 
 
 KiasuCode is about more than just the math—it's about the vibes.
 
