@@ -27,14 +27,19 @@ export async function handleFlushCommand(ctx: Context): Promise<void> {
     callbackData = `flush_confirm:all`;
   } else {
     const progress = await queries.getModuleProgress(userId, mod);
-    if (progress.totalWeightUsed === 0) {
+    
+    // HOTFIX: Cast MySQL string decimals to Numbers to prevent strict equality and type errors
+    const totalWeightUsed = Number(progress.totalWeightUsed || 0);
+    const securedPoints = Number(progress.securedPoints || 0);
+
+    if (totalWeightUsed === 0) {
       await replyWithFlavor(ctx, `Nothing to flush for <b>${mod.toUpperCase()}</b> lor. Pipes already clean.`, "casual");
       return;
     }
     
     confirmMsg = 
       `⚠️ <b>FLUSH WARNING: ${mod.toUpperCase()}</b>\n` +
-      `You are about to throw away <b>${progress.securedPoints.toFixed(1)} points</b> secured across ${progress.totalWeightUsed}% weightage.\n\n` +
+      `You are about to throw away <b>${securedPoints.toFixed(1)} points</b> secured across ${totalWeightUsed}% weightage.\n\n` +
       `Confirm you want to buang this simulation?`;
     callbackData = `flush_confirm:${mod.toUpperCase()}`;
   }

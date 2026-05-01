@@ -348,17 +348,6 @@ export async function addDeadline(userId: number, taskName: string, dueDate: Dat
 }
 
 /**
- * Fetch upcoming critical deadlines
- */
-export async function getUpcomingDeadlines(): Promise<any[]> {
-  const db = getDatabase();
-  const [rows]: any = await db.query(
-    "SELECT * FROM deadlines WHERE status = 'OPEN' AND due_date BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 3 DAY)"
-  );
-  return rows;
-}
-
-/**
  * Fetch all OPEN deadlines for a specific user
  */
 export async function getUserDeadlines(userId: number): Promise<any[]> {
@@ -371,7 +360,7 @@ export async function getUserDeadlines(userId: number): Promise<any[]> {
 }
 
 /**
- * Delete a deadline by its ID (Drop Issue)
+ * Delete a deadline by its ID (Surgical Drop)
  */
 export async function removeDeadline(userId: number, issueId: number): Promise<boolean> {
   const db = getDatabase();
@@ -383,7 +372,7 @@ export async function removeDeadline(userId: number, issueId: number): Promise<b
 }
 
 /**
- * Update a deadline's target date by its ID (Patch Issue)
+ * Update a deadline's target date by its ID (Surgical Patch)
  */
 export async function updateDeadline(userId: number, issueId: number, newDueDate: Date): Promise<boolean> {
   const db = getDatabase();
@@ -392,4 +381,16 @@ export async function updateDeadline(userId: number, issueId: number, newDueDate
     [newDueDate, userId, issueId]
   );
   return result.affectedRows > 0;
+}
+
+/**
+ * Fetch upcoming critical deadlines for the automated Cron Job
+ * Returns OPEN tasks due within the next 3 days
+ */
+export async function getUpcomingDeadlines(): Promise<any[]> {
+  const db = getDatabase();
+  const [rows]: any = await db.query(
+    "SELECT * FROM deadlines WHERE status = 'OPEN' AND due_date BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 3 DAY)"
+  );
+  return rows;
 }

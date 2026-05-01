@@ -22,17 +22,19 @@ import { registerCopiumCommand } from "./commands/copium";
 import { registerChiongCommand } from "./commands/chiong";
 import { registerRollbackCommand } from "./commands/rollback";
 import { registerStartCommand } from "./commands/start";
+import { registerPipelineCommand } from "./commands/pipeline";
 import { registerRevertBranchCommand } from "./commands/revert_branch";
 import { registerRestoreCommand } from "./commands/restore";
 import { registerAgakAgakCommand } from "./commands/agak_agak";
 import { registerFlushCommand } from "./commands/flush";
-import { registerDeadlineCommand } from "./commands/deadline";
-import { registerPipelineCommand } from "./commands/pipeline";
 
-// --- CRON & QUERIES ---
 import cron from "node-cron"; 
-import * as queries from "./database/queries"; 
+import * as queries from "./database/queries";
 
+/**
+ * Global bot instance
+ * Accessible throughout the application - steady lah
+ */
 let bot: Telegraf;
 
 /**
@@ -54,12 +56,18 @@ async function initializeBot(): Promise<void> {
       { command: 'commit', description: 'Chiong your grades into the system' },
       { command: 'gpa', description: 'Check your current Academic Build Status' },
       { command: 'kaypoh', description: 'View your full module repository' },
-      { command: 'drop', description: 'Smart menu to remove modules or deadlines' },
-      { command: 'patch', description: 'Hotfix menu for modules or deadlines' },
-      { command: 'pipeline', description: 'View all active issues and target dates' },
-      { command: 'deadline', description: 'Pipeline Monitor: Open a new deadline issue' },
-      { command: 'agak_agak', description: 'Forecast exam targets (Can survive or not?)' },
-      { command: 'logs', description: 'View commit history and CGPA summary' },
+      { command: 'drop', description: 'Drop a module from your repo' },
+      { command: 'patch', description: 'Apply a hotfix to a module grade' },
+      { command: 'specs', description: 'Show GPA system' },
+      { command: 'restore', description: 'Recover the last dropped module from the bin (Undo drop)' },
+      { command: 'rollback', description: 'Revert the last module commit (Undo)' },
+      { command: 'revert_branch', description: 'Switch to the previous branch (Undo checkout)' },
+      { command: 'agak_agak', description: 'Staging Environment: Forecast your exam targets (Can survive or not?)' },
+      { command: 'salah', description: 'Alamak! Undo last /agak_agak entry' },
+      { command: 'flush', description: 'Purge staging data (Target mod or --all)' },
+      { command: 'copium', description: 'Simulate GPA if you score straight As (Thoughts and Prayers)' },
+      { command: 'chiong', description: 'Stress test your target CGPA. See how much you can slack.' },
+      { command: 'logs', description: 'View full commit history and CGPA summary' },
       { command: 'lobang', description: 'Pull the dev manual (Help)' }
     ]);
 
@@ -82,10 +90,8 @@ async function initializeBot(): Promise<void> {
     registerGpaCommand(bot);
     registerCopiumCommand(bot);
     registerKaypohCommand(bot);
-    registerDropCommand(bot);     // Smart Router for /drop
-    registerPatchCommand(bot);    // Smart Router for /patch
-    registerPipelineCommand(bot); // Dashboard view
-    registerDeadlineCommand(bot); // CRITICAL: Handles /deadline, /drop_issue, /patch_issue
+    registerDropCommand(bot);
+    registerPatchCommand(bot);
     registerLobangCommand(bot);
     registerFlushCommand(bot);
     registerRollbackCommand(bot);
