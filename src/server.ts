@@ -1,86 +1,145 @@
 import express from 'express';
-import cookieParser from 'cookie-parser'; // <-- Make sure this is installed!
-import jwt from 'jsonwebtoken';           // <-- Make sure this is installed!
+import cookieParser from 'cookie-parser';
+import jwt from 'jsonwebtoken';
+import crypto from 'crypto'; 
 import { getStudentProfile, getStudentHistory } from './database/queries';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || "local-dev-super-secret-key";
+const BOT_TOKEN = process.env.TELEGRAM_TOKEN || ""; 
 
-// Enable Express to read cookies from the browser
 app.use(cookieParser());
 
-// 🔐 AUTHENTICATION ROUTE (Handles the Magic Link from Telegram)
+/**
+ * Security Helper: Verify Telegram Login Data
+ * Re-creates the hash using your BOT_TOKEN to ensure the data is legit.
+ */
+function verifyTelegramAuth(data: any): boolean {
+    const { hash, ...userData } = data;
+    if (!hash || !BOT_TOKEN) return false;
+
+    // 1. Create the data-check string
+    const dataCheckString = Object.keys(userData)
+        .sort()
+        .map(key => `${key}=${userData[key]}`)
+        .join('\n');
+
+    // 2. Secret key is the SHA256 of the token
+    const secretKey = crypto.createHash('sha256').update(BOT_TOKEN).digest();
+
+    // 3. HMAC-SHA256 of the data string
+    const hmac = crypto.createHmac('sha256', secretKey)
+        .update(dataCheckString)
+        .digest('hex');
+
+    return hmac === hash;
+}
+
+// LANDING PAGE (The Desktop Login Gate)
+app.get('/', (req, res) => {
+    // If user already has a valid cookie, send them straight to the portal
+    if (req.cookies.kiasu_session) return res.redirect('/portal');
+
+    res.send(`
+    <!DOCTYPE html>
+    <html lang="en" class="dark text-white bg-[#111827]">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>KiasuCode | Enterprise Login</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+    </head>
+    <body class="flex items-center justify-center h-screen font-sans antialiased">
+        <div class="bg-[#1F2937] p-8 rounded-2xl border border-gray-800 shadow-2xl text-center max-w-sm w-full mx-4">
+            <div class="text-6xl mb-6">🚀</div>
+            <h1 class="text-3xl font-black mb-2 tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-500">KiasuCode</h1>
+            <p class="text-gray-400 text-sm mb-10">Deploy your grades from any device. Secure, synced, and password-less.</p>
+            
+            <div class="flex justify-center bg-gray-800/50 p-4 rounded-xl border border-gray-700/50">
+                <script async src="https://telegram.org/js/telegram-widget.js?22" 
+                    data-telegram-login="KiasuCode" 
+                    data-size="large" 
+                    data-radius="10"
+                    data-auth-url="/auth/telegram/callback" 
+                    data-request-access="write"></script>
+            </div>
+            
+            <p class="mt-8 text-[10px] text-gray-600 uppercase tracking-widest font-bold tracking-tighter">
+                🔒 Verified Auth Pipeline Active
+            </p>
+        </div>
+    </body>
+    </html>
+    `);
+});
+
+// 📡 TELEGRAM CALLBACK (Verifies the widget data and sets the cookie)
+app.get('/auth/telegram/callback', (req, res) => {
+    const isValid = verifyTelegramAuth(req.query);
+
+    if (!isValid) {
+        return res.status(403).send("<h1 style='text-align:center; margin-top:50px;'>❌ Security Verification Failed. Try again!</h1>");
+    }
+
+    // Success! Give them the session cookie
+    const userId = req.query.id;
+    res.cookie('kiasu_session', userId, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        maxAge: 24 * 60 * 60 * 1000 // 1 Day
+    });
+
+    res.redirect('/portal');
+});
+
+// 🔐 MAGIC LINK ROUTE (Handles links sent from the Telegram App)
 app.get('/auth/:token', (req, res) => {
     try {
-        // Verify the token hasn't been tampered with and hasn't expired
         const decoded = jwt.verify(req.params.token, JWT_SECRET) as { userId: number };
-        
-        // Give the browser an encrypted HTTP-only cookie valid for 24 hours
         res.cookie('kiasu_session', decoded.userId, { 
             httpOnly: true, 
-            secure: process.env.NODE_ENV === 'production', // Use secure cookies in production (Railway)
-            maxAge: 24 * 60 * 60 * 1000 // 1 Day
+            secure: process.env.NODE_ENV === 'production',
+            maxAge: 24 * 60 * 60 * 1000 
         });
-
-        // Redirect them to the secure portal
         res.redirect('/portal');
     } catch (error) {
-        console.error("JWT Verification Failed:", error);
-        res.status(401).send(`
-            <div style="font-family:sans-serif; text-align:center; margin-top:50px;">
-                <h1>⛔ Link Expired or Invalid.</h1>
-                <p>For your security, magic links expire after 1 hour.</p>
-                <p>Please open the KiasuCode Telegram Bot and click "Secure Web Login" again.</p>
-            </div>
-        `);
+        res.status(401).send("<h1 style='text-align:center; margin-top:50px;'>⛔ Link Expired. Request a new one in Telegram!</h1>");
     }
 });
 
-// 🛡️ PROTECTED PORTAL ROUTE (No User ID in the URL!)
+// 🛡️ SECURE PORTAL ROUTE
 app.get('/portal', async (req, res) => {
-    // 1. Check if the user has the secure session cookie
     const userId = req.cookies.kiasu_session;
 
-    if (!userId) {
-        return res.status(401).send(`
-            <div style="font-family:sans-serif; text-align:center; margin-top:50px;">
-                <h1>⛔ Access Denied.</h1>
-                <p>You are not logged in. Please log in via the KiasuCode Telegram Bot first.</p>
-            </div>
-        `);
-    }
+    if (!userId) return res.redirect('/');
 
     try {
-        // 2. Fetch real data using the securely verified User ID
         const profile = await getStudentProfile(userId);
         const history = await getStudentHistory(userId);
 
         if (!profile) {
-            return res.status(404).send(`<h1 style="font-family:sans-serif; text-align:center; margin-top:50px;">⚠️ Profile Not Found. Type /start in Telegram first!</h1>`);
+            return res.status(404).send("<h1 style='text-align:center; margin-top:50px;'>⚠️ Profile Not Found. Type /start in Telegram!</h1>");
         }
 
         const cgpa = Number(profile.totalGPA).toFixed(2);
         
-        // Generate the real table rows dynamically
         let tableRows = '';
         if (history && history.length > 0) {
             history.forEach(mod => {
                 tableRows += `
                 <tr class="border-b border-gray-800/50 hover:bg-gray-800/20 transition-colors">
-                    <td class="py-4"><span class="bg-gray-800 px-2 py-1 rounded font-mono text-xs text-brand">${mod.moduleCode}</span></td>
+                    <td class="py-4"><span class="bg-gray-800 px-2 py-1 rounded font-mono text-xs text-purple-400">${mod.moduleCode}</span></td>
                     <td class="py-4 text-gray-300">${mod.moduleName}</td>
                     <td class="py-4 text-gray-400">${mod.academicYear} ${mod.semester}</td>
                     <td class="py-4 text-gray-400 text-center">${mod.creditValue}</td>
                     <td class="py-4 text-center font-bold text-white">${mod.grade}</td>
-                </tr>
-                `;
+                </tr>`;
             });
         } else {
-            tableRows = `<tr><td colspan="5" class="py-4 text-center text-gray-500">No modules found in the repository. Run /commit in Telegram!</td></tr>`;
+            tableRows = `<tr><td colspan="5" class="py-4 text-center text-gray-500 italic">No modules found. Chiong it in Telegram!</td></tr>`;
         }
 
-        // Inject into the Dashboard UI
         const html = `
         <!DOCTYPE html>
         <html lang="en" class="dark">
@@ -97,32 +156,27 @@ app.get('/portal', async (req, res) => {
             </script>
         </head>
         <body class="bg-darkbg text-white font-sans antialiased">
-            
             <nav class="bg-cardbg border-b border-gray-800 p-4">
                 <div class="max-w-6xl mx-auto flex justify-between items-center">
                     <div class="text-xl font-bold flex items-center gap-2">
                         🚀 <span class="text-transparent bg-clip-text bg-gradient-to-r from-brand to-pink-500">KiasuCode Portal</span>
                     </div>
-                    <div>
-                        <span class="bg-gray-800 px-3 py-1 rounded-full text-sm text-gray-300">User: ${profile.username}</span>
+                    <div class="flex items-center gap-4">
+                        <span class="bg-gray-800 px-3 py-1 rounded-full text-xs text-gray-300">${profile.username}</span>
                     </div>
                 </div>
             </nav>
 
             <main class="max-w-6xl mx-auto p-6 mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
-                
                 <div class="md:col-span-1 space-y-6">
                     <div class="bg-cardbg p-6 rounded-xl border border-gray-800 shadow-lg">
-                        <h2 class="text-gray-400 text-sm uppercase tracking-wider font-semibold mb-2">Global CGPA</h2>
+                        <h2 class="text-gray-400 text-xs uppercase tracking-wider font-semibold mb-2">Global CGPA</h2>
                         <div class="text-5xl font-black text-white">${cgpa} <span class="text-lg text-gray-500 font-normal">/ Max</span></div>
-                        <div class="mt-4 text-sm text-brand flex items-center gap-1">
-                            Live Sync Active 🔄
-                        </div>
                     </div>
 
                     <div class="bg-cardbg p-6 rounded-xl border border-gray-800 shadow-lg opacity-50">
                         <h2 class="text-lg font-bold mb-4 flex items-center gap-2">📝 Record New Module</h2>
-                        <p class="text-sm text-gray-400 italic mb-4">Web commits coming soon in Phase 3!</p>
+                        <p class="text-xs text-gray-400 italic mb-4">Web commits coming soon in Phase 3!</p>
                         <button disabled class="w-full bg-gray-700 text-gray-400 font-bold py-2 px-4 rounded-lg cursor-not-allowed">
                             Commit to Database
                         </button>
@@ -130,12 +184,12 @@ app.get('/portal', async (req, res) => {
                 </div>
 
                 <div class="md:col-span-2">
-                    <div class="bg-cardbg p-6 rounded-xl border border-gray-800 shadow-lg h-full">
-                        <h2 class="text-lg font-bold mb-4 flex items-center gap-2">📂 Full Repository History</h2>
+                    <div class="bg-cardbg p-6 rounded-xl border border-gray-800 shadow-lg">
+                        <h2 class="text-lg font-bold mb-4">📂 Full Repository History</h2>
                         <div class="overflow-x-auto">
                             <table class="w-full text-left">
-                                <thead>
-                                    <tr class="border-b border-gray-700 text-gray-400 text-sm">
+                                <thead class="border-b border-gray-700 text-gray-400 text-xs uppercase">
+                                    <tr>
                                         <th class="pb-3 font-medium">Code</th>
                                         <th class="pb-3 font-medium">Name</th>
                                         <th class="pb-3 font-medium">Term</th>
@@ -152,8 +206,7 @@ app.get('/portal', async (req, res) => {
                 </div>
             </main>
         </body>
-        </html>
-        `;
+        </html>`;
         
         res.send(html);
     } catch (error) {
