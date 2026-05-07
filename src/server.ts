@@ -13,22 +13,17 @@ app.use(cookieParser());
 
 /**
  * Security Helper: Verify Telegram Login Data
- * Re-creates the hash using your BOT_TOKEN to ensure the data is legit.
  */
 function verifyTelegramAuth(data: any): boolean {
     const { hash, ...userData } = data;
     if (!hash || !BOT_TOKEN) return false;
 
-    // 1. Create the data-check string
     const dataCheckString = Object.keys(userData)
         .sort()
         .map(key => `${key}=${userData[key]}`)
         .join('\n');
 
-    // 2. Secret key is the SHA256 of the token
     const secretKey = crypto.createHash('sha256').update(BOT_TOKEN).digest();
-
-    // 3. HMAC-SHA256 of the data string
     const hmac = crypto.createHmac('sha256', secretKey)
         .update(dataCheckString)
         .digest('hex');
@@ -36,9 +31,8 @@ function verifyTelegramAuth(data: any): boolean {
     return hmac === hash;
 }
 
-// LANDING PAGE (The Desktop Login Gate)
+// 🏠 LANDING PAGE
 app.get('/', (req, res) => {
-    // If user already has a valid cookie, send them straight to the portal
     if (req.cookies.kiasu_session) return res.redirect('/portal');
 
     res.send(`
@@ -47,7 +41,7 @@ app.get('/', (req, res) => {
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>KiasuCode</title>
+        <title>KiasuCode | Login</title>
         <script src="https://cdn.tailwindcss.com"></script>
     </head>
     <body class="flex items-center justify-center h-screen font-sans antialiased">
@@ -74,26 +68,20 @@ app.get('/', (req, res) => {
     `);
 });
 
-// 📡 TELEGRAM CALLBACK (Verifies the widget data and sets the cookie)
+// 📡 TELEGRAM CALLBACK
 app.get('/auth/telegram/callback', (req, res) => {
     const isValid = verifyTelegramAuth(req.query);
+    if (!isValid) return res.status(403).send("Security Verification Failed");
 
-    if (!isValid) {
-        return res.status(403).send("<h1 style='text-align:center; margin-top:50px;'>❌ Security Verification Failed. Try again!</h1>");
-    }
-
-    // Success! Give them the session cookie
-    const userId = req.query.id;
-    res.cookie('kiasu_session', userId, {
+    res.cookie('kiasu_session', req.query.id, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        maxAge: 24 * 60 * 60 * 1000 // 1 Day
+        maxAge: 24 * 60 * 60 * 1000 
     });
-
     res.redirect('/portal');
 });
 
-// 🔐 MAGIC LINK ROUTE (Handles links sent from the Telegram App)
+// 🔐 MAGIC LINK ROUTE
 app.get('/auth/:token', (req, res) => {
     try {
         const decoded = jwt.verify(req.params.token, JWT_SECRET) as { userId: number };
@@ -104,23 +92,26 @@ app.get('/auth/:token', (req, res) => {
         });
         res.redirect('/portal');
     } catch (error) {
-        res.status(401).send("<h1 style='text-align:center; margin-top:50px;'>⛔ Link Expired. Request a new one in Telegram!</h1>");
+        res.status(401).send("⛔ Link Expired.");
     }
+});
+
+// 🚪 LOGOUT ROUTE
+app.get('/logout', (req, res) => {
+    res.clearCookie('kiasu_session');
+    res.redirect('/'); 
 });
 
 // 🛡️ SECURE PORTAL ROUTE
 app.get('/portal', async (req, res) => {
     const userId = req.cookies.kiasu_session;
-
     if (!userId) return res.redirect('/');
 
     try {
         const profile = await getStudentProfile(userId);
         const history = await getStudentHistory(userId);
 
-        if (!profile) {
-            return res.status(404).send("<h1 style='text-align:center; margin-top:50px;'>⚠️ Profile Not Found. Type /start in Telegram!</h1>");
-        }
+        if (!profile) return res.status(404).send("Profile Not Found");
 
         const cgpa = Number(profile.totalGPA).toFixed(2);
         
@@ -131,22 +122,22 @@ app.get('/portal', async (req, res) => {
                 <tr class="border-b border-gray-800/50 hover:bg-gray-800/20 transition-colors">
                     <td class="py-4"><span class="bg-gray-800 px-2 py-1 rounded font-mono text-xs text-purple-400">${mod.moduleCode}</span></td>
                     <td class="py-4 text-gray-300">${mod.moduleName}</td>
-                    <td class="py-4 text-gray-400">${mod.academicYear} ${mod.semester}</td>
+                    <td class="py-4 text-gray-400 text-xs">${mod.academicYear} ${mod.semester}</td>
                     <td class="py-4 text-gray-400 text-center">${mod.creditValue}</td>
                     <td class="py-4 text-center font-bold text-white">${mod.grade}</td>
                 </tr>`;
             });
         } else {
-            tableRows = `<tr><td colspan="5" class="py-4 text-center text-gray-500 italic">No modules found. Chiong it in Telegram!</td></tr>`;
+            tableRows = `<tr><td colspan="5" class="py-4 text-center text-gray-500 italic">No modules found.</td></tr>`;
         }
 
-        const html = `
+        res.send(`
         <!DOCTYPE html>
         <html lang="en" class="dark">
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>KiasuCode | ${profile.username}'s Portal</title>
+            <title>${profile.username}'s Portal</title>
             <script src="https://cdn.tailwindcss.com"></script>
             <script>
                 tailwind.config = {
@@ -156,13 +147,18 @@ app.get('/portal', async (req, res) => {
             </script>
         </head>
         <body class="bg-darkbg text-white font-sans antialiased">
-            <nav class="bg-cardbg border-b border-gray-800 p-4">
+            <nav class="bg-cardbg border-b border-gray-800 p-4 sticky top-0 z-50 backdrop-blur-md bg-opacity-80">
                 <div class="max-w-6xl mx-auto flex justify-between items-center">
                     <div class="text-xl font-bold flex items-center gap-2">
                         🚀 <span class="text-transparent bg-clip-text bg-gradient-to-r from-brand to-pink-500">KiasuCode Portal</span>
                     </div>
-                    <div class="flex items-center gap-4">
-                        <span class="bg-gray-800 px-3 py-1 rounded-full text-xs text-gray-300">${profile.username}</span>
+                    <div class="flex items-center gap-6">
+                        <span class="bg-gray-800 px-3 py-1 rounded-full text-xs text-gray-300 font-medium">
+                            ${profile.username}
+                        </span>
+                        <a href="/logout" class="text-[10px] text-gray-500 hover:text-red-400 transition-colors uppercase tracking-widest font-black flex items-center gap-1">
+                            Logout 🚪
+                        </a>
                     </div>
                 </div>
             </nav>
@@ -192,7 +188,7 @@ app.get('/portal', async (req, res) => {
                                     <tr>
                                         <th class="pb-3 font-medium">Code</th>
                                         <th class="pb-3 font-medium">Name</th>
-                                        <th class="pb-3 font-medium">Term</th>
+                                        <th class="pb-3 font-medium text-center">Term</th>
                                         <th class="pb-3 font-medium text-center">CR</th>
                                         <th class="pb-3 font-medium text-center">Grade</th>
                                     </tr>
@@ -206,11 +202,8 @@ app.get('/portal', async (req, res) => {
                 </div>
             </main>
         </body>
-        </html>`;
-        
-        res.send(html);
+        </html>`);
     } catch (error) {
-        console.error("Web routing error:", error);
         res.status(500).send("Database Error");
     }
 });
