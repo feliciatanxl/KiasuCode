@@ -12,7 +12,6 @@ export async function handleAgakAgakCommand(ctx: Context): Promise<void> {
   const message = ctx.message;
   if (!userId || !message || !("text" in message)) return;
 
-  // Split by spaces but allow for better parsing
   const args = message.text.split(/\s+/).slice(1);
 
   // Usage: /agak_agak <MOD> <NAME> <SCORE> <WEIGHT> [TARGET]

@@ -40,13 +40,13 @@ export async function handlePipelineCommand(ctx: Context): Promise<void> {
       const diffMs = dateObj.getTime() - now.getTime();
       const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
       
-      // 🎨 Urgency Logic
+      // Urgency Logic
       let urgency = "🟢"; // Chill
       if (diffDays <= 0) urgency = "🚨"; // Overdue!
       else if (diffDays <= 3) urgency = "🔴"; // Panic
       else if (diffDays <= 7) urgency = "🟡"; // Warning
 
-      // 🧠 Senior Dev Logic: Handle overdue strings gracefully
+      // Senior Dev Logic: Handle overdue strings gracefully
       const countdownText = diffDays > 0 ? `${diffDays} days left` : `OVERDUE!`;
 
       msg += `${urgency} <b>[Issue #${issue.id}] ${issue.task_name.replace(/_/g, " ")}</b>\n`;

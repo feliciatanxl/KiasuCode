@@ -14,7 +14,6 @@ function parseFlexibleDate(input: string): Date {
     normalized += ' 23:59:00';
   }
 
-  // 🌟 THE FIX: Force the string to be interpreted as Singapore Time (UTC+8)
   // We append '+08:00' to the end of the string
   return new Date(`${normalized}+08:00`);
 }
@@ -61,7 +60,7 @@ export async function handleDropIssue(ctx: Context): Promise<void> {
   if (!userId || !message || !("text" in message)) return;
 
   const args = message.text.split(/\s+/).slice(1);
-  const issueId = parseInt(args[0], 10); // 🌟 Parses the ID number
+  const issueId = parseInt(args[0], 10); 
 
   if (isNaN(issueId)) {
     await replyWithFlavor(ctx, "<b>⚠️ USAGE ERROR</b>\nUsage: <code>/drop_issue &lt;IssueID&gt;</code>\nCheck /pipeline for the ID!", "negative");
@@ -119,7 +118,6 @@ export function registerDeadlineCommand(bot: Telegraf): void {
   bot.command("deadline", handleDeadlineCommand);
   bot.command("milestone", handleDeadlineCommand);
   
-  // 🌟 MISSING LISTENERS ADDED HERE:
   bot.command("drop_issue", handleDropIssue);
   bot.command("patch_issue", handlePatchIssue);
 }

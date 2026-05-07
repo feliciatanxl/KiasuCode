@@ -13,7 +13,7 @@ export async function handleDropCommand(ctx: Context): Promise<void> {
 
   const args = message.text.split(/\s+/).slice(1);
 
-  // 🌟 LEVEL 1: THE SMART MENU
+  // LEVEL 1: THE SMART MENU
   // If they just type "/drop", show the GUI buttons
   if (args.length === 0) {
     await ctx.reply(
@@ -29,7 +29,7 @@ export async function handleDropCommand(ctx: Context): Promise<void> {
     return;
   }
 
-  // 🌟 LEVEL 2: DIRECT MODULE DROP
+  // LEVEL 2: DIRECT MODULE DROP
   // If they type "/drop IT1111", proceed with module removal logic
   const moduleCode = args[0]?.toUpperCase();
 

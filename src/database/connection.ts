@@ -50,11 +50,11 @@ export async function initializeDatabase(): Promise<void> {
     const connectionUri = process.env.MYSQL_URL;
 
     if (connectionUri) {
-      // 🚀 CLOUD MODE: Railway provides the full string (Host, User, Pass, Port, DB)
+      // CLOUD MODE: Railway provides the full string (Host, User, Pass, Port, DB)
       pool = mysql.createPool(connectionUri);
       console.log("🚀 Connected via Railway MYSQL_URL - Cloud deployment active!");
     } else {
-      // 💻 LOCAL MODE: Connect using your separate .env variables
+      // LOCAL MODE: Connect using your separate .env variables
       pool = mysql.createPool({
         host: process.env.DB_HOST || "localhost",
         // Convert the string from .env to a Number, fallback to 3306

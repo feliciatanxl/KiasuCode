@@ -18,7 +18,6 @@ export async function handleFlushCommand(ctx: Context): Promise<void> {
     return;
   }
 
-  // 🚀 EXTRA FEATURE: Pre-Flush Summary
   let confirmMsg = "";
   let callbackData = "";
 

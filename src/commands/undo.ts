@@ -63,7 +63,7 @@ export function registerUndoCommand(bot: Telegraf): void {
     }
   });
 
-  // --- 🔀 ACTION 2: UNDO CHECKOUT (The old revert_branch.ts) ---
+  // --- ACTION 2: UNDO CHECKOUT (The old revert_branch.ts) ---
   bot.action("btn_undo_checkout", async (ctx) => {
     const userId = ctx.from?.id;
     if (!userId) return;
@@ -89,7 +89,7 @@ export function registerUndoCommand(bot: Telegraf): void {
     }
   });
 
-  // --- ♻️ ACTION 3: RESTORE DROP (The old restore.ts) ---
+  // --- ACTION 3: RESTORE DROP (The old restore.ts) ---
   bot.action("btn_undo_drop", async (ctx) => {
     const userId = ctx.from?.id;
     if (!userId) return;

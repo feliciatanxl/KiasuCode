@@ -12,7 +12,7 @@ export async function handleStartCommand(ctx: Context): Promise<void> {
 
   const db = getDatabase();
 
-  // 1. 🚀 THE USERNAME FIX: Extract and Fallback
+  // 1. THE USERNAME FIX: Extract and Fallback
   const rawUsername = ctx.from?.username;
   const firstName = ctx.from?.first_name;
   const dbUsername = rawUsername || firstName || "Student";

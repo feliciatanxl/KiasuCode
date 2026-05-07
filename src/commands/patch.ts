@@ -21,7 +21,7 @@ export async function handlePatchCommand(ctx: Context): Promise<void> {
     args = messageText.split(/\s+/).slice(1);
   }
 
-  // 🌟 LEVEL 1: THE SMART MENU
+  // LEVEL 1: THE SMART MENU
   // If they just type "/patch" or click the Dashboard button, show the GUI buttons
   if (args.length === 0) {
     await ctx.reply(
@@ -37,7 +37,7 @@ export async function handlePatchCommand(ctx: Context): Promise<void> {
     return;
   }
 
-  // 🌟 LEVEL 2: DIRECT MODULE TARGETING
+  // LEVEL 2: DIRECT MODULE TARGETING
   // If they type "/patch IT1111", skip the menu and target the module directly!
   const moduleCode = args[0]?.toUpperCase();
 

@@ -62,7 +62,7 @@ export async function insertModuleGrade(
       [userId, moduleCode.toUpperCase(), moduleName, creditValue, grade.toUpperCase(), pointValue, school.toUpperCase(), year.toUpperCase(), sem.toUpperCase()]
     );
 
-    // 🌟 ADD THIS LINE: Recalculate and sync the GPA after inserting!
+    // ADD THIS LINE: Recalculate and sync the GPA after inserting!
     await updateStudentGPA(userId);
 
     return { success: true, message: "Module committed to branch!" };

@@ -58,7 +58,7 @@ export async function handleLogsCommand(ctx: Context): Promise<void> {
   const userId = ctx.from?.id;
   if (!userId) return;
 
-  // 🛡️ THE SENIOR DEV FIX: Safely extract text without strict type crashing!
+  // THE SENIOR DEV FIX: Safely extract text without strict type crashing!
   // If clicked from dashboard button, messageText is undefined.
   // If typed like "/logs NYP", messageText catches it.
   let requestedSchool = "";

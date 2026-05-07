@@ -93,7 +93,7 @@ export async function replyWithFlavor(
   extra: any = {} // Added this to pass options
 ): Promise<void> {
   const enhancedMessage = injectDevLingua(message, flavorType);
-  // 🔥 THE FIX: Must include parse_mode HTML here!
+  // THE FIX: Must include parse_mode HTML here!
   await ctx.reply(enhancedMessage, { 
     parse_mode: 'HTML', 
     ...extra 

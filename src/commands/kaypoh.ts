@@ -68,7 +68,7 @@ async function generateKaypohReport(userId: number, filterSchool?: string, filte
 }
 
 // ==========================================
-// 🛠️ UI GENERATORS FOR THE DRILL-DOWN MENU
+// UI GENERATORS FOR THE DRILL-DOWN MENU
 // ==========================================
 
 async function showYearMenu(ctx: Context, userId: number, school: string) {
@@ -124,14 +124,14 @@ async function showSemMenu(ctx: Context, userId: number, school: string, year: s
 }
 
 // ==========================================
-// 🚀 MAIN COMMAND HANDLER
+// MAIN COMMAND HANDLER
 // ==========================================
 
 export async function handleHistoryCommand(ctx: Context): Promise<void> {
   const userId = ctx.from?.id;
   if (!userId) return;
 
-  // 🛡️ Safe Extraction (Bypass for Dashboard button)
+  // Safe Extraction (Bypass for Dashboard button)
   let args: string[] = [];
   const messageText = (ctx.message as any)?.text || (ctx as any).message?.text;
   if (messageText) {

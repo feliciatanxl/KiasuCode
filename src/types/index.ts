@@ -7,13 +7,13 @@ export interface StudentProfile {
   userId: number;
   username: string;
   activeSchool: string;
-  activeYear: string;     // Add this
-  activeSemester: string; // Add this
+  activeYear: string;     
+  activeSemester: string; 
   totalGPA: number;
   moduleCount: number;
-  prevSchool?: string;    // Add this (optional since it might be null)
-  prevYear?: string;      // Add this (optional)
-  prevSemester?: string;  // Add this (optional)
+  prevSchool?: string;    
+  prevYear?: string;      
+  prevSemester?: string;  
 }
 
 export interface ModuleGrade {
@@ -85,7 +85,7 @@ export const GRADE_THRESHOLDS: Record<string, number> = {
 };
 
 /**
- * 🔥 THE SCHOOL RESOLVER
+ * THE SCHOOL RESOLVER
  * Maps specific institutions to their respective grading scales.
  */
 export const SCHOOL_RESOLVER: Record<string, string> = {

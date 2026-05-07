@@ -25,7 +25,6 @@ export async function handleSpecsCommand(ctx: Context): Promise<void> {
     if (key === 'DEFAULT') return;
     const scale = GRADING_SCALES[key];
     
-    // 🔥 We join ALL grades now, no more slicing!
     const allGrades = Object.keys(scale.points).join(", ");
     
     doc += `<b>[ ${key}_SCALE ]</b> (Max: ${scale.max.toFixed(1)})\n`;
