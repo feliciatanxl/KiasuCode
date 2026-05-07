@@ -51,9 +51,6 @@ To run KiasuCode on your local machine (e.g., using a Test Bot token) while conn
 **1. Clone the repository and install dependencies:**
 
 Bash
-
- 
-
 ```css
 git clone https://github.com/yourusername/KiasuCode.git
 cd KiasuCode
