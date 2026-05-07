@@ -47,7 +47,7 @@ app.get('/', (req, res) => {
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>KiasuCode | Enterprise Login</title>
+        <title>KiasuCode</title>
         <script src="https://cdn.tailwindcss.com"></script>
     </head>
     <body class="flex items-center justify-center h-screen font-sans antialiased">
@@ -58,7 +58,7 @@ app.get('/', (req, res) => {
             
             <div class="flex justify-center bg-gray-800/50 p-4 rounded-xl border border-gray-700/50">
                 <script async src="https://telegram.org/js/telegram-widget.js?22" 
-                    data-telegram-login="KiasuCode" 
+                    data-telegram-login="KiasuCodeBot" 
                     data-size="large" 
                     data-radius="10"
                     data-auth-url="/auth/telegram/callback" 
