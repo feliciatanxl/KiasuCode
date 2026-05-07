@@ -11,6 +11,7 @@ import { initializeSchema } from "./database/schema";
 import { devLinguaMiddleware } from "./middleware/devLingua";
 import cron from "node-cron"; 
 import * as queries from "./database/queries";
+import { startWebServer } from "./server";
 
 // --- CORE MENU IMPORTS ---
 import { registerStartCommand } from "./commands/start";
@@ -36,8 +37,6 @@ import { registerGpaCommand } from "./commands/gpa";
 import { registerLogsCommand } from "./commands/logs";
 import { registerKaypohCommand } from "./commands/kaypoh";
 import { registerPipelineCommand } from "./commands/pipeline";
-import { handleDropCommand } from "./commands/drop";
-import { handlePatchCommand } from "./commands/patch";
 
 let bot: Telegraf;
 
@@ -85,8 +84,6 @@ async function initializeBot(): Promise<void> {
     registerLogsCommand(bot);
     registerKaypohCommand(bot);
     registerPipelineCommand(bot);
-    registerDropCommand(bot);
-    registerPatchCommand(bot);
 
     bot.catch(async (err: any, ctx: any) => {
       console.error("❌ Bot error occurred:", err);
@@ -150,6 +147,7 @@ async function shutdownBot(): Promise<void> {
 
 async function main(): Promise<void> {
   await initializeBot();
+  startWebServer();
   await startBot();
 }
 main().catch((error) => process.exit(1));
