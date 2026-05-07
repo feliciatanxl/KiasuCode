@@ -6,19 +6,17 @@ import { GRADING_SCALES, SCHOOL_RESOLVER } from "../types";
  * Displays the full system manifest and all grading permutations
  */
 export async function handleSpecsCommand(ctx: Context): Promise<void> {
-  let doc = `<b>📄 SYSTEM_MANIFEST: KIASUCODE_CORE_v2.0</b>\n`;
+  let doc = `<b>📄 SYSTEM_MANIFEST: KIASUCODE_CORE_v3.0</b>\n`;
   doc += `<i>Environment: Production | Maintainer: ${ctx.from?.first_name || "Dev"}</i>\n`;
   doc += `<b>━━━━━━━━━━━━━━━━━━━━</b>\n\n`;
 
-  // 1. Command Manual
-  doc += `<b>🛠️ OPERATIONAL_COMMANDS:</b>\n`;
-  doc += `• <code>/checkout &lt;SCH&gt; &lt;YR&gt; &lt;SEM&gt;</code>\n  <i>➜ Initialize active environment</i>\n`;
-  doc += `• <code>/commit &lt;CODE&gt; &lt;CR&gt; &lt;GR&gt; &lt;NAME&gt;</code>\n  <i>➜ Deploy grade to active branch</i>\n`;
-  doc += `• <code>/kaypoh [SCH] [YR] [SEM]</code>\n  <i>➜ Audit full build history</i>\n`;
-  doc += `• <code>/patch &lt;CODE&gt;</code>\n  <i>➜ Hotfix a module entry</i>\n`;
-  doc += `• <code>/drop &lt;CODE&gt;</code>\n  <i>➜ Rollback/remove a module</i>\n`;
-  doc += `• <code>/chiong &lt;CR_LEFT&gt; &lt;TARGET&gt;</code>\n  <i>➜ Calculate safety margin budget</i>\n`;
-  doc += `• <code>/gpa</code>\n  <i>➜ Fetch instant build status</i>\n\n`;
+  // 1. Command Manual (Updated for v3.0 Hub & Spoke)
+  doc += `<b>🛠️ OPERATIONAL_HUBS:</b>\n`;
+  doc += `• <code>/dashboard</code>\n  <i>➜ Read-only telemetry (GPA, Logs, Pipeline)</i>\n`;
+  doc += `• <code>/manage</code>\n  <i>➜ Deploy commits, hotfixes, & branch checkouts</i>\n`;
+  doc += `• <code>/staging</code>\n  <i>➜ Sandbox for Agak-Agak & Copium forecasting</i>\n`;
+  doc += `• <code>/undo</code>\n  <i>➜ Global Ctrl+Z for recent state changes</i>\n`;
+  doc += `• <code>/lobang</code>\n  <i>➜ Fetch user manual & navigation guide</i>\n\n`;
 
   // 2. Full Grading Architecture
   doc += `<b>📊 FULL_GRADING_ARCHITECTURE:</b>\n`;
@@ -43,7 +41,7 @@ export async function handleSpecsCommand(ctx: Context): Promise<void> {
   doc += `<b>🏛️ REGISTERED_CLUSTERS:</b>\n`;
   doc += `<code>${Object.keys(SCHOOL_RESOLVER).join(", ")}</code>\n\n`;
 
-  doc += `<i>// Note: Run /lobang for quick help. Don't simply commit!</i>`;
+  doc += `<i>// Note: Use the interactive hubs to operate the bot!</i>`;
 
   await ctx.reply(doc, { parse_mode: 'HTML' });
 }
