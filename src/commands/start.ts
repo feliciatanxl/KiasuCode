@@ -4,7 +4,7 @@ import { replyWithFlavor } from "../middleware/devLingua";
 
 /**
  * Handle the /start command
- * The official "onboarding" for KiasuCode
+ * The official "onboarding" for KiasuCode v3.0
  */
 export async function handleStartCommand(ctx: Context): Promise<void> {
   const userId = ctx.from?.id;
@@ -28,15 +28,16 @@ export async function handleStartCommand(ctx: Context): Promise<void> {
 
     await db.query(query, [userId, dbUsername]);
 
-    // 3. Welcome Message
+    // 3. Welcome Message (Upgraded for v3.0!)
     const welcome = 
-      `<b>🚀 WELCOME TO KIASUCODE v2.1</b>\n` +
-      `<i>Status: Student Repo Initialized</i>\n\n` +
+      `<b>🚀 WELCOME TO KIASUCODE v3.0</b>\n` +
+      `<i>Status: Enterprise UI Initialized</i>\n\n` +
       `Hello <b>${dbUsername}</b>! I'm your Senior Pair Programmer for your GPA build.\n\n` +
-      `<b>HOW TO CHIONG:</b>\n` +
-      `1. Run <code>/checkout &lt;SCH&gt; &lt;YR&gt; &lt;SEM&gt;</code> to set your branch.\n` +
-      `2. Use <code>/commit</code> to deploy your grades.\n` +
-      `3. Type <code>/lobang</code> if you blur.\n\n` +
+      `<b>HOW TO NAVIGATE:</b>\n` +
+      `We've upgraded to a clean Dashboard system. Tap the blue <b>Menu</b> button below or type:\n\n` +
+      `🎛️ <code>/dashboard</code> - View your CGPA, Logs & Deadlines\n` +
+      `🛠️ <code>/manage</code> - Commit grades & switch branches\n` +
+      `🧪 <code>/staging</code> - Forecast & stress-test your GPA\n\n` +
       `<i>// Ready to ship some As? Let's go!</i>`;
 
     await replyWithFlavor(ctx, welcome, "positive");
