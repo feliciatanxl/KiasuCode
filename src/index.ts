@@ -48,6 +48,7 @@ async function initializeBot(): Promise<void> {
 
     
     await bot.telegram.setMyCommands([
+      { command: 'start', description: '🚀 Initialize or restart your KiasuCode repo' },
       { command: 'dashboard', description: '🎛️ View CGPA, Logs, and Deadlines' },
       { command: 'manage', description: '🛠️ Production: Commit, Branch, Patch, Drop' },
       { command: 'staging', description: '🧪 Sandbox: Agak-Agak, Copium, Stress Test' },
