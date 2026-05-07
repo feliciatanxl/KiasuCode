@@ -58,18 +58,20 @@ export async function handleLogsCommand(ctx: Context): Promise<void> {
   const userId = ctx.from?.id;
   if (!userId) return;
 
-  const message = ctx.message;
+  // 🛡️ THE SENIOR DEV FIX: Safely extract text without strict type crashing!
+  // If clicked from dashboard button, messageText is undefined.
+  // If typed like "/logs NYP", messageText catches it.
   let requestedSchool = "";
+  const messageText = (ctx.message as any)?.text;
   
-  // 1. Power User Shortcut: Handle /logs ITE
-  if (message && "text" in message) {
-    requestedSchool = message.text.split(/\s+/).slice(1)[0]?.toUpperCase();
+  if (messageText) {
+    requestedSchool = messageText.split(/\s+/).slice(1)[0]?.toUpperCase();
   }
 
   const db = getDatabase();
 
   try {
-    // 2. Short-circuit if a specific school was requested
+    // 2. Short-circuit if a specific school was requested (e.g. /logs ITE)
     if (requestedSchool) {
       const report = await generateSchoolLog(ctx, userId, requestedSchool);
       await ctx.reply(report, { parse_mode: 'HTML' });
@@ -114,7 +116,7 @@ export function registerLogsCommand(bot: Telegraf): void {
   bot.command("logs", handleLogsCommand);
   bot.command("transcript", handleLogsCommand);
 
-  // Handle the button click
+  // Handle the button click when user selects a specific school
   bot.action(/view_log:(.+)/, async (ctx) => {
     const school = ctx.match[1];
     const userId = ctx.from?.id;

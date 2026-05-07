@@ -7,18 +7,23 @@ import { replyWithFlavor } from "../middleware/devLingua";
  * Logic to generate the history report string
  */
 async function generateKaypohReport(userId: number, filterSchool?: string, filterYear?: string, filterSem?: string) {
-  const history = await getStudentHistory(userId, filterSchool, filterYear, filterSem);
+  // Convert "ALL" back to undefined for the DB query
+  const school = filterSchool === "ALL" ? undefined : filterSchool;
+  const year = filterYear === "ALL" ? undefined : filterYear;
+  const sem = filterSem === "ALL" ? undefined : filterSem;
+
+  const history = await getStudentHistory(userId, school, year, sem);
   const profile = await getStudentProfile(userId);
 
   if (!history || history.length === 0) {
-    const path = [filterSchool, filterYear, filterSem].filter(Boolean).join(" ➜ ");
+    const path = [school, year, sem].filter(Boolean).join(" ➜ ");
     return `<b>⚠️ EMPTY DIRECTORY</b>\nNo commits found in branch: <code>${path || "Global"}</code>!`;
   }
 
   let header = "📜 <b>Global Repository Overview</b>";
-  if (filterSchool && filterYear && filterSem) header = `📂 <b>Repo: ${filterSchool} ➜ ${filterYear} ➜ ${filterSem}</b>`;
-  else if (filterSchool && filterYear) header = `📂 <b>Repo: ${filterSchool} ➜ ${filterYear}</b>`;
-  else if (filterSchool) header = `📂 <b>Repo: ${filterSchool} (All Terms)</b>`;
+  if (school && year && sem) header = `📂 <b>Repo: ${school} ➜ ${year} ➜ ${sem}</b>`;
+  else if (school && year) header = `📂 <b>Repo: ${school} ➜ ${year}</b>`;
+  else if (school) header = `📂 <b>Repo: ${school} (All Terms)</b>`;
 
   let responseMessage = `${header}\n\n`;
 
@@ -33,8 +38,8 @@ async function generateKaypohReport(userId: number, filterSchool?: string, filte
       viewGradedCredits += mod.creditValue;
     }
 
-    const schoolTag = !filterSchool ? `<b>[${mod.school}]</b> ` : "";
-    const branchTag = !filterSem ? `<b>[${mod.academicYear} ${mod.semester}]</b> ` : "";
+    const schoolTag = !school ? `<b>[${mod.school}]</b> ` : "";
+    const branchTag = !sem ? `<b>[${mod.academicYear} ${mod.semester}]</b> ` : "";
     
     responseMessage += `${index + 1}. ${schoolTag}${branchTag}<code>${mod.moduleCode}</code>\n` +
                        `   <b>${mod.moduleName}</b>\n` +
@@ -43,11 +48,11 @@ async function generateKaypohReport(userId: number, filterSchool?: string, filte
 
   responseMessage += `<b>━━━━━━━━━━━━━━━━━━</b>\n`;
 
-  if (filterSchool || filterYear || filterSem) {
+  if (school || year || sem) {
     const viewGpa = viewGradedCredits > 0 ? (viewPoints / viewGradedCredits).toFixed(2) : "0.00";
     let gpaLabel = "Branch GPA";
-    if (filterSem) gpaLabel = "Semester GPA";
-    else if (filterYear) gpaLabel = "Year GPA";
+    if (sem) gpaLabel = "Semester GPA";
+    else if (year) gpaLabel = "Year GPA";
 
     responseMessage += `📦 Modules in View: <code>${history.length}</code>\n`;
     responseMessage += `📜 Credits in View: <code>${viewTotalCredits}</code>\n`;
@@ -62,34 +67,88 @@ async function generateKaypohReport(userId: number, filterSchool?: string, filte
   return responseMessage;
 }
 
-/**
- * Handle the /kaypoh command
- */
+// ==========================================
+// 🛠️ UI GENERATORS FOR THE DRILL-DOWN MENU
+// ==========================================
+
+async function showYearMenu(ctx: Context, userId: number, school: string) {
+  const db = getDatabase();
+  const [rows]: any = await db.query(
+    "SELECT DISTINCT academicYear FROM module_grades WHERE userId = ? AND school = ? ORDER BY academicYear ASC",
+    [userId, school]
+  );
+  
+  const years = rows.map((r: any) => r.academicYear);
+  const buttons = [];
+
+  // Always give them an option to view everything for this school
+  buttons.push([Markup.button.callback(`📜 View ALL ${school}`, `kyp_res:${school}:ALL:ALL`)]);
+
+  // Add a button for each Year found in the DB
+  years.forEach((y: string) => {
+    buttons.push([Markup.button.callback(`📅 ${y}`, `kyp_yr:${school}:${y}`)]);
+  });
+
+  const msg = `<b>📂 Repository: ${school}</b>\nSelect an Academic Year to drill down, or view all records:`;
+  
+  if (ctx.callbackQuery) {
+    await ctx.editMessageText(msg, { parse_mode: 'HTML', ...Markup.inlineKeyboard(buttons) });
+  } else {
+    await ctx.reply(msg, { parse_mode: 'HTML', ...Markup.inlineKeyboard(buttons) });
+  }
+}
+
+async function showSemMenu(ctx: Context, userId: number, school: string, year: string) {
+  const db = getDatabase();
+  const [rows]: any = await db.query(
+    "SELECT DISTINCT semester FROM module_grades WHERE userId = ? AND school = ? AND academicYear = ? ORDER BY semester ASC",
+    [userId, school, year]
+  );
+  
+  const sems = rows.map((r: any) => r.semester);
+  const buttons = [];
+
+  // Option to view everything for this specific year
+  buttons.push([Markup.button.callback(`📜 View ALL ${year}`, `kyp_res:${school}:${year}:ALL`)]);
+
+  // Add a button for each Semester found
+  sems.forEach((sem: string) => {
+    buttons.push([Markup.button.callback(`📚 ${sem}`, `kyp_res:${school}:${year}:${sem}`)]);
+  });
+
+  // Back button to go up a level
+  buttons.push([Markup.button.callback(`🔙 Back to Years`, `kyp_sch:${school}`)]);
+
+  const msg = `<b>📂 Branch: ${school} ➜ ${year}</b>\nSelect a Semester to view:`;
+  await ctx.editMessageText(msg, { parse_mode: 'HTML', ...Markup.inlineKeyboard(buttons) });
+}
+
+// ==========================================
+// 🚀 MAIN COMMAND HANDLER
+// ==========================================
+
 export async function handleHistoryCommand(ctx: Context): Promise<void> {
   const userId = ctx.from?.id;
   if (!userId) return;
 
-  const message = ctx.message;
-  if (!message || !("text" in message)) return;
+  // 🛡️ Safe Extraction (Bypass for Dashboard button)
+  let args: string[] = [];
+  const messageText = (ctx.message as any)?.text || (ctx as any).message?.text;
+  if (messageText) {
+    args = messageText.split(/\s+/).slice(1);
+  }
 
-  const args = message.text.split(/\s+/).slice(1);
-  const filterSchool = args[0]?.toUpperCase();
-
-  // 1. If user provided a school (e.g. /kaypoh ITE), just show it
-  if (filterSchool) {
-    const report = await generateKaypohReport(userId, filterSchool, args[1]?.toUpperCase(), args[2]?.toUpperCase());
+  // If power-user types "/kaypoh ITE Y1 S1", bypass the menu entirely!
+  if (args.length > 0) {
+    const report = await generateKaypohReport(userId, args[0]?.toUpperCase(), args[1]?.toUpperCase(), args[2]?.toUpperCase());
     await replyWithFlavor(ctx, report, "positive");
     return;
   }
 
-  // 2. No args? Check if user has multiple schools
+  // Otherwise, start the GUI Flow
   const db = getDatabase();
   try {
-    const [rows]: any = await db.query(
-      "SELECT DISTINCT school FROM module_grades WHERE userId = ?",
-      [userId]
-    );
-
+    const [rows]: any = await db.query("SELECT DISTINCT school FROM module_grades WHERE userId = ?", [userId]);
     const schools = rows.map((r: any) => r.school);
 
     if (schools.length === 0) {
@@ -97,29 +156,25 @@ export async function handleHistoryCommand(ctx: Context): Promise<void> {
       return;
     }
 
-    // 3. One school only? Just show it.
+    // If they only have 1 school (e.g. only NYP), skip the School picker and go straight to Year picker!
     if (schools.length === 1) {
-      const report = await generateKaypohReport(userId, schools[0]);
-      await replyWithFlavor(ctx, report, "positive");
+      await showYearMenu(ctx, userId, schools[0]);
       return;
     }
 
-    // 4. Multiple schools? Show the picker!
-    const buttons = schools.map((s: string) => [Markup.button.callback(`🏛️ Audit ${s}`, `view_kaypoh:${s}`)]);
-    
-    await ctx.reply(
-      "<b>🔍 MULTIPLE DIRECTORIES DETECTED</b>\nWhich branch do you want to kaypoh?", 
-      {
-        parse_mode: 'HTML',
-        ...Markup.inlineKeyboard(buttons)
-      }
-    );
+    // If multiple schools, show School picker
+    const buttons = schools.map((s: string) => [Markup.button.callback(`🏛️ Audit ${s}`, `kyp_sch:${s}`)]);
+    await ctx.reply("<b>🔍 MULTIPLE DIRECTORIES DETECTED</b>\nWhich branch do you want to kaypoh?", { parse_mode: 'HTML', ...Markup.inlineKeyboard(buttons) });
 
   } catch (error) {
     console.error("❌ Kaypoh error:", error);
     await replyWithFlavor(ctx, "Merge conflict reading logs lor!", "negative");
   }
 }
+
+// ==========================================
+// 📡 REGISTRY & ACTION LISTENERS
+// ==========================================
 
 export function registerKaypohCommand(bot: Telegraf): void {
   bot.command("history", handleHistoryCommand);
@@ -128,15 +183,37 @@ export function registerKaypohCommand(bot: Telegraf): void {
   bot.command("kepo", handleHistoryCommand);
   bot.command("kaypoh", handleHistoryCommand);
 
-  // 🔥 Handle the callback from the buttons
-  bot.action(/view_kaypoh:(.+)/, async (ctx) => {
+  // 🖱️ Action: User clicked a School -> Show Years
+  bot.action(/^kyp_sch:([^:]+)$/, async (ctx) => {
     const school = ctx.match[1];
     const userId = ctx.from?.id;
     if (!userId) return;
+    await ctx.answerCbQuery();
+    await showYearMenu(ctx, userId, school);
+  });
 
-    await ctx.answerCbQuery(`Fetching ${school} repository...`);
-    const report = await generateKaypohReport(userId, school);
+  // 🖱️ Action: User clicked a Year -> Show Semesters
+  bot.action(/^kyp_yr:([^:]+):([^:]+)$/, async (ctx) => {
+    const school = ctx.match[1];
+    const year = ctx.match[2];
+    const userId = ctx.from?.id;
+    if (!userId) return;
+    await ctx.answerCbQuery();
+    await showSemMenu(ctx, userId, school, year);
+  });
+
+  // 🖱️ Action: User requested the Final Report!
+  bot.action(/^kyp_res:([^:]+):([^:]+):([^:]+)$/, async (ctx) => {
+    const school = ctx.match[1];
+    const year = ctx.match[2];
+    const sem = ctx.match[3];
+    const userId = ctx.from?.id;
+    if (!userId) return;
+
+    await ctx.answerCbQuery(`Fetching records...`);
+    const report = await generateKaypohReport(userId, school, year, sem);
     
-    await ctx.reply(report, { parse_mode: 'HTML' });
+    // Morph the menu into the final report
+    await ctx.editMessageText(report, { parse_mode: 'HTML' });
   });
 }

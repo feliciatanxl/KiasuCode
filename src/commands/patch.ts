@@ -9,14 +9,20 @@ import { GRADING_SCALES } from "../types";
  */
 export async function handlePatchCommand(ctx: Context): Promise<void> {
   const userId = ctx.from?.id;
-  const message = ctx.message;
+  if (!userId) return;
 
-  if (!userId || !message || !("text" in message)) return;
+  // 🛡️ THE SENIOR DEV FIX: Allow both text commands and button triggers
+  let args: string[] = [];
+  
+  // Try to get text from a normal message or our injected dashboard bypass
+  const messageText = (ctx.message as any)?.text || (ctx as any).message?.text;
 
-  const args = message.text.split(/\s+/).slice(1);
+  if (messageText) {
+    args = messageText.split(/\s+/).slice(1);
+  }
 
   // 🌟 LEVEL 1: THE SMART MENU
-  // If they just type "/patch" with no arguments, show the GUI buttons
+  // If they just type "/patch" or click the Dashboard button, show the GUI buttons
   if (args.length === 0) {
     await ctx.reply(
       "🛠️ <b>What would you like to patch?</b>\nChoose a repository to hotfix:",
