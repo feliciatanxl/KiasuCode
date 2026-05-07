@@ -1,4 +1,5 @@
 import { Context, Telegraf, Markup } from "telegraf";
+import jwt from "jsonwebtoken"; // <-- Make sure to install this!
 import { handleGpaCommand } from "./gpa";
 import { handleLogsCommand } from "./logs";
 import { handlePipelineCommand } from "./pipeline";
@@ -8,9 +9,18 @@ export async function handleDashboardMenu(ctx: Context): Promise<void> {
   const userId = ctx.from?.id;
   if (!userId) return;
 
-  // THE MAGIC LINK: Uses your local port during testing, or your Railway URL in production
+  // 🌐 Base URL configuration (fallback to local if running on your machine)
   const webUrl = process.env.WEB_URL || "https://kiasucode-production.up.railway.app";
-  const portalLink = `${webUrl}/portal/${userId}`;
+  
+  // 🔐 Secure Token Generation
+  // We use a fallback secret for local dev, but you MUST set JWT_SECRET in Railway
+  const jwtSecret = process.env.JWT_SECRET || "local-dev-super-secret-key";
+  
+  // Sign a token containing the userId, valid for exactly 1 hour
+  const token = jwt.sign({ userId: userId }, jwtSecret, { expiresIn: '1h' });
+
+  // 🔗 The new secure Magic Link
+  const portalLink = `${webUrl}/auth/${token}`;
 
   const menuMsg = `🎛️ <b>KIASUCODE COMMAND CENTER</b>\nWhat telemetry data do you want to view?`;
   
@@ -21,7 +31,7 @@ export async function handleDashboardMenu(ctx: Context): Promise<void> {
       [Markup.button.callback("📜 Audit Full Logs", "btn_dash_logs")],
       [Markup.button.callback("🔍 Repo History (Kaypoh)", "btn_dash_kaypoh")],
       [Markup.button.callback("📋 Task Pipeline", "btn_dash_pipeline")],
-      [Markup.button.url("🌐 Open Web Dashboard", portalLink)] // <-- NEW NATIVE BROWSER BUTTON!
+      [Markup.button.url("🌐 Secure Web Login", portalLink)] // <-- Updated label
     ])
   });
 }

@@ -1,20 +1,63 @@
 import express from 'express';
+import cookieParser from 'cookie-parser'; // <-- Make sure this is installed!
+import jwt from 'jsonwebtoken';           // <-- Make sure this is installed!
 import { getStudentProfile, getStudentHistory } from './database/queries';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const JWT_SECRET = process.env.JWT_SECRET || "local-dev-super-secret-key";
 
-// Dynamic Portal Route based on Telegram User ID
-app.get('/portal/:userId', async (req, res) => {
-    const userId = Number(req.params.userId);
+// Enable Express to read cookies from the browser
+app.use(cookieParser());
+
+// 🔐 AUTHENTICATION ROUTE (Handles the Magic Link from Telegram)
+app.get('/auth/:token', (req, res) => {
+    try {
+        // Verify the token hasn't been tampered with and hasn't expired
+        const decoded = jwt.verify(req.params.token, JWT_SECRET) as { userId: number };
+        
+        // Give the browser an encrypted HTTP-only cookie valid for 24 hours
+        res.cookie('kiasu_session', decoded.userId, { 
+            httpOnly: true, 
+            secure: process.env.NODE_ENV === 'production', // Use secure cookies in production (Railway)
+            maxAge: 24 * 60 * 60 * 1000 // 1 Day
+        });
+
+        // Redirect them to the secure portal
+        res.redirect('/portal');
+    } catch (error) {
+        console.error("JWT Verification Failed:", error);
+        res.status(401).send(`
+            <div style="font-family:sans-serif; text-align:center; margin-top:50px;">
+                <h1>⛔ Link Expired or Invalid.</h1>
+                <p>For your security, magic links expire after 1 hour.</p>
+                <p>Please open the KiasuCode Telegram Bot and click "Secure Web Login" again.</p>
+            </div>
+        `);
+    }
+});
+
+// 🛡️ PROTECTED PORTAL ROUTE (No User ID in the URL!)
+app.get('/portal', async (req, res) => {
+    // 1. Check if the user has the secure session cookie
+    const userId = req.cookies.kiasu_session;
+
+    if (!userId) {
+        return res.status(401).send(`
+            <div style="font-family:sans-serif; text-align:center; margin-top:50px;">
+                <h1>⛔ Access Denied.</h1>
+                <p>You are not logged in. Please log in via the KiasuCode Telegram Bot first.</p>
+            </div>
+        `);
+    }
 
     try {
-        // Fetch real data from the exact same DB the bot uses!
+        // 2. Fetch real data using the securely verified User ID
         const profile = await getStudentProfile(userId);
         const history = await getStudentHistory(userId);
 
         if (!profile) {
-            return res.send(`<h1 style="font-family:sans-serif; text-align:center; margin-top:50px;">⚠️ Access Denied. Open KiasuCode on Telegram and type /start first!</h1>`);
+            return res.status(404).send(`<h1 style="font-family:sans-serif; text-align:center; margin-top:50px;">⚠️ Profile Not Found. Type /start in Telegram first!</h1>`);
         }
 
         const cgpa = Number(profile.totalGPA).toFixed(2);
