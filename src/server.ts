@@ -65,17 +65,6 @@ app.get('/', (req, res) => {
         <title>~/kiasu_code/login</title>
         <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚀</text></svg>">
         <script src="https://cdn.tailwindcss.com"></script>
-        <style>
-            /* Hack to make the Telegram iframe button dark-themed */
-            .telegram-login-wrapper iframe {
-                filter: grayscale(100%) invert(100%) brightness(150%) hue-rotate(180deg);
-                opacity: 0.9;
-                transition: opacity 0.3s ease;
-            }
-            .telegram-login-wrapper iframe:hover {
-                opacity: 1;
-            }
-        </style>
     </head>
     <body class="flex items-center justify-center h-screen font-mono antialiased bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-gray-900 via-black to-black">
         <div class="bg-gray-900/80 p-8 rounded-xl border border-green-500/30 shadow-[0_0_15px_rgba(34,197,94,0.1)] text-center max-w-sm w-full mx-4 relative overflow-hidden">
@@ -94,7 +83,7 @@ app.get('/', (req, res) => {
                 Deploy your grades securely. No passwords, just Telegram. Don't say bojio.
             </p>
             
-            <div class="flex justify-center bg-black/80 p-4 rounded-lg border border-gray-800 telegram-login-wrapper">
+            <div class="flex justify-center telegram-login-container">
                 <script async src="https://telegram.org/js/telegram-widget.js?22" 
                     data-telegram-login="KiasuCodeBot" 
                     data-size="large" 
