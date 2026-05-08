@@ -103,7 +103,7 @@ app.get('/', (req, res) => {
 // 📡 TELEGRAM CALLBACK
 app.get('/auth/telegram/callback', (req, res) => {
     const isValid = verifyTelegramAuth(req.query);
-    if (!isValid) return res.status(403).send("<h1 style='font-family:monospace; background:black; color:red; padding:20px;'>> ERROR: Kena blocked. Invalid Auth Signature.</h1>");
+    if (!isValid) return res.status(403).send("<h1 style='font-family:monospace; background:black; color:red; padding:20px;'>> ERROR 403: Kena blocked. Invalid Auth Signature.</h1>");
 
     res.cookie('kiasu_session', req.query.id, {
         httpOnly: true,
@@ -159,43 +159,8 @@ app.get('/logout', (req, res) => {
     res.redirect('/'); 
 });
 
-// 🔥 500 GLOBAL HANDLER (Put this at the VERY BOTTOM, right above startWebServer)
-app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-    console.error("🔥 CRITICAL SERVER ERROR:", err);
-    res.status(500).send(`
-    <!DOCTYPE html>
-    <html lang="en" class="dark text-white bg-black">
-    <head><title>500 | Server Mati</title><script src="https://cdn.tailwindcss.com"></script></head>
-    <body class="flex items-center justify-center h-screen font-mono">
-        <div class="text-center p-8 border border-red-600 rounded-xl bg-gray-900">
-            <div class="text-6xl mb-4">🔥</div>
-            <h1 class="text-2xl text-red-500 font-bold mb-4">> ERROR 500: Server_Mati</h1>
-            <p class="text-gray-400 mb-6">GGWP. Something exploded in the backend. The developer has been notified.</p>
-            <a href="/" class="bg-gray-800 hover:bg-gray-700 px-4 py-2 rounded border border-gray-700">systemctl restart</a>
-        </div>
-    </body></html>
-    `);
-});
-
-// 🛑 404 GLOBAL HANDLER (Put this AFTER all other app.get routes)
-app.use((req, res, next) => {
-    res.status(404).send(`
-    <!DOCTYPE html>
-    <html lang="en" class="dark text-white bg-black">
-    <head><title>404 | Page Kena Kidnap</title><script src="https://cdn.tailwindcss.com"></script></head>
-    <body class="flex items-center justify-center h-screen font-mono">
-        <div class="text-center p-8 border border-yellow-500/50 rounded-xl bg-gray-900">
-            <div class="text-6xl mb-4">🕵️‍♂️</div>
-            <h1 class="text-2xl text-yellow-400 font-bold mb-4">> ERROR 404: Route_Not_Found</h1>
-            <p class="text-gray-400 mb-6">Walao eh, where you trying to go? This URL doesn't exist.</p>
-            <a href="/" class="bg-gray-800 hover:bg-gray-700 px-4 py-2 rounded border border-gray-700">cd ~/home</a>
-        </div>
-    </body></html>
-    `);
-});
-
 // 🛡️ SECURE PORTAL ROUTE (Singlish + Coding Theme)
-app.get('/portal', async (req, res) => {
+app.get('/portal', async (req, res, next) => {
     const userId = req.cookies.kiasu_session;
     if (!userId) return res.redirect('/');
 
@@ -314,9 +279,47 @@ app.get('/portal', async (req, res) => {
         </body>
         </html>`);
     } catch (error) {
-        console.error("Web routing error:", error);
-        res.status(500).send("<h1 style='font-family:monospace; color:red; background:black; padding:20px;'>> FATAL ERROR: DB connection timeout. GG.</h1>");
+        next(error); // Pass the error to the global 500 handler
     }
+});
+
+// 🛑 404 GLOBAL HANDLER (Must be second to last!)
+app.use((req, res, next) => {
+    res.status(404).send(`
+    <!DOCTYPE html>
+    <html lang="en" class="dark text-white bg-black">
+    <head><title>404 | Page Kena Kidnap</title><script src="https://cdn.tailwindcss.com"></script></head>
+    <body class="flex items-center justify-center h-screen font-mono">
+        <div class="text-center p-8 border border-yellow-500/50 rounded-xl bg-gray-900 shadow-[0_0_15px_rgba(234,179,8,0.1)]">
+            <div class="text-6xl mb-4">🕵️‍♂️</div>
+            <h1 class="text-2xl text-yellow-400 font-bold mb-4">> ERROR 404: Route_Not_Found</h1>
+            <p class="text-gray-400 mb-6 text-sm">Walao eh, where you trying to go? This URL doesn't exist.</p>
+            <a href="/" class="inline-block bg-gray-800 hover:bg-gray-700 px-4 py-2 rounded border border-gray-700 transition-colors text-sm">
+                cd ~/home
+            </a>
+        </div>
+    </body></html>
+    `);
+});
+
+// 🔥 500 GLOBAL HANDLER (Must be VERY LAST!)
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    console.error("🔥 CRITICAL SERVER ERROR:", err);
+    res.status(500).send(`
+    <!DOCTYPE html>
+    <html lang="en" class="dark text-white bg-black">
+    <head><title>500 | Server Mati</title><script src="https://cdn.tailwindcss.com"></script></head>
+    <body class="flex items-center justify-center h-screen font-mono">
+        <div class="text-center p-8 border border-red-600 rounded-xl bg-gray-900 shadow-[0_0_15px_rgba(220,38,38,0.1)]">
+            <div class="text-6xl mb-4">🔥</div>
+            <h1 class="text-2xl text-red-500 font-bold mb-4">> ERROR 500: Server_Mati</h1>
+            <p class="text-gray-400 mb-6 text-sm">GGWP. Something exploded in the backend. The database might be sleeping.</p>
+            <a href="/" class="inline-block bg-gray-800 hover:bg-gray-700 px-4 py-2 rounded border border-gray-700 transition-colors text-sm">
+                systemctl restart
+            </a>
+        </div>
+    </body></html>
+    `);
 });
 
 export function startWebServer() {
