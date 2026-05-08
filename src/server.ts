@@ -81,7 +81,7 @@ app.get('/auth/telegram/callback', (req, res) => {
     res.redirect('/portal');
 });
 
-// 🔐 MAGIC LINK ROUTE
+// MAGIC LINK ROUTE
 app.get('/auth/:token', (req, res) => {
     try {
         const decoded = jwt.verify(req.params.token, JWT_SECRET) as { userId: number };
@@ -92,7 +92,45 @@ app.get('/auth/:token', (req, res) => {
         });
         res.redirect('/portal');
     } catch (error) {
-        res.status(401).send("⛔ Link Expired.");
+        // 🎨 SINGLISH + CODING THEMED ERROR PAGE
+        res.status(401).send(`
+        <!DOCTYPE html>
+        <html lang="en" class="dark text-white bg-[#111827]">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>KiasuCode | 401 Token Mati</title>
+            <script src="https://cdn.tailwindcss.com"></script>
+        </head>
+        <body class="flex items-center justify-center h-screen font-sans antialiased">
+            <div class="bg-[#1F2937] p-8 rounded-2xl border border-red-500/50 shadow-2xl max-w-md w-full mx-4 relative overflow-hidden text-center">
+                
+                <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-600 to-orange-500"></div>
+                
+                <div class="text-6xl mb-4">💀</div>
+                <h1 class="text-2xl font-bold mb-4 text-red-400 font-mono tracking-tight">Exception: Token_Mati</h1>
+                
+                <div class="bg-black/80 p-4 rounded-lg font-mono text-xs text-left mb-6 border border-gray-700 shadow-inner">
+                    <p class="text-green-400">> verifying_jwt_signature...</p>
+                    <p class="text-red-500 mt-1">> ERROR 401: Token has expired.</p>
+                    <p class="text-gray-400 mt-1">> throw new AlamakError('Walao eh, too slow lah!');</p>
+                </div>
+
+                <p class="text-gray-300 mb-6 text-sm leading-relaxed">
+                    Aiyah! Your Magic Link expired already. For security (PDPA very strict one ok!), we only keep the token alive for 1 hour.
+                </p>
+
+                <a href="/" class="inline-block w-full bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 px-4 rounded-lg transition-colors font-mono text-sm">
+                    cd ~/login_page
+                </a>
+                
+                <p class="mt-5 text-xs text-gray-500">
+                    Need a fresh link? Go back to Telegram and spam <code class="text-brand bg-gray-800 px-1 rounded text-purple-400">/dashboard</code>.
+                </p>
+            </div>
+        </body>
+        </html>
+        `);
     }
 });
 
