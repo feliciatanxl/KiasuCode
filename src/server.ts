@@ -63,7 +63,19 @@ app.get('/', (req, res) => {
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>~/kiasu_code/login</title>
+        <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚀</text></svg>">
         <script src="https://cdn.tailwindcss.com"></script>
+        <style>
+            /* Hack to make the Telegram iframe button dark-themed */
+            .telegram-login-wrapper iframe {
+                filter: grayscale(100%) invert(100%) brightness(150%) hue-rotate(180deg);
+                opacity: 0.9;
+                transition: opacity 0.3s ease;
+            }
+            .telegram-login-wrapper iframe:hover {
+                opacity: 1;
+            }
+        </style>
     </head>
     <body class="flex items-center justify-center h-screen font-mono antialiased bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-gray-900 via-black to-black">
         <div class="bg-gray-900/80 p-8 rounded-xl border border-green-500/30 shadow-[0_0_15px_rgba(34,197,94,0.1)] text-center max-w-sm w-full mx-4 relative overflow-hidden">
@@ -82,7 +94,7 @@ app.get('/', (req, res) => {
                 Deploy your grades securely. No passwords, just Telegram. Don't say bojio.
             </p>
             
-            <div class="flex justify-center bg-black/50 p-4 rounded-lg border border-gray-800">
+            <div class="flex justify-center bg-black/80 p-4 rounded-lg border border-gray-800 telegram-login-wrapper">
                 <script async src="https://telegram.org/js/telegram-widget.js?22" 
                     data-telegram-login="KiasuCodeBot" 
                     data-size="large" 
@@ -131,6 +143,7 @@ app.get('/auth/:token', (req, res) => {
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>Exception: Token_Mati</title>
+            <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💀</text></svg>">
             <script src="https://cdn.tailwindcss.com"></script>
         </head>
         <body class="flex items-center justify-center h-screen font-mono antialiased">
@@ -195,6 +208,7 @@ app.get('/portal', async (req, res, next) => {
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>~/kiasu_code/dashboard</title>
+            <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚀</text></svg>">
             <script src="https://cdn.tailwindcss.com"></script>
             <script>
                 tailwind.config = {
@@ -279,16 +293,20 @@ app.get('/portal', async (req, res, next) => {
         </body>
         </html>`);
     } catch (error) {
-        next(error); // Pass the error to the global 500 handler
+        next(error); 
     }
 });
 
-// 🛑 404 GLOBAL HANDLER (Must be second to last!)
+// 🛑 404 GLOBAL HANDLER
 app.use((req, res, next) => {
     res.status(404).send(`
     <!DOCTYPE html>
     <html lang="en" class="dark text-white bg-black">
-    <head><title>404 | Page Kena Kidnap</title><script src="https://cdn.tailwindcss.com"></script></head>
+    <head>
+        <title>404 | Page Kena Kidnap</title>
+        <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🕵️‍♂️</text></svg>">
+        <script src="https://cdn.tailwindcss.com"></script>
+    </head>
     <body class="flex items-center justify-center h-screen font-mono">
         <div class="text-center p-8 border border-yellow-500/50 rounded-xl bg-gray-900 shadow-[0_0_15px_rgba(234,179,8,0.1)]">
             <div class="text-6xl mb-4">🕵️‍♂️</div>
@@ -302,13 +320,17 @@ app.use((req, res, next) => {
     `);
 });
 
-// 🔥 500 GLOBAL HANDLER (Must be VERY LAST!)
+// 🔥 500 GLOBAL HANDLER
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
     console.error("🔥 CRITICAL SERVER ERROR:", err);
     res.status(500).send(`
     <!DOCTYPE html>
     <html lang="en" class="dark text-white bg-black">
-    <head><title>500 | Server Mati</title><script src="https://cdn.tailwindcss.com"></script></head>
+    <head>
+        <title>500 | Server Mati</title>
+        <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔥</text></svg>">
+        <script src="https://cdn.tailwindcss.com"></script>
+    </head>
     <body class="flex items-center justify-center h-screen font-mono">
         <div class="text-center p-8 border border-red-600 rounded-xl bg-gray-900 shadow-[0_0_15px_rgba(220,38,38,0.1)]">
             <div class="text-6xl mb-4">🔥</div>
