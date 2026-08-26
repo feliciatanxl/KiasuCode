@@ -1,4 +1,10 @@
-import { useMemo, useState, type FormEvent } from 'react'
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+} from 'react'
 import type {
   GradeLetter,
   Module,
@@ -30,6 +36,8 @@ export function ModulePipeline({
 }: ModulePipelineProps) {
   const [filter, setFilter] = useState<PipelineFilter>('all')
   const [showAddForm, setShowAddForm] = useState(false)
+  const [flashingModuleId, setFlashingModuleId] = useState<string | null>(null)
+  const flashTimerRef = useRef<number | null>(null)
   const [draft, setDraft] = useState({
     moduleCode: '',
     moduleName: '',
@@ -45,6 +53,15 @@ export function ModulePipeline({
     [filter, modules],
   )
 
+  useEffect(
+    () => () => {
+      if (flashTimerRef.current !== null) {
+        window.clearTimeout(flashTimerRef.current)
+      }
+    },
+    [],
+  )
+
   const updateModule = (id: string, patch: Partial<Module>) => {
     onModulesChange(
       modules.map((module) =>
@@ -57,6 +74,15 @@ export function ModulePipeline({
     const currentIndex = statusOrder.indexOf(module.status)
     const nextStatus = statusOrder[(currentIndex + 1) % statusOrder.length]
     if (!nextStatus) return
+
+    if (flashTimerRef.current !== null) {
+      window.clearTimeout(flashTimerRef.current)
+    }
+    setFlashingModuleId(module.id)
+    flashTimerRef.current = window.setTimeout(() => {
+      setFlashingModuleId(null)
+      flashTimerRef.current = null
+    }, 650)
 
     updateModule(module.id, {
       status: nextStatus,
@@ -93,7 +119,7 @@ export function ModulePipeline({
   }
 
   return (
-    <section className="workspace-panel" aria-labelledby="pipeline-title">
+    <section className="workspace-panel transition-colors duration-300 dark:border-gray-700 dark:bg-gray-800" aria-labelledby="pipeline-title">
       <div className="panel-heading">
         <div>
           <span className="eyebrow">Git-style module tracker</span>
@@ -213,7 +239,15 @@ export function ModulePipeline({
           <span role="columnheader" aria-label="Actions" />
         </div>
         {visibleModules.map((module, index) => (
-          <div className="pipeline-row" role="row" key={module.id}>
+          <div
+            className={`pipeline-row transition-colors duration-500 ease-out dark:border-gray-700 ${
+              flashingModuleId === module.id
+                ? 'bg-green-100 dark:bg-green-900/20'
+                : 'bg-white dark:bg-gray-800'
+            }`}
+            role="row"
+            key={module.id}
+          >
             <div className="module-identity" role="cell">
               <span className="commit-node" aria-hidden="true">
                 <i />

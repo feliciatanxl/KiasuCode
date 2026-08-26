@@ -36,7 +36,7 @@ export function StagingSimulator({ modules }: StagingSimulatorProps) {
   const resetScenario = () => setStagedGrades({})
 
   return (
-    <section className="workspace-panel simulator" aria-labelledby="simulator-title">
+    <section className="workspace-panel simulator transition-colors duration-300 dark:border-gray-700 dark:bg-gray-800" aria-labelledby="simulator-title">
       <div className="panel-heading">
         <div>
           <span className="eyebrow">Safe sandbox · no live mutations</span>
@@ -71,7 +71,7 @@ export function StagingSimulator({ modules }: StagingSimulatorProps) {
             : (stagedGrades[module.id] ?? module.targetGrade)
 
           return (
-            <article className="scenario-card" key={module.id}>
+            <article className="scenario-card transition-colors duration-300 dark:border-gray-700 dark:bg-gray-900" key={module.id}>
               <div className="scenario-card__topline">
                 <code>{module.moduleCode}</code>
                 <span>{module.creditUnits} CU</span>
@@ -103,7 +103,7 @@ export function StagingSimulator({ modules }: StagingSimulatorProps) {
         })}
       </div>
 
-      <div className="simulator-note">
+      <div className="simulator-note transition-colors duration-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
         <span aria-hidden="true">i</span>
         <p>
           Staged GPA assumes the selected grade for every unmerged module. Your

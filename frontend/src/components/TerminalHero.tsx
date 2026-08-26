@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 
 import { formatGpa } from '../utils/gpa'
 
@@ -14,6 +14,8 @@ interface TerminalLine {
   output: string
 }
 
+const bootCommand = 'kiasu ship --semester 02'
+
 export function TerminalHero({
   currentGpa,
   mergedModules,
@@ -22,6 +24,24 @@ export function TerminalHero({
 }: TerminalHeroProps) {
   const [command, setCommand] = useState('')
   const [history, setHistory] = useState<TerminalLine[]>([])
+  const [typedCommand, setTypedCommand] = useState('')
+  const [isTypingComplete, setIsTypingComplete] = useState(false)
+
+  useEffect(() => {
+    let characterIndex = 0
+
+    const typingTimer = window.setInterval(() => {
+      characterIndex += 1
+      setTypedCommand(bootCommand.slice(0, characterIndex))
+
+      if (characterIndex >= bootCommand.length) {
+        window.clearInterval(typingTimer)
+        setIsTypingComplete(true)
+      }
+    }, 55)
+
+    return () => window.clearInterval(typingTimer)
+  }, [])
 
   const execute = (rawCommand: string) => {
     const normalized = rawCommand.trim().toLowerCase()
@@ -69,30 +89,37 @@ export function TerminalHero({
       <div className="terminal-card__body">
         <div className="terminal-command">
           <span className="terminal-prompt">$</span>
-          <span>kiasu status --verbose</span>
+          <span>
+            {typedCommand}
+            <span className="animate-pulse" aria-hidden="true">|</span>
+          </span>
         </div>
-        <div className="terminal-output terminal-output--status">
-          <span>✓</span>
-          <div>
-            <strong>Academic build is healthy</strong>
-            <p>No critical regressions detected. Steady lah.</p>
-          </div>
-        </div>
-        <div className="terminal-grid">
-          <div><span>BRANCH</span><strong>{semester}</strong></div>
-          <div><span>HEAD</span><strong>week-08</strong></div>
-          <div><span>GPA</span><strong>{formatGpa(currentGpa)}</strong></div>
-        </div>
-        <div className="terminal-log">
-          <p><span>●</span> {mergedModules} modules merged to main</p>
-          <p><span>◐</span> {totalModules - mergedModules} commits in pipeline</p>
-          {history.map((line, index) => (
-            <div className="terminal-history" key={`${line.command}-${index}`}>
-              <p><span>$</span> {line.command}</p>
-              <p className="terminal-history__output">{line.output}</p>
+        {isTypingComplete ? (
+          <div className="terminal-boot-output">
+            <div className="terminal-output terminal-output--status">
+              <span>✓</span>
+              <div>
+                <strong>Academic build is healthy</strong>
+                <p>No critical regressions detected. Steady lah.</p>
+              </div>
             </div>
-          ))}
-        </div>
+            <div className="terminal-grid">
+              <div><span>BRANCH</span><strong>{semester}</strong></div>
+              <div><span>HEAD</span><strong>week-08</strong></div>
+              <div><span>GPA</span><strong>{formatGpa(currentGpa)}</strong></div>
+            </div>
+            <div className="terminal-log">
+              <p><span>●</span> {mergedModules} modules merged to main</p>
+              <p><span>◐</span> {totalModules - mergedModules} commits in pipeline</p>
+              {history.map((line, index) => (
+                <div className="terminal-history" key={`${line.command}-${index}`}>
+                  <p><span>$</span> {line.command}</p>
+                  <p className="terminal-history__output">{line.output}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
         <form className="terminal-input" onSubmit={handleSubmit}>
           <span>$</span>
           <input

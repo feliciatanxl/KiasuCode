@@ -41,9 +41,6 @@ type AuthSessionRequest =
 
 const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID?.trim() ?? ''
 const telegramBotName = import.meta.env.VITE_TELEGRAM_BOT_NAME?.trim() ?? ''
-const authApiUrl = (
-  import.meta.env.VITE_AUTH_API_URL?.trim() || 'http://localhost:3001'
-).replace(/\/$/, '')
 
 function isAuthUser(value: unknown): value is AuthUser {
   if (!value || typeof value !== 'object') {
@@ -62,29 +59,40 @@ function isAuthUser(value: unknown): value is AuthUser {
 async function exchangeProviderCredential(
   request: AuthSessionRequest,
 ): Promise<AuthSessionResponse> {
-  const response = await fetch(`${authApiUrl}/auth/session`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(request),
-  })
-  const body = (await response.json().catch(() => null)) as
-    | (Partial<AuthSessionResponse> & { error?: string })
-    | null
+  try {
+    const response = await fetch(
+      `${import.meta.env.VITE_AUTH_API_URL}/auth/session`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify(request),
+      },
+    )
+    const body = (await response.json().catch(() => null)) as
+      | (Partial<AuthSessionResponse> & { error?: string })
+      | null
 
-  if (!response.ok) {
-    throw new Error(body?.error || `Authentication failed (${response.status}).`)
+    if (!response.ok) {
+      throw new Error(body?.error || `Authentication failed (${response.status}).`)
+    }
+
+    if (
+      !body ||
+      !isAuthUser(body.user) ||
+      typeof body.sessionToken !== 'string' ||
+      !body.sessionToken
+    ) {
+      throw new Error('The authentication server returned an invalid session.')
+    }
+
+    return { user: body.user, sessionToken: body.sessionToken }
+  } catch (error) {
+    console.error("Auth Fetch Error:", error)
+    throw error
   }
-
-  if (
-    !body ||
-    !isAuthUser(body.user) ||
-    typeof body.sessionToken !== 'string' ||
-    !body.sessionToken
-  ) {
-    throw new Error('The authentication server returned an invalid session.')
-  }
-
-  return { user: body.user, sessionToken: body.sessionToken }
 }
 
 function formatError(error: unknown): string {
@@ -213,8 +221,11 @@ function LoginPageContent() {
           <p>Choose a provider to continue your academic build.</p>
 
           <div className="auth-buttons" aria-busy={isBusy}>
-            <section className="telegram-login-feature" aria-labelledby="telegram-login-title">
-              <div className="telegram-login-feature__heading">
+            <section
+              className="telegram-login-feature group relative cursor-pointer overflow-hidden transition-all duration-300 ease-in-out hover:scale-[1.03] hover:ring-2 hover:ring-blue-400 hover:drop-shadow-[0_0_15px_rgba(59,130,246,0.3)]"
+              aria-labelledby="telegram-login-title"
+            >
+              <div className="telegram-login-feature__heading group-hover:animate-pulse">
                 <span className="telegram-login-feature__icon" aria-hidden="true">➤</span>
                 <div>
                   <strong id="telegram-login-title">Continue with Telegram</strong>
@@ -224,16 +235,18 @@ function LoginPageContent() {
               </div>
               <p>Sign in once, then keep your academic workflow connected in chat.</p>
               {telegramBotName ? (
-                <div className="oauth-widget oauth-widget--telegram">
-                  <TelegramLoginButton
-                    botUsername={telegramBotName}
-                    onAuthCallback={handleTelegramSuccess}
-                    requestAccess="write"
-                    size="large"
-                    userPic
-                    lang="en"
-                    loadingComponent={<span>Loading Telegram…</span>}
-                  />
+                <div className="absolute inset-0 z-50 flex scale-[2] items-center justify-center opacity-0">
+                  <div className="oauth-widget oauth-widget--telegram">
+                    <TelegramLoginButton
+                      botUsername={telegramBotName}
+                      onAuthCallback={handleTelegramSuccess}
+                      requestAccess="write"
+                      size="large"
+                      userPic
+                      lang="en"
+                      loadingComponent={<span>Loading Telegram…</span>}
+                    />
+                  </div>
                 </div>
               ) : (
                 <MissingProviderButton provider="telegram" />

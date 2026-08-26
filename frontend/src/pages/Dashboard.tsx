@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import type { DevLinguaFlavor, Module } from '@kiasucode/shared'
 
@@ -83,10 +83,20 @@ const initialModules: Module[] = [
 
 type WorkspaceTab = 'pipeline' | 'simulator'
 
+function getInitialDarkMode(): boolean {
+  const savedTheme = window.localStorage.getItem('kiasucode-theme')
+
+  if (savedTheme === 'dark') return true
+  if (savedTheme === 'light') return false
+
+  return window.matchMedia('(prefers-color-scheme: dark)').matches
+}
+
 export function Dashboard() {
   const [modules, setModules] = useState<Module[]>(initialModules)
   const [activeTab, setActiveTab] = useState<WorkspaceTab>('pipeline')
   const [isTelegramOpen, setIsTelegramOpen] = useState(false)
+  const [isDarkMode, setIsDarkMode] = useState(getInitialDarkMode)
   const { user } = useAuth()
   const navigate = useNavigate()
   const userInitials = user?.name
@@ -110,6 +120,14 @@ export function Dashboard() {
   const flavor: DevLinguaFlavor =
     currentGpa >= 3.5 ? 'positive' : currentGpa < 3 ? 'negative' : 'casual'
 
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', isDarkMode)
+    window.localStorage.setItem(
+      'kiasucode-theme',
+      isDarkMode ? 'dark' : 'light',
+    )
+  }, [isDarkMode])
+
   const openWorkspace = (tab: WorkspaceTab) => {
     setActiveTab(tab)
     window.setTimeout(() => {
@@ -122,8 +140,8 @@ export function Dashboard() {
   }
 
   return (
-    <div className="app-shell">
-      <header className="site-header dashboard-header">
+    <div className="app-shell bg-gray-100 text-gray-900 transition-colors duration-300 dark:bg-gray-900 dark:text-gray-100">
+      <header className="site-header dashboard-header dark:border-gray-700 dark:bg-gray-900/90">
         <Link className="brand" to="/" aria-label="KiasuCode home">
           <Logo className="text-[18px]" />
         </Link>
@@ -133,6 +151,25 @@ export function Dashboard() {
           <button type="button" onClick={() => openWorkspace('simulator')}>Simulator</button>
         </nav>
         <div className="header-actions">
+          <button
+            className="theme-toggle inline-grid size-9 place-items-center rounded-lg border border-gray-200 bg-white text-gray-600 transition-all duration-200 hover:bg-gray-100 hover:text-gray-950 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white"
+            type="button"
+            onClick={() => setIsDarkMode((enabled) => !enabled)}
+            aria-label={`Switch to ${isDarkMode ? 'light' : 'dark'} mode`}
+            aria-pressed={isDarkMode}
+            title={`Switch to ${isDarkMode ? 'light' : 'dark'} mode`}
+          >
+            {isDarkMode ? (
+              <svg aria-hidden="true" viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <circle cx="12" cy="12" r="3.5" />
+                <path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.65 17.65l1.42 1.42M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.65 6.35l1.42-1.42" />
+              </svg>
+            ) : (
+              <svg aria-hidden="true" viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <path d="M20.5 15.4A8.5 8.5 0 0 1 8.6 3.5a8.5 8.5 0 1 0 11.9 11.9Z" />
+              </svg>
+            )}
+          </button>
           <button
             className="button button--dark telegram-connect-button"
             type="button"
@@ -163,7 +200,7 @@ export function Dashboard() {
       </header>
 
       <main id="top">
-        <section className="hero-section">
+        <section className="hero-section transition-colors duration-300 dark:bg-gray-900">
           <div className="hero-copy">
             <div className="hero-kicker">
               <span>Academic Build Tracker</span>
@@ -207,7 +244,7 @@ export function Dashboard() {
           />
         </section>
 
-        <section className="dashboard-section" id="dashboard">
+        <section className="dashboard-section transition-colors duration-300 dark:border-gray-700 dark:bg-gray-900" id="dashboard">
           <div className="section-heading">
             <div>
               <span className="eyebrow">Build overview · {semester}</span>
@@ -237,7 +274,7 @@ export function Dashboard() {
           />
         </section>
 
-        <section className="workspace-section" id="workspace">
+        <section className="workspace-section transition-colors duration-300 dark:bg-gray-900" id="workspace">
           <div className="workspace-tabs" role="tablist" aria-label="Academic workspace">
             <button
               type="button"
