@@ -1,3 +1,20 @@
+CREATE TABLE IF NOT EXISTS users (
+  id VARCHAR(36) NOT NULL,
+  provider ENUM('google', 'telegram', 'local') NOT NULL,
+  provider_id VARCHAR(255) NOT NULL,
+  email VARCHAR(255) NULL,
+  password_hash VARCHAR(255) NULL,
+  name VARCHAR(160) NOT NULL,
+  photo_url VARCHAR(512) NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_users_provider_id (provider_id),
+  UNIQUE KEY uq_users_email (email)
+) ENGINE = InnoDB
+  DEFAULT CHARACTER SET = utf8mb4
+  COLLATE = utf8mb4_0900_ai_ci;
+
 CREATE TABLE IF NOT EXISTS institutions (
   id CHAR(36) NOT NULL,
   user_id VARCHAR(36) NOT NULL,

@@ -7,7 +7,7 @@ import {
   type ReactNode,
 } from 'react'
 
-export type AuthProviderName = 'telegram' | 'google'
+export type AuthProviderName = 'telegram' | 'google' | 'local'
 
 export interface AuthUser {
   id: string
@@ -36,7 +36,7 @@ const LEGACY_AUTH_STORAGE_KEY = 'kiasucode.auth.user'
 const AuthContext = createContext<AuthContextValue | null>(null)
 
 function isAuthProvider(value: unknown): value is AuthProviderName {
-  return value === 'telegram' || value === 'google'
+  return value === 'telegram' || value === 'google' || value === 'local'
 }
 
 function isAuthUser(value: unknown): value is AuthUser {

@@ -118,22 +118,22 @@ export function Navbar({ onConnectTelegram }: NavbarProps) {
               role="menu"
               aria-label="Profile actions"
             >
-              <button
+              <Link
+                to="/profile"
                 className="flex w-full items-center px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
-                type="button"
                 role="menuitem"
                 onClick={() => setIsOpen(false)}
               >
                 Profile
-              </button>
-              <button
+              </Link>
+              <Link
+                to="/settings"
                 className="flex w-full items-center px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
-                type="button"
                 role="menuitem"
                 onClick={() => setIsOpen(false)}
               >
                 Settings
-              </button>
+              </Link>
               <button
                 className="flex w-full items-center px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
                 type="button"

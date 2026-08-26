@@ -11,8 +11,12 @@ import {
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { ToastProvider } from './context/ToastContext'
 import { Dashboard } from './pages/Dashboard'
+import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
 import { LandingPage } from './pages/LandingPage'
 import { LoginPage } from './pages/LoginPage'
+import { ProfilePage } from './pages/ProfilePage'
+import { RegisterPage } from './pages/RegisterPage'
+import { SettingsPage } from './pages/SettingsPage'
 import './App.css'
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
@@ -31,12 +35,30 @@ function AppRoutes() {
     <Routes>
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/logout" element={<LogoutRoute />} />
       <Route
         path="/dashboard"
         element={
           <ProtectedRoute>
             <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/profile"
+        element={
+          <ProtectedRoute>
+            <ProfilePage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/settings"
+        element={
+          <ProtectedRoute>
+            <SettingsPage />
           </ProtectedRoute>
         }
       />

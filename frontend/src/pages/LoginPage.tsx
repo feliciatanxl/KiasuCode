@@ -5,7 +5,7 @@ import {
 import { GoogleLogin, GoogleOAuthProvider, type CredentialResponse } from '@react-oauth/google'
 import { jwtDecode, type JwtPayload } from 'jwt-decode'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link, Navigate, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 
 import { Logo } from '../components/Logo'
 import {
@@ -52,7 +52,7 @@ function isAuthUser(value: unknown): value is AuthUser {
   return (
     typeof user.id === 'string' &&
     typeof user.name === 'string' &&
-    (user.provider === 'google' || user.provider === 'telegram')
+    (user.provider === 'google' || user.provider === 'telegram' || user.provider === 'local')
   )
 }
 
@@ -90,7 +90,7 @@ async function exchangeProviderCredential(
 
     return { user: body.user, sessionToken: body.sessionToken }
   } catch (error) {
-    console.error("Auth Fetch Error:", error)
+    console.error('Auth Fetch Error:', error)
     throw error
   }
 }
@@ -112,10 +112,17 @@ function MissingProviderButton({ provider }: { provider: AuthProviderName }) {
 function LoginPageContent() {
   const { isAuthenticated, login } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const googleContainerRef = useRef<HTMLElement>(null)
   const [googleButtonWidth, setGoogleButtonWidth] = useState(300)
   const [activeProvider, setActiveProvider] = useState<AuthProviderName | null>(null)
   const [authError, setAuthError] = useState<string | null>(null)
+
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const fromPath = (location.state as { from?: string } | null)?.from || '/dashboard'
 
   useEffect(() => {
     const container = googleContainerRef.current
@@ -144,18 +151,64 @@ function LoginPageContent() {
       try {
         const session = await exchangeProviderCredential(request)
         login(session.user, session.sessionToken)
-        navigate('/dashboard', { replace: true })
+        navigate(fromPath, { replace: true })
       } catch (error) {
         setAuthError(formatError(error))
       } finally {
         setActiveProvider(null)
       }
     },
-    [login, navigate],
+    [login, navigate, fromPath],
   )
 
   if (isAuthenticated) {
     return <Navigate to="/dashboard" replace />
+  }
+
+  const handleLocalSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    setIsSubmitting(true)
+    setActiveProvider('local')
+    setAuthError(null)
+
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_AUTH_API_URL}/auth/login`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+          },
+          body: JSON.stringify({ email, password }),
+        },
+      )
+
+      const body = (await response.json().catch(() => null)) as
+        | (Partial<AuthSessionResponse> & { error?: string })
+        | null
+
+      if (!response.ok) {
+        throw new Error(body?.error || `Login failed (${response.status}).`)
+      }
+
+      if (
+        !body ||
+        !isAuthUser(body.user) ||
+        typeof body.sessionToken !== 'string' ||
+        !body.sessionToken
+      ) {
+        throw new Error('The authentication server returned an invalid session.')
+      }
+
+      login(body.user, body.sessionToken)
+      navigate(fromPath, { replace: true })
+    } catch (error) {
+      setAuthError(formatError(error))
+    } finally {
+      setIsSubmitting(false)
+      setActiveProvider(null)
+    }
   }
 
   const handleGoogleSuccess = (response: CredentialResponse) => {
@@ -202,7 +255,7 @@ function LoginPageContent() {
     void completeLogin({ provider: 'telegram', authData, profile })
   }
 
-  const isBusy = activeProvider !== null
+  const isBusy = activeProvider !== null || isSubmitting
 
   return (
     <main className="auth-page !bg-slate-50 px-4 text-slate-900 transition-colors dark:!bg-slate-900 dark:text-slate-100 sm:px-6">
@@ -218,7 +271,73 @@ function LoginPageContent() {
         <div className="login-card__body">
           <span className="eyebrow">Welcome to the repository</span>
           <h1 className="text-slate-900 dark:text-slate-100" id="login-title">Sign in. Ship steady.</h1>
-          <p className="text-slate-500 dark:text-slate-400">Choose a provider to continue your academic build.</p>
+          <p className="text-slate-500 dark:text-slate-400">Choose your authentication method to continue your academic build.</p>
+
+          <form onSubmit={handleLocalSubmit} className="mt-6 space-y-4 text-left">
+            <div>
+              <label
+                htmlFor="login-email"
+                className="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300"
+              >
+                Email
+              </label>
+              <input
+                id="login-email"
+                name="email"
+                type="email"
+                autoComplete="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@u.nus.edu"
+                className="mt-1.5 block w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder-slate-500"
+              />
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between">
+                <label
+                  htmlFor="login-password"
+                  className="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300"
+                >
+                  Password
+                </label>
+                <Link
+                  to="/forgot-password"
+                  className="text-xs font-medium text-blue-600 hover:text-blue-500 hover:underline dark:text-blue-400"
+                >
+                  Forgot password?
+                </Link>
+              </div>
+              <input
+                id="login-password"
+                name="password"
+                type="password"
+                autoComplete="current-password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className="mt-1.5 block w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder-slate-500"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={isBusy}
+              className="w-full rounded-lg bg-blue-600 py-2.5 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isSubmitting ? 'Signing in…' : 'Sign In'}
+            </button>
+          </form>
+
+          <div className="my-6 flex items-center">
+            <hr className="flex-grow border-slate-200 dark:border-slate-700" />
+            <span className="mx-2 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+              OR CONTINUE WITH
+            </span>
+            <hr className="flex-grow border-slate-200 dark:border-slate-700" />
+          </div>
 
           <div className="auth-buttons" aria-busy={isBusy}>
             <section
@@ -253,10 +372,6 @@ function LoginPageContent() {
               )}
             </section>
 
-            <div className="auth-divider" aria-hidden="true">
-              <span>or use another account</span>
-            </div>
-
             <section
               ref={googleContainerRef}
               className="google-login-option"
@@ -281,7 +396,7 @@ function LoginPageContent() {
             </section>
           </div>
 
-          {activeProvider && (
+          {activeProvider && activeProvider !== 'local' && (
             <p className="auth-message" role="status">
               Completing {activeProvider} sign-in…
             </p>
@@ -292,8 +407,15 @@ function LoginPageContent() {
             </p>
           )}
 
+          <p className="mt-6 text-center text-sm text-slate-600 dark:text-slate-400">
+            Don't have an account?{' '}
+            <Link to="/register" className="font-semibold text-blue-600 hover:underline dark:text-blue-400">
+              Sign up
+            </Link>
+          </p>
+
           <p className="auth-terms">
-            Your provider credential is verified by the KiasuCode authentication service.<br />
+            Your credentials are secure and verified by KiasuCode.<br />
             <span>Signing in creates a local browser session.</span>
           </p>
         </div>
