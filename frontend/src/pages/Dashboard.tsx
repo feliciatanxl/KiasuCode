@@ -89,6 +89,12 @@ export function Dashboard() {
   const [isTelegramOpen, setIsTelegramOpen] = useState(false)
   const { user } = useAuth()
   const navigate = useNavigate()
+  const userInitials = user?.name
+    .split(/\s+/)
+    .map((part) => part[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase() || 'KC'
 
   const currentGpa = useMemo(() => calculateCurrentGpa(modules), [modules])
   const targetGpa = useMemo(() => calculateTargetGpa(modules), [modules])
@@ -135,7 +141,13 @@ export function Dashboard() {
             <span>➤</span> Connect Telegram
           </button>
           <div className="user-chip" title={user?.name}>
-            <span>{user?.avatar ?? 'KC'}</span>
+            <span>
+              {user?.photoUrl ? (
+                <img src={user.photoUrl} alt="" referrerPolicy="no-referrer" />
+              ) : (
+                userInitials
+              )}
+            </span>
             <strong>{user?.name ?? 'Student'}</strong>
           </div>
           <button

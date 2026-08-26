@@ -1,53 +1,114 @@
 import {
   createContext,
+  useCallback,
   useContext,
   useMemo,
   useState,
   type ReactNode,
 } from 'react'
 
+export type AuthProviderName = 'telegram' | 'google'
+
 export interface AuthUser {
+  id: string
   name: string
-  avatar: string
+  email?: string
+  photoUrl?: string
+  provider: AuthProviderName
+}
+
+interface AuthSession {
+  user: AuthUser
+  sessionToken: string
 }
 
 interface AuthContextValue {
   isAuthenticated: boolean
   user: AuthUser | null
-  login: (user: AuthUser) => void
+  sessionToken: string | null
+  login: (user: AuthUser, sessionToken: string) => void
   logout: () => void
 }
 
-const AUTH_STORAGE_KEY = 'kiasucode.auth.user'
+const AUTH_STORAGE_KEY = 'kiasucode.auth.session'
+const LEGACY_AUTH_STORAGE_KEY = 'kiasucode.auth.user'
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
-function readStoredUser(): AuthUser | null {
+function isAuthProvider(value: unknown): value is AuthProviderName {
+  return value === 'telegram' || value === 'google'
+}
+
+function isAuthUser(value: unknown): value is AuthUser {
+  if (!value || typeof value !== 'object') {
+    return false
+  }
+
+  const user = value as Partial<AuthUser>
+
+  return (
+    typeof user.id === 'string' &&
+    user.id.length > 0 &&
+    typeof user.name === 'string' &&
+    user.name.length > 0 &&
+    (user.email === undefined || typeof user.email === 'string') &&
+    (user.photoUrl === undefined || typeof user.photoUrl === 'string') &&
+    isAuthProvider(user.provider)
+  )
+}
+
+function readStoredSession(): AuthSession | null {
   try {
-    const storedUser = window.localStorage.getItem(AUTH_STORAGE_KEY)
-    return storedUser ? (JSON.parse(storedUser) as AuthUser) : null
+    const storedSession = window.localStorage.getItem(AUTH_STORAGE_KEY)
+
+    if (!storedSession) {
+      return null
+    }
+
+    const session = JSON.parse(storedSession) as Partial<AuthSession>
+
+    if (!isAuthUser(session.user) || typeof session.sessionToken !== 'string') {
+      window.localStorage.removeItem(AUTH_STORAGE_KEY)
+      return null
+    }
+
+    return session as AuthSession
   } catch {
+    window.localStorage.removeItem(AUTH_STORAGE_KEY)
     return null
   }
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(readStoredUser)
+  const [session, setSession] = useState<AuthSession | null>(readStoredSession)
+
+  const login = useCallback((user: AuthUser, sessionToken: string) => {
+    if (!sessionToken.trim()) {
+      throw new Error('A non-empty session token is required to log in.')
+    }
+
+    const nextSession: AuthSession = { user, sessionToken }
+
+    window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(nextSession))
+    window.localStorage.removeItem(LEGACY_AUTH_STORAGE_KEY)
+    setSession(nextSession)
+  }, [])
+
+  const logout = useCallback(() => {
+    window.localStorage.removeItem(AUTH_STORAGE_KEY)
+    window.localStorage.removeItem(LEGACY_AUTH_STORAGE_KEY)
+    setSession(null)
+  }, [])
 
   const value = useMemo<AuthContextValue>(
     () => ({
-      isAuthenticated: user !== null,
-      user,
-      login: (nextUser) => {
-        window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(nextUser))
-        setUser(nextUser)
-      },
-      logout: () => {
-        window.localStorage.removeItem(AUTH_STORAGE_KEY)
-        setUser(null)
-      },
+      isAuthenticated: session !== null,
+      user: session?.user ?? null,
+      sessionToken: session?.sessionToken ?? null,
+      login,
+      logout,
     }),
-    [user],
+    [login, logout, session],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
