@@ -5,6 +5,7 @@ import express from 'express'
 import type { HealthResponse } from '@kiasucode/shared'
 
 import authRouter from './routes/auth.js'
+import academicRouter from './routes/academic.js'
 
 const app = express()
 const port = Number(process.env.PORT ?? 3001)
@@ -34,6 +35,7 @@ app.get('/health', (_request, response) => {
 })
 
 app.use('/auth', authRouter)
+app.use('/api', academicRouter)
 
 app.listen(port, () => {
   console.log(`Backend listening on http://localhost:${port}`)

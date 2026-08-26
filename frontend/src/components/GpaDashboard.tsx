@@ -43,18 +43,18 @@ export function GpaDashboard({
     <section className="metric-grid" aria-label="Academic build metrics">
       {cards.map((card) => (
         <article
-          className={`metric-card${card.accent ? ' metric-card--accent' : ''}`}
+          className={`metric-card border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800${card.accent ? ' metric-card--accent' : ''}`}
           key={card.code}
         >
-          <div className="metric-card__topline">
+          <div className="metric-card__topline text-slate-500 dark:text-slate-400">
             <span>{card.label}</span>
             <code>{card.code}</code>
           </div>
           <div className="metric-card__value-row">
-            <strong>{card.value}</strong>
-            {card.unit ? <span>{card.unit}</span> : null}
+            <strong className="text-slate-900 dark:text-slate-100">{card.value}</strong>
+            {card.unit ? <span className="text-slate-500 dark:text-slate-400">{card.unit}</span> : null}
           </div>
-          <div className="metric-card__footer">
+          <div className="metric-card__footer border-slate-200 text-slate-500 dark:border-slate-700 dark:text-slate-400">
             <span>{card.detail}</span>
             <span aria-hidden="true">↗</span>
           </div>

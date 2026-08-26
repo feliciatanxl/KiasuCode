@@ -36,7 +36,7 @@ export function TelegramConnectModal({
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
       <section
-        className="connect-modal"
+        className="connect-modal border-slate-200 bg-white text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
         role="dialog"
         aria-modal="true"
         aria-labelledby="connect-title"
@@ -49,20 +49,20 @@ export function TelegramConnectModal({
           </button>
         </div>
         <span className="eyebrow">Companion bot · coming next</span>
-        <h2 id="connect-title">Pair Telegram</h2>
-        <p>
+        <h2 className="text-slate-900 dark:text-slate-100" id="connect-title">Pair Telegram</h2>
+        <p className="text-slate-500 dark:text-slate-400">
           Ship quick grade updates from Telegram while this dashboard remains
           your source of truth.
         </p>
-        <ol className="pairing-steps">
+        <ol className="pairing-steps text-slate-700 dark:text-slate-200">
           <li><span>1</span><p>Open the KiasuCode bot.</p></li>
           <li><span>2</span><p>Send the secure pairing code below.</p></li>
           <li><span>3</span><p>Your academic pipeline syncs automatically.</p></li>
         </ol>
-        <div className="pairing-code">
+        <div className="pairing-code border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900">
           <div>
-            <span>PAIRING_TOKEN</span>
-            <code>{pairingCode}</code>
+            <span className="text-slate-500 dark:text-slate-400">PAIRING_TOKEN</span>
+            <code className="text-slate-900 dark:text-slate-100">{pairingCode}</code>
           </div>
           <button type="button" onClick={copyPairingCode}>
             {copied ? 'Copied ✓' : 'Copy'}
@@ -71,7 +71,7 @@ export function TelegramConnectModal({
         <a className="button button--telegram" href={botLink} target="_blank" rel="noreferrer">
           Open t.me/KiasuCodeBot <span>↗</span>
         </a>
-        <small>Mock integration only. No account data is sent yet.</small>
+        <small className="text-slate-500 dark:text-slate-400">Mock integration only. No account data is sent yet.</small>
       </section>
     </div>
   )

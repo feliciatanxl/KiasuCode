@@ -9,6 +9,7 @@ import {
 } from 'react-router-dom'
 
 import { AuthProvider, useAuth } from './context/AuthContext'
+import { ToastProvider } from './context/ToastContext'
 import { Dashboard } from './pages/Dashboard'
 import { LandingPage } from './pages/LandingPage'
 import { LoginPage } from './pages/LoginPage'
@@ -53,14 +54,16 @@ function LogoutRoute() {
     navigate('/', { replace: true })
   }, [logout, navigate])
 
-  return <main className="route-loading"><code>closing auth/session...</code></main>
+  return <main className="route-loading min-h-screen dark:bg-slate-900 dark:text-white"><code>closing auth/session...</code></main>
 }
 
 function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <AppRoutes />
+        <ToastProvider>
+          <AppRoutes />
+        </ToastProvider>
       </AuthProvider>
     </BrowserRouter>
   )

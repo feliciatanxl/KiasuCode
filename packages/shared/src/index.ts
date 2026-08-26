@@ -29,6 +29,27 @@ export interface Module {
   semester: string
 }
 
+export interface Institution {
+  id: string
+  name: string
+}
+
+export interface AcademicSemester {
+  id: string
+  institutionId: string
+  academicYear: string
+  term: string
+}
+
+export interface CreateModuleInput {
+  moduleCode: string
+  moduleName: string
+  creditUnits: number
+  targetGrade: GradeLetter
+  actualGrade: GradeLetter | null
+  status: ModuleStatus
+}
+
 export type GradeScale = Record<GradeLetter, number>
 
 export type DevLinguaFlavor = 'positive' | 'negative' | 'casual'

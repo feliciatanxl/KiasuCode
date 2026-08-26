@@ -205,20 +205,20 @@ function LoginPageContent() {
   const isBusy = activeProvider !== null
 
   return (
-    <main className="auth-page px-4 sm:px-6">
+    <main className="auth-page !bg-slate-50 px-4 text-slate-900 transition-colors dark:!bg-slate-900 dark:text-slate-100 sm:px-6">
       <Link className="brand auth-brand" to="/" aria-label="Back to KiasuCode home">
         <Logo className="text-[20px]" />
       </Link>
 
-      <section className="login-card mx-auto w-full max-w-md" aria-labelledby="login-title">
+      <section className="login-card mx-auto w-full max-w-md border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800" aria-labelledby="login-title">
         <div className="login-card__terminal-bar">
           <div className="terminal-dots" aria-hidden="true"><span /><span /><span /></div>
           <code>auth/session.init</code>
         </div>
         <div className="login-card__body">
           <span className="eyebrow">Welcome to the repository</span>
-          <h1 id="login-title">Sign in. Ship steady.</h1>
-          <p>Choose a provider to continue your academic build.</p>
+          <h1 className="text-slate-900 dark:text-slate-100" id="login-title">Sign in. Ship steady.</h1>
+          <p className="text-slate-500 dark:text-slate-400">Choose a provider to continue your academic build.</p>
 
           <div className="auth-buttons" aria-busy={isBusy}>
             <section

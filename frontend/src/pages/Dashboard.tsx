@@ -1,311 +1,439 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import type { DevLinguaFlavor, Module } from '@kiasucode/shared'
-
-import { DevLinguaBanner } from '../components/DevLinguaBanner'
-import { GpaDashboard } from '../components/GpaDashboard'
-import { Logo } from '../components/Logo'
-import { ModulePipeline } from '../components/ModulePipeline'
-import { StagingSimulator } from '../components/StagingSimulator'
-import { TelegramConnectModal } from '../components/TelegramConnectModal'
-import { TerminalHero } from '../components/TerminalHero'
-import { useAuth } from '../context/AuthContext'
 import {
-  calculateCurrentGpa,
-  calculateEarnedCredits,
-  calculateTargetGpa,
-} from '../utils/gpa'
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type FormEvent,
+} from 'react'
+import type {
+  AcademicSemester,
+  Institution,
+  Module,
+} from '@kiasucode/shared'
 
-const semester = 'AY25/26 · S2'
+import {
+  Breadcrumbs,
+  type BreadcrumbItem,
+} from '../components/Breadcrumbs'
+import { Logo } from '../components/Logo'
+import { Navbar } from '../components/Navbar'
+import { TelegramConnectModal } from '../components/TelegramConnectModal'
+import { useAuth } from '../context/AuthContext'
+import { useToast } from '../context/ToastContext'
+import { apiRequest, formatApiError, isAbortError } from '../utils/api'
+import { ModulesView } from './ModulesView'
+import { SemestersView } from './SemestersView'
 
-const initialModules: Module[] = [
-  {
-    id: 'a81d9c',
-    moduleCode: 'CS2030S',
-    moduleName: 'Programming Methodology II',
-    creditUnits: 4,
-    targetGrade: 'A',
-    actualGrade: 'A-',
-    status: 'merged',
-    semester,
-  },
-  {
-    id: 'b42ef1',
-    moduleCode: 'CS2040S',
-    moduleName: 'Data Structures and Algorithms',
-    creditUnits: 4,
-    targetGrade: 'A-',
-    actualGrade: 'B+',
-    status: 'merged',
-    semester,
-  },
-  {
-    id: 'f19aa4',
-    moduleCode: 'IS1108',
-    moduleName: 'Digital Ethics and Data Privacy',
-    creditUnits: 4,
-    targetGrade: 'A',
-    actualGrade: 'A',
-    status: 'merged',
-    semester,
-  },
-  {
-    id: 'c73b20',
-    moduleCode: 'MA1521',
-    moduleName: 'Calculus for Computing',
-    creditUnits: 4,
-    targetGrade: 'B+',
-    actualGrade: 'B',
-    status: 'merged',
-    semester,
-  },
-  {
-    id: 'd62ce8',
-    moduleCode: 'CS2103T',
-    moduleName: 'Software Engineering',
-    creditUnits: 4,
-    targetGrade: 'A-',
-    actualGrade: null,
-    status: 'in-progress',
-    semester,
-  },
-  {
-    id: 'e04a17',
-    moduleCode: 'ST2334',
-    moduleName: 'Probability and Statistics',
-    creditUnits: 4,
-    targetGrade: 'B+',
-    actualGrade: null,
-    status: 'backlog',
-    semester,
-  },
-]
+interface InstitutionDirectory {
+  kind: 'institution'
+  value: Institution
+}
 
-type WorkspaceTab = 'pipeline' | 'simulator'
+interface SemesterDirectory {
+  kind: 'semester'
+  value: AcademicSemester
+}
 
-function getInitialDarkMode(): boolean {
-  const savedTheme = window.localStorage.getItem('kiasucode-theme')
+type DirectoryEntry = InstitutionDirectory | SemesterDirectory
 
-  if (savedTheme === 'dark') return true
-  if (savedTheme === 'light') return false
+interface InstitutionsResponse {
+  institutions: Institution[]
+}
 
-  return window.matchMedia('(prefers-color-scheme: dark)').matches
+interface InstitutionResponse {
+  institution: Institution
+}
+
+interface SemestersResponse {
+  semesters: AcademicSemester[]
+}
+
+interface ModulesResponse {
+  modules: Module[]
+}
+
+interface ModuleResponse {
+  module: Module
+}
+
+function DirectoryButton({
+  label,
+  detail,
+  onClick,
+}: {
+  label: string
+  detail: string
+  onClick: () => void
+}) {
+  return (
+    <button
+      className="flex w-full cursor-pointer items-center justify-between gap-4 border-b border-slate-200 bg-white px-6 py-5 text-left transition-colors last:border-b-0 hover:bg-blue-50 dark:border-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700/60"
+      type="button"
+      onClick={onClick}
+    >
+      <span>
+        <strong className="block text-sm text-slate-900 dark:text-slate-100">{label}</strong>
+        <small className="mt-1 block text-xs text-slate-500 dark:text-slate-400">{detail}</small>
+      </span>
+      <span className="text-xl text-blue-500" aria-hidden="true">→</span>
+    </button>
+  )
 }
 
 export function Dashboard() {
-  const [modules, setModules] = useState<Module[]>(initialModules)
-  const [activeTab, setActiveTab] = useState<WorkspaceTab>('pipeline')
+  const [directoryStack, setDirectoryStack] = useState<DirectoryEntry[]>([])
+  const [institutions, setInstitutions] = useState<Institution[]>([])
+  const [semesters, setSemesters] = useState<AcademicSemester[]>([])
+  const [modules, setModules] = useState<Module[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [apiError, setApiError] = useState<string | null>(null)
   const [isTelegramOpen, setIsTelegramOpen] = useState(false)
-  const [isDarkMode, setIsDarkMode] = useState(getInitialDarkMode)
-  const { user } = useAuth()
-  const navigate = useNavigate()
-  const userInitials = user?.name
-    .split(/\s+/)
-    .map((part) => part[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase() || 'KC'
+  const [isInstitutionFormOpen, setIsInstitutionFormOpen] = useState(false)
+  const [isCreatingInstitution, setIsCreatingInstitution] = useState(false)
+  const [institutionName, setInstitutionName] = useState('')
+  const [institutionError, setInstitutionError] = useState<string | null>(null)
+  const { sessionToken } = useAuth()
+  const { showToast } = useToast()
 
-  const currentGpa = useMemo(() => calculateCurrentGpa(modules), [modules])
-  const targetGpa = useMemo(() => calculateTargetGpa(modules), [modules])
-  const earnedCredits = useMemo(
-    () => calculateEarnedCredits(modules),
-    [modules],
-  )
-  const mergedModules = modules.filter(
-    (module) => module.status === 'merged',
-  ).length
-  const nextModule = modules.find((module) => module.status !== 'merged')
-
-  const flavor: DevLinguaFlavor =
-    currentGpa >= 3.5 ? 'positive' : currentGpa < 3 ? 'negative' : 'casual'
+  const depth = directoryStack.length
+  const institutionEntry = directoryStack[0]
+  const semesterEntry = directoryStack[1]
+  const selectedInstitution = institutionEntry?.kind === 'institution'
+    ? institutionEntry.value
+    : null
+  const selectedSemester = semesterEntry?.kind === 'semester'
+    ? semesterEntry.value
+    : null
+  const semesterLabel = selectedSemester
+    ? `${selectedSemester.academicYear} · ${selectedSemester.term}`
+    : ''
 
   useEffect(() => {
-    document.documentElement.classList.toggle('dark', isDarkMode)
-    window.localStorage.setItem(
-      'kiasucode-theme',
-      isDarkMode ? 'dark' : 'light',
-    )
-  }, [isDarkMode])
+    if (!sessionToken) return
 
-  const openWorkspace = (tab: WorkspaceTab) => {
-    setActiveTab(tab)
-    window.setTimeout(() => {
-      document.querySelector('#workspace')?.scrollIntoView({ behavior: 'smooth' })
-    }, 0)
+    const controller = new AbortController()
+
+    void apiRequest<InstitutionsResponse>('/api/institutions', sessionToken, {
+      signal: controller.signal,
+    })
+      .then(({ data }) => setInstitutions(data.institutions))
+      .catch((error: unknown) => {
+        if (!isAbortError(error)) setApiError(formatApiError(error))
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setIsLoading(false)
+      })
+
+    return () => controller.abort()
+  }, [sessionToken])
+
+  useEffect(() => {
+    if (!sessionToken || !selectedInstitution) return
+
+    const controller = new AbortController()
+
+    void apiRequest<SemestersResponse>(
+      `/api/institutions/${selectedInstitution.id}/semesters`,
+      sessionToken,
+      { signal: controller.signal },
+    )
+      .then(({ data }) => setSemesters(data.semesters))
+      .catch((error: unknown) => {
+        if (!isAbortError(error)) setApiError(formatApiError(error))
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setIsLoading(false)
+      })
+
+    return () => controller.abort()
+  }, [selectedInstitution, sessionToken])
+
+  useEffect(() => {
+    if (!sessionToken || !selectedSemester) return
+
+    const controller = new AbortController()
+
+    void apiRequest<ModulesResponse>(
+      `/api/semesters/${selectedSemester.id}/modules`,
+      sessionToken,
+      { signal: controller.signal },
+    )
+      .then(({ data }) => setModules(data.modules))
+      .catch((error: unknown) => {
+        if (!isAbortError(error)) setApiError(formatApiError(error))
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setIsLoading(false)
+      })
+
+    return () => controller.abort()
+  }, [selectedSemester, sessionToken])
+
+  const popToDepth = useCallback((targetDepth: number) => {
+    setDirectoryStack((stack) => stack.slice(0, targetDepth))
+    if (targetDepth < 2) setModules([])
+    if (targetDepth < 1) setSemesters([])
+    setIsLoading(false)
+    setApiError(null)
+  }, [])
+
+  const openInstitution = (institution: Institution) => {
+    setSemesters([])
+    setModules([])
+    setIsLoading(true)
+    setApiError(null)
+    setDirectoryStack([{ kind: 'institution', value: institution }])
   }
 
-  const handleLogout = () => {
-    navigate('/logout', { replace: true })
+  const openSemester = (semester: AcademicSemester) => {
+    if (!selectedInstitution) return
+
+    setModules([])
+    setIsLoading(true)
+    setApiError(null)
+    setDirectoryStack([
+      { kind: 'institution', value: selectedInstitution },
+      { kind: 'semester', value: semester },
+    ])
+  }
+
+  const breadcrumbAncestors = useMemo<BreadcrumbItem[]>(() => {
+    if (depth === 0) return []
+
+    const ancestors: BreadcrumbItem[] = [
+      { label: 'Institutions', onClick: () => popToDepth(0) },
+    ]
+
+    if (depth === 2 && selectedInstitution && selectedSemester) {
+      ancestors.push({
+        label: selectedInstitution.name,
+        onClick: () => popToDepth(1),
+      })
+      ancestors.push({
+        label: `${selectedSemester.academicYear} · ${selectedSemester.term}`,
+        onClick: () => popToDepth(1),
+      })
+    }
+
+    return ancestors
+  }, [depth, popToDepth, selectedInstitution, selectedSemester])
+
+  const currentDirectoryLabel = depth === 0
+    ? 'Institutions'
+    : depth === 1
+      ? 'Semesters'
+      : 'Modules & Grades'
+
+  const openInstitutionForm = () => {
+    setInstitutionName('')
+    setInstitutionError(null)
+    setIsInstitutionFormOpen(true)
+  }
+
+  const closeInstitutionForm = () => {
+    if (isCreatingInstitution) return
+
+    setInstitutionName('')
+    setInstitutionError(null)
+    setIsInstitutionFormOpen(false)
+  }
+
+  const createInstitution = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const name = institutionName.trim()
+
+    if (!sessionToken || !name) return
+
+    setIsCreatingInstitution(true)
+    setInstitutionError(null)
+    setApiError(null)
+
+    try {
+      const { data, status } = await apiRequest<InstitutionResponse>(
+        '/api/institutions',
+        sessionToken,
+        { method: 'POST', body: JSON.stringify({ name }) },
+      )
+
+      if (status !== 200) {
+        throw new Error(`Unexpected institution create status (${status}).`)
+      }
+
+      setInstitutions((current) =>
+        [...current, data.institution].sort((left, right) =>
+          left.name.localeCompare(right.name),
+        ),
+      )
+      setInstitutionName('')
+      setIsInstitutionFormOpen(false)
+      showToast('Institution initialized.')
+    } catch (error) {
+      setInstitutionError(formatApiError(error))
+    } finally {
+      setIsCreatingInstitution(false)
+    }
+  }
+
+  const updateModule = async (id: string, patch: Partial<Module>) => {
+    if (!sessionToken) return
+
+    setApiError(null)
+    try {
+      const { data, status } = await apiRequest<ModuleResponse>(
+        `/api/modules/${id}`,
+        sessionToken,
+        { method: 'PATCH', body: JSON.stringify(patch) },
+      )
+
+      if (status !== 200) throw new Error(`Unexpected update status (${status}).`)
+      setModules((current) =>
+        current.map((module) => module.id === id ? data.module : module),
+      )
+      showToast('Module updated cleanly. Shiok—keep shipping!')
+    } catch (error) {
+      setApiError(formatApiError(error))
+      throw error
+    }
+  }
+
+  const deleteModule = async (id: string) => {
+    if (!sessionToken) return
+
+    setApiError(null)
+    try {
+      const { status } = await apiRequest<{ success: boolean }>(
+        `/api/modules/${id}`,
+        sessionToken,
+        { method: 'DELETE' },
+      )
+
+      if (status !== 200) throw new Error(`Unexpected delete status (${status}).`)
+      setModules((current) => current.filter((module) => module.id !== id))
+      showToast('Module deleted cleanly. Shiok—keep shipping!')
+    } catch (error) {
+      setApiError(formatApiError(error))
+      throw error
+    }
   }
 
   return (
-    <div className="app-shell bg-gray-100 text-gray-900 transition-colors duration-300 dark:bg-gray-900 dark:text-gray-100">
-      <header className="site-header dashboard-header dark:border-gray-700 dark:bg-gray-900/90">
-        <Link className="brand" to="/" aria-label="KiasuCode home">
-          <Logo className="text-[18px]" />
-        </Link>
-        <nav aria-label="Dashboard navigation">
-          <a href="#dashboard">Dashboard</a>
-          <button type="button" onClick={() => openWorkspace('pipeline')}>Pipeline</button>
-          <button type="button" onClick={() => openWorkspace('simulator')}>Simulator</button>
-        </nav>
-        <div className="header-actions">
-          <button
-            className="theme-toggle inline-grid size-9 place-items-center rounded-lg border border-gray-200 bg-white text-gray-600 transition-all duration-200 hover:bg-gray-100 hover:text-gray-950 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white"
-            type="button"
-            onClick={() => setIsDarkMode((enabled) => !enabled)}
-            aria-label={`Switch to ${isDarkMode ? 'light' : 'dark'} mode`}
-            aria-pressed={isDarkMode}
-            title={`Switch to ${isDarkMode ? 'light' : 'dark'} mode`}
-          >
-            {isDarkMode ? (
-              <svg aria-hidden="true" viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="1.8">
-                <circle cx="12" cy="12" r="3.5" />
-                <path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.65 17.65l1.42 1.42M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.65 6.35l1.42-1.42" />
-              </svg>
-            ) : (
-              <svg aria-hidden="true" viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="1.8">
-                <path d="M20.5 15.4A8.5 8.5 0 0 1 8.6 3.5a8.5 8.5 0 1 0 11.9 11.9Z" />
-              </svg>
-            )}
-          </button>
-          <button
-            className="button button--dark telegram-connect-button"
-            type="button"
-            onClick={() => setIsTelegramOpen(true)}
-          >
-            <span>➤</span> Connect Telegram
-          </button>
-          <div className="user-chip" title={user?.name}>
-            <span>
-              {user?.photoUrl ? (
-                <img src={user.photoUrl} alt="" referrerPolicy="no-referrer" />
-              ) : (
-                userInitials
-              )}
-            </span>
-            <strong>{user?.name ?? 'Student'}</strong>
-          </div>
-          <button
-            className="logout-button"
-            type="button"
-            onClick={handleLogout}
-            aria-label="Log out"
-            title="Log out"
-          >
-            ↪
-          </button>
-        </div>
-      </header>
+    <div className="app-shell bg-slate-50 text-slate-900 transition-colors duration-300 dark:bg-slate-900 dark:text-slate-100">
+      <Navbar onConnectTelegram={() => setIsTelegramOpen(true)} />
 
       <main id="top">
-        <section className="hero-section transition-colors duration-300 dark:bg-gray-900">
-          <div className="hero-copy">
-            <div className="hero-kicker">
-              <span>Academic Build Tracker</span>
-              <code>v1.0.0-beta</code>
-            </div>
-            <h1>
-              Ship your semester.<br />
-              <span>No merge conflicts.</span>
-            </h1>
-            <p>
-              Track modules like commits, simulate grades before production,
-              and keep your GPA pipeline green. Built for students who think in
-              branches, not binders.
+        <section
+          className="dashboard-section min-h-[calc(100vh-72px)] border-slate-200 bg-slate-50 transition-colors duration-300 dark:border-slate-700 dark:bg-slate-900"
+          id="dashboard"
+        >
+          <div className="mx-auto w-full max-w-7xl">
+            <header className="flex flex-row justify-between items-end w-full mb-6">
+              <div className="flex flex-col gap-2 justify-start">
+                <Breadcrumbs
+                  ancestors={breadcrumbAncestors}
+                  current={currentDirectoryLabel}
+                />
+                <h1 className="m-0 text-3xl leading-tight font-bold tracking-tight text-slate-900 dark:text-slate-100">
+                  {depth === 0
+                    ? 'Academic Institutions'
+                    : depth === 1
+                      ? `${selectedInstitution?.name ?? ''} Semesters`
+                      : 'Build Overview'}
+                </h1>
+              </div>
+              {depth === 0 && institutions.length > 0 && !isLoading ? (
+                <button
+                  className="inline-flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-blue-700 bg-blue-600 px-3.5 text-xs font-bold text-white shadow-[3px_3px_0_#a9c7ff] transition-colors hover:bg-blue-700 dark:border-blue-500 dark:bg-blue-600 dark:hover:bg-blue-500"
+                  type="button"
+                  onClick={openInstitutionForm}
+                >
+                  <span aria-hidden="true">+</span> New
+                </button>
+              ) : depth === 2 && selectedSemester ? (
+                <div className="branch-badge">
+                  <span aria-hidden="true">⑂</span>
+                  <div>
+                    <small>CURRENT TERM</small>
+                    <strong>{semesterLabel}</strong>
+                  </div>
+                </div>
+              ) : null}
+            </header>
+
+          {apiError ? (
+            <p
+              className="mt-6 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
+              role="alert"
+            >
+              {apiError}
             </p>
-            <div className="hero-actions">
-              <button
-                className="button button--primary button--large"
-                type="button"
-                onClick={() => openWorkspace('pipeline')}
-              >
-                View module pipeline <span>→</span>
-              </button>
-              <button
-                className="button button--ghost button--large"
-                type="button"
-                onClick={() => openWorkspace('simulator')}
-              >
-                Run grade simulation
-              </button>
-            </div>
-            <div className="hero-meta">
-              <span><i>✓</i> Local-first prototype</span>
-              <span><i>✓</i> Zero kanchiong mode</span>
-            </div>
-          </div>
-          <TerminalHero
-            currentGpa={currentGpa}
-            mergedModules={mergedModules}
-            totalModules={modules.length}
-            semester={semester}
-          />
-        </section>
+          ) : null}
 
-        <section className="dashboard-section transition-colors duration-300 dark:border-gray-700 dark:bg-gray-900" id="dashboard">
-          <div className="section-heading">
-            <div>
-              <span className="eyebrow">Build overview · {semester}</span>
-              <h2>Your academic repository</h2>
-            </div>
-            <div className="branch-badge">
-              <span aria-hidden="true">⑂</span>
-              <div><small>CURRENT BRANCH</small><strong>semester/02</strong></div>
-            </div>
-          </div>
+          {depth === 0 ? (
+            <section className="workspace-panel mt-6 border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800" aria-label="Institutions">
+              {isLoading ? (
+                <div className="empty-state"><p>Loading institutions…</p></div>
+              ) : institutions.length > 0 ? (
+                institutions.map((institution) => (
+                  <DirectoryButton
+                    label={institution.name}
+                    detail="Open semesters"
+                    onClick={() => openInstitution(institution)}
+                    key={institution.id}
+                  />
+                ))
+              ) : (
+                <div className="empty-state">
+                  <span>directory --empty</span>
+                  <p>No institutions have been added yet.</p>
+                  <button
+                    className="button button--primary mt-5"
+                    type="button"
+                    onClick={openInstitutionForm}
+                  >
+                    <span aria-hidden="true">+</span> Add Institution
+                  </button>
+                </div>
+              )}
+            </section>
+          ) : null}
 
-          <DevLinguaBanner
-            flavor={flavor}
-            context={{
-              gpa: currentGpa,
-              targetGpa,
-              moduleCode: nextModule?.moduleCode,
-              status: nextModule?.status,
-            }}
-          />
+          {depth === 1 ? (
+            selectedInstitution ? (
+              <SemestersView
+                institution={selectedInstitution}
+                isLoading={isLoading}
+                onOpenSemester={openSemester}
+                onSemesterCreated={(semester) =>
+                  setSemesters((current) =>
+                    [...current, semester].sort((left, right) =>
+                      `${right.academicYear}${right.term}`.localeCompare(
+                        `${left.academicYear}${left.term}`,
+                      ),
+                    ),
+                  )
+                }
+                semesters={semesters}
+              />
+            ) : null
+          ) : null}
 
-          <GpaDashboard
-            currentGpa={currentGpa}
-            earnedCredits={earnedCredits}
-            targetGpa={targetGpa}
-            modules={modules}
-          />
-        </section>
-
-        <section className="workspace-section transition-colors duration-300 dark:bg-gray-900" id="workspace">
-          <div className="workspace-tabs" role="tablist" aria-label="Academic workspace">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={activeTab === 'pipeline'}
-              className={activeTab === 'pipeline' ? 'is-active' : ''}
-              onClick={() => setActiveTab('pipeline')}
-            >
-              <span>⑂</span> Module pipeline
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={activeTab === 'simulator'}
-              className={activeTab === 'simulator' ? 'is-active' : ''}
-              onClick={() => setActiveTab('simulator')}
-            >
-              <span>⌁</span> Staging simulator
-              <em>PLAYGROUND</em>
-            </button>
-          </div>
-
-          {activeTab === 'pipeline' ? (
-            <ModulePipeline
+          {depth === 2 && selectedSemester ? (
+            <ModulesView
+              isLoading={isLoading}
               modules={modules}
-              onModulesChange={setModules}
-              semester={semester}
+              onDeleteModule={deleteModule}
+              onModuleCreated={(module) =>
+                setModules((current) =>
+                  [...current, module].sort((left, right) =>
+                    left.moduleCode.localeCompare(right.moduleCode),
+                  ),
+                )
+              }
+              onUpdateModule={updateModule}
+              semester={selectedSemester}
             />
-          ) : (
-            <StagingSimulator modules={modules} />
-          )}
+          ) : null}
+          </div>
         </section>
       </main>
 
@@ -316,6 +444,86 @@ export function Dashboard() {
         <p>Built with <span>⌨</span> and kopi. Ship steady, score steady.</p>
         <code>build: passing · latency: 0ms</code>
       </footer>
+
+      {isInstitutionFormOpen ? (
+        <div
+          className="modal-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closeInstitutionForm()
+          }}
+        >
+          <form
+            className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 text-slate-900 shadow-2xl dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+            onSubmit={createInstitution}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="institution-form-title"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <span className="eyebrow">academic.directory.init</span>
+                <h2
+                  className="mt-2 text-2xl font-bold text-slate-900 dark:text-slate-100"
+                  id="institution-form-title"
+                >
+                  Add Institution
+                </h2>
+              </div>
+              <button
+                className="inline-grid size-9 place-items-center rounded-lg border border-slate-200 bg-white text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-white"
+                type="button"
+                onClick={closeInstitutionForm}
+                aria-label="Close add institution form"
+                disabled={isCreatingInstitution}
+              >
+                ×
+              </button>
+            </div>
+
+            <label className="mt-6 block text-sm font-medium text-slate-700 dark:text-slate-200">
+              Institution name
+              <input
+                className="mt-2 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/15 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                autoFocus
+                maxLength={160}
+                placeholder="e.g., Kiasu Institute of Technology"
+                value={institutionName}
+                onChange={(event) => setInstitutionName(event.target.value)}
+                disabled={isCreatingInstitution}
+                required
+              />
+            </label>
+
+            {institutionError ? (
+              <p
+                className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
+                role="alert"
+              >
+                {institutionError}
+              </p>
+            ) : null}
+
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                className="button button--ghost"
+                type="button"
+                onClick={closeInstitutionForm}
+                disabled={isCreatingInstitution}
+              >
+                Cancel
+              </button>
+              <button
+                className="button button--primary disabled:cursor-not-allowed disabled:opacity-60"
+                type="submit"
+                disabled={isCreatingInstitution || !institutionName.trim()}
+              >
+                {isCreatingInstitution ? 'Initializing…' : 'Initialize Institution'}
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : null}
 
       <TelegramConnectModal
         isOpen={isTelegramOpen}

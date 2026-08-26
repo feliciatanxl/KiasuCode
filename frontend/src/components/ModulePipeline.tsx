@@ -1,10 +1,4 @@
-import {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type FormEvent,
-} from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type {
   GradeLetter,
   Module,
@@ -15,7 +9,9 @@ import { GRADE_OPTIONS } from '../utils/gpa'
 
 interface ModulePipelineProps {
   modules: Module[]
-  onModulesChange: (modules: Module[]) => void
+  onDeleteModule: (id: string) => Promise<void>
+  onRequestAdd: () => void
+  onUpdateModule: (id: string, patch: Partial<Module>) => Promise<void>
   semester: string
 }
 
@@ -31,19 +27,14 @@ const statusLabels: Record<ModuleStatus, string> = {
 
 export function ModulePipeline({
   modules,
-  onModulesChange,
+  onDeleteModule,
+  onRequestAdd,
+  onUpdateModule,
   semester,
 }: ModulePipelineProps) {
   const [filter, setFilter] = useState<PipelineFilter>('all')
-  const [showAddForm, setShowAddForm] = useState(false)
   const [flashingModuleId, setFlashingModuleId] = useState<string | null>(null)
   const flashTimerRef = useRef<number | null>(null)
-  const [draft, setDraft] = useState({
-    moduleCode: '',
-    moduleName: '',
-    creditUnits: 4,
-    targetGrade: 'A-' as GradeLetter,
-  })
 
   const visibleModules = useMemo(
     () =>
@@ -62,18 +53,18 @@ export function ModulePipeline({
     [],
   )
 
-  const updateModule = (id: string, patch: Partial<Module>) => {
-    onModulesChange(
-      modules.map((module) =>
-        module.id === id ? { ...module, ...patch } : module,
-      ),
-    )
-  }
-
-  const cycleStatus = (module: Module) => {
+  const cycleStatus = async (module: Module) => {
     const currentIndex = statusOrder.indexOf(module.status)
     const nextStatus = statusOrder[(currentIndex + 1) % statusOrder.length]
     if (!nextStatus) return
+
+    await onUpdateModule(module.id, {
+      status: nextStatus,
+      actualGrade:
+        nextStatus === 'merged'
+          ? (module.actualGrade ?? module.targetGrade)
+          : module.actualGrade,
+    })
 
     if (flashTimerRef.current !== null) {
       window.clearTimeout(flashTimerRef.current)
@@ -83,131 +74,26 @@ export function ModulePipeline({
       setFlashingModuleId(null)
       flashTimerRef.current = null
     }, 650)
-
-    updateModule(module.id, {
-      status: nextStatus,
-      actualGrade:
-        nextStatus === 'merged'
-          ? (module.actualGrade ?? module.targetGrade)
-          : module.actualGrade,
-    })
-  }
-
-  const addModule = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    if (!draft.moduleCode.trim() || !draft.moduleName.trim()) return
-
-    const module: Module = {
-      id: crypto.randomUUID(),
-      moduleCode: draft.moduleCode.trim().toUpperCase(),
-      moduleName: draft.moduleName.trim(),
-      creditUnits: draft.creditUnits,
-      targetGrade: draft.targetGrade,
-      actualGrade: null,
-      status: 'backlog',
-      semester,
-    }
-
-    onModulesChange([...modules, module])
-    setDraft({
-      moduleCode: '',
-      moduleName: '',
-      creditUnits: 4,
-      targetGrade: 'A-',
-    })
-    setShowAddForm(false)
   }
 
   return (
-    <section className="workspace-panel transition-colors duration-300 dark:border-gray-700 dark:bg-gray-800" aria-labelledby="pipeline-title">
-      <div className="panel-heading">
+    <section className="workspace-panel border-slate-200 bg-white transition-colors duration-300 dark:border-slate-700 dark:bg-slate-800" aria-labelledby="pipeline-title">
+      <div className="panel-heading border-slate-200 dark:border-slate-700">
         <div>
           <span className="eyebrow">Git-style module tracker</span>
-          <h2 id="pipeline-title">Module pipeline</h2>
-          <p>Move every academic commit from backlog to merged.</p>
+          <h2 className="text-slate-900 dark:text-slate-100" id="pipeline-title">Module Pipeline</h2>
+          <p className="text-slate-500 dark:text-slate-400">Move every academic commit from backlog to merged.</p>
         </div>
         <button
           className="button button--primary"
           type="button"
-          onClick={() => setShowAddForm((visible) => !visible)}
+          onClick={onRequestAdd}
         >
-          <span aria-hidden="true">+</span> Add module
+          <span aria-hidden="true">+</span> New
         </button>
       </div>
 
-      {showAddForm ? (
-        <form className="module-form" onSubmit={addModule}>
-          <label>
-            <span>Module code</span>
-            <input
-              autoFocus
-              value={draft.moduleCode}
-              onChange={(event) =>
-                setDraft({ ...draft, moduleCode: event.target.value })
-              }
-              placeholder="CS2103T"
-              required
-            />
-          </label>
-          <label className="module-form__name">
-            <span>Module name</span>
-            <input
-              value={draft.moduleName}
-              onChange={(event) =>
-                setDraft({ ...draft, moduleName: event.target.value })
-              }
-              placeholder="Software Engineering"
-              required
-            />
-          </label>
-          <label>
-            <span>Credit units</span>
-            <input
-              type="number"
-              min="1"
-              max="12"
-              value={draft.creditUnits}
-              onChange={(event) =>
-                setDraft({
-                  ...draft,
-                  creditUnits: Number(event.target.value),
-                })
-              }
-              required
-            />
-          </label>
-          <label>
-            <span>Target</span>
-            <select
-              value={draft.targetGrade}
-              onChange={(event) =>
-                setDraft({
-                  ...draft,
-                  targetGrade: event.target.value as GradeLetter,
-                })
-              }
-            >
-              {GRADE_OPTIONS.map((grade) => (
-                <option key={grade}>{grade}</option>
-              ))}
-            </select>
-          </label>
-          <div className="module-form__actions">
-            <button className="button button--primary" type="submit">
-              Commit module
-            </button>
-            <button
-              className="button button--ghost"
-              type="button"
-              onClick={() => setShowAddForm(false)}
-            >
-              Cancel
-            </button>
-          </div>
-        </form>
-      ) : null}
-
-      <div className="pipeline-toolbar">
+      <div className="pipeline-toolbar border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900">
         <div className="filter-tabs" role="group" aria-label="Filter modules">
           {(['all', ...statusOrder] as PipelineFilter[]).map((item) => (
             <button
@@ -226,11 +112,11 @@ export function ModulePipeline({
             </button>
           ))}
         </div>
-        <code>{semester} / main</code>
+        <code className="text-slate-500 dark:text-slate-400">{semester} / main</code>
       </div>
 
       <div className="pipeline-table" role="table" aria-label="Module pipeline">
-        <div className="pipeline-row pipeline-row--header" role="row">
+        <div className="pipeline-row pipeline-row--header border-slate-200 bg-slate-50 text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400" role="row">
           <span role="columnheader">Commit / module</span>
           <span role="columnheader">CU</span>
           <span role="columnheader">Target</span>
@@ -240,10 +126,10 @@ export function ModulePipeline({
         </div>
         {visibleModules.map((module, index) => (
           <div
-            className={`pipeline-row transition-colors duration-500 ease-out dark:border-gray-700 ${
+            className={`pipeline-row border-slate-200 transition-colors duration-500 ease-out dark:border-slate-700 ${
               flashingModuleId === module.id
                 ? 'bg-green-100 dark:bg-green-900/20'
-                : 'bg-white dark:bg-gray-800'
+                : 'bg-white dark:bg-slate-800'
             }`}
             role="row"
             key={module.id}
@@ -254,33 +140,35 @@ export function ModulePipeline({
                 {index < visibleModules.length - 1 ? <b /> : null}
               </span>
               <div>
-                <strong>{module.moduleCode}</strong>
-                <span>{module.moduleName}</span>
-                <code>#{module.id.slice(0, 6)}</code>
+                <strong className="text-slate-900 dark:text-slate-100">{module.moduleCode}</strong>
+                <span className="text-slate-500 dark:text-slate-400">{module.moduleName}</span>
+                <code className="text-slate-500 dark:text-slate-400">#{module.id.slice(0, 6)}</code>
               </div>
             </div>
             <label className="compact-field" role="cell">
               <span className="sr-only">Credit units for {module.moduleCode}</span>
               <input
+                className="border-slate-200 bg-white text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                 type="number"
                 min="1"
                 max="12"
                 value={module.creditUnits}
                 onChange={(event) =>
-                  updateModule(module.id, {
+                  void onUpdateModule(module.id, {
                     creditUnits: Number(event.target.value),
-                  })
+                  }).catch(() => undefined)
                 }
               />
             </label>
             <label className="compact-field" role="cell">
               <span className="sr-only">Target grade for {module.moduleCode}</span>
               <select
+                className="border-slate-200 bg-white text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                 value={module.targetGrade}
                 onChange={(event) =>
-                  updateModule(module.id, {
+                  void onUpdateModule(module.id, {
                     targetGrade: event.target.value as GradeLetter,
-                  })
+                  }).catch(() => undefined)
                 }
               >
                 {GRADE_OPTIONS.map((grade) => (
@@ -291,16 +179,17 @@ export function ModulePipeline({
             <label className="compact-field" role="cell">
               <span className="sr-only">Actual grade for {module.moduleCode}</span>
               <select
+                className="border-slate-200 bg-white text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                 value={module.actualGrade ?? ''}
                 onChange={(event) => {
                   const value = event.target.value as GradeLetter | ''
-                  updateModule(module.id, {
+                  void onUpdateModule(module.id, {
                     actualGrade: value || null,
                     status:
                       value && module.status === 'backlog'
                         ? 'in-progress'
                         : module.status,
-                  })
+                  }).catch(() => undefined)
                 }}
               >
                 <option value="">—</option>
@@ -313,7 +202,7 @@ export function ModulePipeline({
               <button
                 type="button"
                 className={`status-pill status-pill--${module.status}`}
-                onClick={() => cycleStatus(module)}
+                onClick={() => void cycleStatus(module).catch(() => undefined)}
                 title="Click to move to the next pipeline state"
               >
                 <i /> {statusLabels[module.status]}
@@ -324,20 +213,25 @@ export function ModulePipeline({
               type="button"
               aria-label={`Remove ${module.moduleCode}`}
               title="Remove module"
-              onClick={() =>
-                onModulesChange(
-                  modules.filter((candidate) => candidate.id !== module.id),
-                )
-              }
+              onClick={() => void onDeleteModule(module.id).catch(() => undefined)}
             >
               ×
             </button>
           </div>
         ))}
         {visibleModules.length === 0 ? (
-          <div className="empty-state">
+          <div className="empty-state text-slate-500 dark:text-slate-400">
             <span>git log --empty</span>
             <p>No modules in this stage yet.</p>
+            {filter === 'all' && modules.length === 0 ? (
+              <button
+                className="button button--primary mt-5"
+                type="button"
+                onClick={onRequestAdd}
+              >
+                <span aria-hidden="true">+</span> Add Module
+              </button>
+            ) : null}
           </div>
         ) : null}
       </div>
