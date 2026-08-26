@@ -2,6 +2,7 @@ import { useMemo, useState, type FormEvent } from 'react'
 import type {
   AcademicSemester,
   GradeLetter,
+  Institution,
   Module,
   ModuleStatus,
 } from '@kiasucode/shared'
@@ -13,10 +14,10 @@ import { useTheme } from '../context/ThemeContext'
 import { useToast } from '../context/ToastContext'
 import { apiRequest, formatApiError } from '../utils/api'
 import {
-  GRADE_OPTIONS,
   calculateCurrentGpa,
   calculateEarnedCredits,
   calculateTargetGpa,
+  getScaleForSchool,
 } from '../utils/gpa'
 
 interface ModuleResponse {
@@ -24,6 +25,7 @@ interface ModuleResponse {
 }
 
 interface ModulesViewProps {
+  institution?: Institution
   isLoading: boolean
   modules: Module[]
   onDeleteModule: (id: string) => Promise<void>
@@ -48,6 +50,7 @@ const initialDraft = {
 }
 
 export function ModulesView({
+  institution,
   isLoading,
   modules,
   onDeleteModule,
@@ -55,6 +58,10 @@ export function ModulesView({
   onUpdateModule,
   semester,
 }: ModulesViewProps) {
+  const currentSchoolKey = institution?.name ?? 'DEFAULT'
+  const schoolScale = getScaleForSchool(currentSchoolKey)
+  const availableGrades = Object.keys(schoolScale.points)
+
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [draft, setDraft] = useState(initialDraft)
@@ -64,15 +71,24 @@ export function ModulesView({
   const { showToast } = useToast()
   const semesterLabel = `${semester.academicYear} · ${semester.term}`
 
-  const currentGpa = useMemo(() => calculateCurrentGpa(modules), [modules])
-  const targetGpa = useMemo(() => calculateTargetGpa(modules), [modules])
+  const currentGpa = useMemo(
+    () => calculateCurrentGpa(modules, currentSchoolKey),
+    [modules, currentSchoolKey],
+  )
+  const targetGpa = useMemo(
+    () => calculateTargetGpa(modules, currentSchoolKey),
+    [modules, currentSchoolKey],
+  )
   const earnedCredits = useMemo(
     () => calculateEarnedCredits(modules),
     [modules],
   )
 
   const openModal = () => {
-    setDraft(initialDraft)
+    setDraft({
+      ...initialDraft,
+      targetGrade: (availableGrades[0] ?? 'A') as GradeLetter,
+    })
     setError(null)
     setIsModalOpen(true)
   }
@@ -129,6 +145,8 @@ export function ModulesView({
         earnedCredits={earnedCredits}
         targetGpa={targetGpa}
         modules={modules}
+        gpaLabel="Term GPA"
+        maxScale={schoolScale.max}
       />
 
       <div className="mt-6">
@@ -227,7 +245,11 @@ export function ModulesView({
                   onChange={(event) => setDraft({ ...draft, targetGrade: event.target.value as GradeLetter })}
                   disabled={isSubmitting}
                 >
-                  {GRADE_OPTIONS.map((grade) => <option key={grade}>{grade}</option>)}
+                  {availableGrades.map((grade) => (
+                    <option key={grade} value={grade}>
+                      {grade}
+                    </option>
+                  ))}
                 </select>
               </label>
               <label className="text-sm font-medium text-slate-700 dark:text-slate-200">
@@ -239,7 +261,11 @@ export function ModulesView({
                   disabled={isSubmitting}
                 >
                   <option value="">Not graded yet</option>
-                  {GRADE_OPTIONS.map((grade) => <option key={grade}>{grade}</option>)}
+                  {availableGrades.map((grade) => (
+                    <option key={grade} value={grade}>
+                      {grade}
+                    </option>
+                  ))}
                 </select>
               </label>
               <label className="col-span-2 text-sm font-medium text-slate-700 dark:text-slate-200">

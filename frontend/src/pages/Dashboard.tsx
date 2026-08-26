@@ -21,6 +21,7 @@ import { TelegramConnectModal } from '../components/TelegramConnectModal'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { apiRequest, formatApiError, isAbortError } from '../utils/api'
+import { InstitutionsView } from './InstitutionsView'
 import { ModulesView } from './ModulesView'
 import { SemestersView } from './SemestersView'
 
@@ -56,29 +57,19 @@ interface ModuleResponse {
   module: Module
 }
 
-function DirectoryButton({
-  label,
-  detail,
-  onClick,
-}: {
-  label: string
-  detail: string
-  onClick: () => void
-}) {
-  return (
-    <button
-      className="flex w-full cursor-pointer items-center justify-between gap-4 border-b border-slate-200 bg-white px-6 py-5 text-left transition-colors last:border-b-0 hover:bg-blue-50 dark:border-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700/60"
-      type="button"
-      onClick={onClick}
-    >
-      <span>
-        <strong className="block text-sm text-slate-900 dark:text-slate-100">{label}</strong>
-        <small className="mt-1 block text-xs text-slate-500 dark:text-slate-400">{detail}</small>
-      </span>
-      <span className="text-xl text-blue-500" aria-hidden="true">→</span>
-    </button>
-  )
-}
+const INSTITUTION_OPTIONS = [
+  { value: 'NYP', label: 'Nanyang Polytechnic (NYP)' },
+  { value: 'ITE', label: 'Institute of Technical Education (ITE)' },
+  { value: 'NP', label: 'Ngee Ann Polytechnic (NP)' },
+  { value: 'SP', label: 'Singapore Polytechnic (SP)' },
+  { value: 'TP', label: 'Temasek Polytechnic (TP)' },
+  { value: 'RP', label: 'Republic Polytechnic (RP)' },
+  { value: 'NUS', label: 'National University of Singapore (NUS)' },
+  { value: 'NTU', label: 'Nanyang Technological University (NTU)' },
+  { value: 'SMU', label: 'Singapore Management University (SMU)' },
+  { value: 'SIT', label: 'Singapore Institute of Technology (SIT)' },
+  { value: 'SUTD', label: 'Singapore University of Technology and Design (SUTD)' },
+]
 
 export function Dashboard() {
   const [directoryStack, setDirectoryStack] = useState<DirectoryEntry[]>([])
@@ -369,32 +360,17 @@ export function Dashboard() {
           ) : null}
 
           {depth === 0 ? (
-            <section className="workspace-panel mt-6 border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800" aria-label="Institutions">
-              {isLoading ? (
-                <div className="empty-state"><p>Loading institutions…</p></div>
-              ) : institutions.length > 0 ? (
-                institutions.map((institution) => (
-                  <DirectoryButton
-                    label={institution.name}
-                    detail="Open semesters"
-                    onClick={() => openInstitution(institution)}
-                    key={institution.id}
-                  />
-                ))
-              ) : (
-                <div className="empty-state">
-                  <span>directory --empty</span>
-                  <p>No institutions have been added yet.</p>
-                  <button
-                    className="button button--primary mt-5"
-                    type="button"
-                    onClick={openInstitutionForm}
-                  >
-                    <span aria-hidden="true">+</span> Add Institution
-                  </button>
-                </div>
-              )}
-            </section>
+            <InstitutionsView
+              institutions={institutions}
+              isLoading={isLoading}
+              onOpenInstitution={openInstitution}
+              onOpenInstitutionForm={openInstitutionForm}
+              onInstitutionDeleted={(deletedId) =>
+                setInstitutions((current) =>
+                  current.filter((institution) => institution.id !== deletedId),
+                )
+              }
+            />
           ) : null}
 
           {depth === 1 ? (
@@ -419,6 +395,7 @@ export function Dashboard() {
 
           {depth === 2 && selectedSemester ? (
             <ModulesView
+              institution={selectedInstitution ?? undefined}
               isLoading={isLoading}
               modules={modules}
               onDeleteModule={deleteModule}
@@ -483,16 +460,23 @@ export function Dashboard() {
 
             <label className="mt-6 block text-sm font-medium text-slate-700 dark:text-slate-200">
               Institution name
-              <input
+              <select
                 className="mt-2 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/15 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                 autoFocus
-                maxLength={160}
-                placeholder="e.g., Kiasu Institute of Technology"
                 value={institutionName}
                 onChange={(event) => setInstitutionName(event.target.value)}
                 disabled={isCreatingInstitution}
                 required
-              />
+              >
+                <option value="" disabled>
+                  Select your institution...
+                </option>
+                {INSTITUTION_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
             </label>
 
             {institutionError ? (

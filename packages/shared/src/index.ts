@@ -5,6 +5,10 @@ export interface HealthResponse {
 }
 
 export type GradeLetter =
+  | 'AD'
+  | 'Z'
+  | 'DIST'
+  | 'A+'
   | 'A'
   | 'A-'
   | 'B+'
@@ -14,7 +18,13 @@ export type GradeLetter =
   | 'C'
   | 'D+'
   | 'D'
+  | 'D-'
+  | 'E'
+  | 'P'
+  | 'NGP'
   | 'F'
+  | 'S'
+  | 'U'
 
 export type ModuleStatus = 'backlog' | 'in-progress' | 'merged'
 

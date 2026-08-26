@@ -7,6 +7,8 @@ interface GpaDashboardProps {
   earnedCredits: number
   targetGpa: number
   modules: Module[]
+  gpaLabel?: string
+  maxScale?: number
 }
 
 export function GpaDashboard({
@@ -14,11 +16,13 @@ export function GpaDashboard({
   earnedCredits,
   targetGpa,
   modules,
+  gpaLabel = 'Current cumulative GPA',
+  maxScale = 4.0,
 }: GpaDashboardProps) {
   const completed = modules.filter((module) => module.status === 'merged').length
   const cards = [
     {
-      label: 'Current cumulative GPA',
+      label: gpaLabel,
       value: formatGpa(currentGpa),
       detail: `${completed} of ${modules.length} modules merged`,
       code: 'gpa.now',
@@ -34,7 +38,7 @@ export function GpaDashboard({
     {
       label: 'Projected target GPA',
       value: formatGpa(targetGpa),
-      detail: `${Math.round((targetGpa / 4) * 100)}% of max build score`,
+      detail: `${Math.round((targetGpa / maxScale) * 100)}% of max build score`,
       code: 'gpa.target',
     },
   ]

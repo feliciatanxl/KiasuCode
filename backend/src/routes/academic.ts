@@ -39,6 +39,10 @@ interface ModuleRow extends RowDataPacket {
 }
 
 const gradeLetters = new Set<GradeLetter>([
+  'AD',
+  'Z',
+  'DIST',
+  'A+',
   'A',
   'A-',
   'B+',
@@ -48,7 +52,13 @@ const gradeLetters = new Set<GradeLetter>([
   'C',
   'D+',
   'D',
+  'D-',
+  'E',
+  'P',
+  'NGP',
   'F',
+  'S',
+  'U',
 ])
 const apiToDatabaseStatus: Record<ModuleStatus, ModuleRow['status']> = {
   backlog: 'Backlog',
@@ -316,6 +326,31 @@ router.post('/institutions', async (request: Request, response: Response) => {
   }
 })
 
+router.delete('/institutions/:id', async (request: Request, response: Response) => {
+  try {
+    const institutionId = getRouteParam(request, 'id')
+    const [result] = await db.execute<ResultSetHeader>(
+      `DELETE FROM institutions WHERE id = ? AND user_id = ?`,
+      [institutionId, getUserId(response)],
+    )
+
+    if (result.affectedRows === 0) {
+      response.status(404).json({ error: 'Institution not found.' })
+      return
+    }
+
+    response.status(200).json({ success: true })
+  } catch (error) {
+    if (error instanceof InvalidAcademicRequestError) {
+      response.status(400).json({ error: error.message })
+      return
+    }
+
+    console.error('Unable to delete institution.', error)
+    response.status(500).json({ error: 'Unable to delete institution.' })
+  }
+})
+
 router.post('/semesters', async (request: Request, response: Response) => {
   try {
     const input = parseSemesterInput(request.body)
@@ -430,6 +465,29 @@ router.get(
     } catch (error) {
       console.error('Unable to load semesters.', error)
       response.status(500).json({ error: 'Unable to load semesters.' })
+    }
+  },
+)
+
+router.get(
+  '/institutions/:institutionId/modules',
+  async (request: Request, response: Response) => {
+    try {
+      const institutionId = getRouteParam(request, 'institutionId')
+      const [rows] = await db.execute<ModuleRow[]>(
+        `SELECT m.*, s.academic_year, s.term
+           FROM modules AS m
+           INNER JOIN semesters AS s ON s.id = m.semester_id
+           INNER JOIN institutions AS i ON i.id = s.institution_id
+          WHERE i.id = ? AND i.user_id = ?
+          ORDER BY s.academic_year DESC, s.term DESC, m.module_code ASC`,
+        [institutionId, getUserId(response)],
+      )
+
+      response.status(200).json({ modules: rows.map(serializeModule) })
+    } catch (error) {
+      console.error('Unable to load institution modules.', error)
+      response.status(500).json({ error: 'Unable to load institution modules.' })
     }
   },
 )
