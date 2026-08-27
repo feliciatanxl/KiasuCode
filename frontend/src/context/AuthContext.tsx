@@ -28,6 +28,7 @@ interface AuthContextValue {
   sessionToken: string | null
   login: (user: AuthUser, sessionToken: string) => void
   logout: () => void
+  updateUser: (user: AuthUser) => void
 }
 
 const AUTH_STORAGE_KEY = 'kiasucode.auth.session'
@@ -100,6 +101,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(null)
   }, [])
 
+  const updateUser = useCallback((updatedUser: AuthUser) => {
+    setSession((prev) => {
+      if (!prev) return null
+      const nextSession: AuthSession = { ...prev, user: updatedUser }
+      window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(nextSession))
+      return nextSession
+    })
+  }, [])
+
   const value = useMemo<AuthContextValue>(
     () => ({
       isAuthenticated: session !== null,
@@ -107,8 +117,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       sessionToken: session?.sessionToken ?? null,
       login,
       logout,
+      updateUser,
     }),
-    [login, logout, session],
+    [login, logout, updateUser, session],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

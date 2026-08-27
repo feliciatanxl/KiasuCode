@@ -652,4 +652,92 @@ router.delete('/modules/:moduleId', async (request: Request, response: Response)
   }
 })
 
+router.put('/user/profile', async (request: Request, response: Response) => {
+  try {
+    const userId = getUserId(response)
+    if (!isRecord(request.body)) {
+      throw new InvalidAcademicRequestError('A JSON request body is required.')
+    }
+
+    const { name, photo_url, photoUrl } = request.body
+    const newName = typeof name === 'string' ? name.trim() : ''
+    const rawPhotoUrl = photo_url ?? photoUrl
+    const newPhotoUrl = typeof rawPhotoUrl === 'string'
+      ? rawPhotoUrl.trim()
+      : null
+
+    if (!newName) {
+      throw new InvalidAcademicRequestError('A valid full name is required.')
+    }
+
+    await db.execute<ResultSetHeader>(
+      'UPDATE users SET name = ?, photo_url = ? WHERE id = ?',
+      [newName, newPhotoUrl, userId],
+    )
+
+    const [rows] = await db.execute<RowDataPacket[]>(
+      'SELECT id, provider, name, email, photo_url FROM users WHERE id = ? LIMIT 1',
+      [userId],
+    )
+    const userRow = rows[0]
+
+    if (!userRow) {
+      response.status(404).json({ error: 'User not found.' })
+      return
+    }
+
+    response.status(200).json({
+      success: true,
+      user: {
+        id: userRow.id,
+        provider: userRow.provider,
+        name: userRow.name,
+        ...(userRow.email ? { email: userRow.email } : {}),
+        ...(userRow.photo_url ? { photoUrl: userRow.photo_url } : {}),
+      },
+    })
+  } catch (error) {
+    if (error instanceof InvalidAcademicRequestError) {
+      response.status(400).json({ error: error.message })
+      return
+    }
+
+    console.error('Unable to update user profile.', error)
+    response.status(500).json({ error: 'Unable to update user profile.' })
+  }
+})
+
+router.post('/auth/set-password', async (request: Request, response: Response) => {
+  try {
+    const userId = getUserId(response)
+    if (!isRecord(request.body)) {
+      throw new InvalidAcademicRequestError('A JSON request body is required.')
+    }
+
+    const passwordValue = request.body.password ?? request.body.newPassword
+    if (typeof passwordValue !== 'string' || passwordValue.length < 6) {
+      throw new InvalidAcademicRequestError('Password must be at least 6 characters long.')
+    }
+
+    const bcryptModule = await import('bcryptjs')
+    const bcrypt = bcryptModule.default || bcryptModule
+    const passwordHash = await bcrypt.hash(passwordValue, 10)
+
+    await db.execute<ResultSetHeader>(
+      'UPDATE users SET password_hash = ? WHERE id = ?',
+      [passwordHash, userId],
+    )
+
+    response.status(200).json({ success: true, message: 'Password configured successfully.' })
+  } catch (error) {
+    if (error instanceof InvalidAcademicRequestError) {
+      response.status(400).json({ error: error.message })
+      return
+    }
+
+    console.error('Unable to set user password.', error)
+    response.status(500).json({ error: 'Unable to set password.' })
+  }
+})
+
 export default router

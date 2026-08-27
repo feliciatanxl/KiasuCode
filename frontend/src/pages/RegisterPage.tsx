@@ -135,7 +135,7 @@ export function RegisterPage() {
                 required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Felicia Tan"
+                placeholder="e.g., Jane Doe"
                 className="mt-1.5 block w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder-slate-500"
               />
             </div>
@@ -155,7 +155,7 @@ export function RegisterPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="felicia@u.nus.edu"
+                placeholder="name@student.edu.sg"
                 className="mt-1.5 block w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder-slate-500"
               />
             </div>
@@ -215,7 +215,7 @@ export function RegisterPage() {
             </button>
           </form>
 
-          <p className="mt-6 text-center text-sm text-slate-600 dark:text-slate-400">
+          <div className="mt-6 text-center text-sm text-slate-600 dark:text-slate-400">
             Already have an account?{' '}
             <Link
               to="/login"
@@ -223,7 +223,7 @@ export function RegisterPage() {
             >
               Sign in
             </Link>
-          </p>
+          </div>
         </div>
       </section>
 

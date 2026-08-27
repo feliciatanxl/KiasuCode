@@ -84,7 +84,7 @@ export function LandingPage() {
                 <p><span>◇</span> ST2334 waiting in backlog</p>
               </div>
             </div>
-            <div className="preview-badge border-slate-200 bg-white text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"><span>✓</span> GPA pipeline green</div>
+            <div className="preview-badge border-slate-200 bg-white text-emerald-600 dark:border-slate-700 dark:bg-slate-800 dark:text-emerald-400"><span>✓</span> GPA pipeline green</div>
           </div>
         </section>
 

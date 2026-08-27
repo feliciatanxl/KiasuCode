@@ -15,7 +15,7 @@ export function SettingsPage() {
   const [emailNotifications, setEmailNotifications] = useState(true)
   const [telegramReminders, setTelegramReminders] = useState(true)
   const [gpaGoalAlerts, setGpaGoalAlerts] = useState(true)
-  const [gradingScale, setGradingScale] = useState('5.0')
+  const [gradingScale, setGradingScale] = useState('UNI')
   const [defaultTerm, setDefaultTerm] = useState('Semester 1')
 
   const handleSave = (e: React.FormEvent) => {
@@ -161,8 +161,9 @@ export function SettingsPage() {
                   onChange={(e) => setGradingScale(e.target.value)}
                   className="mt-1.5 block w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
                 >
-                  <option value="5.0">5.0 Scale (NUS / NTU / SIT)</option>
-                  <option value="4.0">4.0 Scale (SMU / SUTD)</option>
+                  <option value="UNI">5.0 Scale (NUS / NTU / SIT / SMU / SUTD)</option>
+                  <option value="POLY">4.0 Scale (Polytechnics: NYP / NP / SP / TP / RP)</option>
+                  <option value="ITE">4.0 Scale (Institute of Technical Education)</option>
                 </select>
               </div>
 
