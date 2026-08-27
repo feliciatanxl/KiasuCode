@@ -22,7 +22,8 @@ app.use(cors({
   },
   credentials: true,
 }))
-app.use(express.json({ limit: '32kb' }))
+// A 2 MB image expands to roughly 2.7 MB when encoded as a Base64 data URL.
+app.use(express.json({ limit: '3mb' }))
 
 app.get('/health', (_request, response) => {
   const payload: HealthResponse = {

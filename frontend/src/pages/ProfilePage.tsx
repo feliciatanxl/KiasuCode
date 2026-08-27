@@ -1,4 +1,10 @@
-import { useState, type FormEvent } from 'react'
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type FormEvent,
+} from 'react'
 import { Link } from 'react-router-dom'
 
 import { Navbar } from '../components/Navbar'
@@ -17,6 +23,30 @@ interface SetPasswordResponse {
   message?: string
 }
 
+const maxProfileImageBytes = 2 * 1024 * 1024
+const supportedProfileImageTypes = new Set([
+  'image/gif',
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+])
+
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        resolve(reader.result)
+      } else {
+        reject(new Error('Unable to read the selected image.'))
+      }
+    }
+    reader.onerror = () => reject(reader.error ?? new Error('Unable to read the selected image.'))
+    reader.readAsDataURL(file)
+  })
+}
+
 export function ProfilePage() {
   const { user, sessionToken, updateUser } = useAuth()
   const { showToast } = useToast()
@@ -29,6 +59,9 @@ export function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false)
   const [editName, setEditName] = useState(user?.name || 'Felicia Tan')
   const [editPhotoUrl, setEditPhotoUrl] = useState(user?.photoUrl || '')
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [selectedImage, setSelectedImage] = useState<File | null>(null)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [isSavingProfile, setIsSavingProfile] = useState(false)
   const [profileError, setProfileError] = useState<string | null>(null)
 
@@ -42,6 +75,14 @@ export function ProfilePage() {
   const displayEmail = user?.email || 'felicia@u.nus.edu'
   const provider = user?.provider || 'local'
 
+  useEffect(() => {
+    return () => {
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl)
+      }
+    }
+  }, [previewUrl])
+
   const userInitials = displayName
     .split(/\s+/)
     .map((n) => n[0])
@@ -52,6 +93,9 @@ export function ProfilePage() {
   const handleStartEdit = () => {
     setEditName(user?.name || 'Felicia Tan')
     setEditPhotoUrl(user?.photoUrl || '')
+    setSelectedImage(null)
+    setPreviewUrl(null)
+    if (fileInputRef.current) fileInputRef.current.value = ''
     setProfileError(null)
     setIsEditing(true)
   }
@@ -59,8 +103,33 @@ export function ProfilePage() {
   const handleCancelEdit = () => {
     setEditName(user?.name || 'Felicia Tan')
     setEditPhotoUrl(user?.photoUrl || '')
+    setSelectedImage(null)
+    setPreviewUrl(null)
+    if (fileInputRef.current) fileInputRef.current.value = ''
     setProfileError(null)
     setIsEditing(false)
+  }
+
+  const handleImageSelect = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+
+    if (!file) return
+
+    if (!supportedProfileImageTypes.has(file.type)) {
+      setProfileError('Please select a PNG, JPEG, WebP, or GIF image.')
+      event.target.value = ''
+      return
+    }
+
+    if (file.size > maxProfileImageBytes) {
+      setProfileError('Profile pictures must be 2 MB or smaller.')
+      event.target.value = ''
+      return
+    }
+
+    setSelectedImage(file)
+    setPreviewUrl(URL.createObjectURL(file))
+    setProfileError(null)
   }
 
   const handleSaveProfile = async (e: FormEvent<HTMLFormElement>) => {
@@ -76,6 +145,10 @@ export function ProfilePage() {
     setProfileError(null)
 
     try {
+      const nextPhotoUrl = selectedImage
+        ? await fileToDataUrl(selectedImage)
+        : editPhotoUrl.trim() || null
+
       if (sessionToken) {
         const response = await apiRequest<ProfileUpdateResponse>(
           '/api/user/profile',
@@ -84,7 +157,7 @@ export function ProfilePage() {
             method: 'PUT',
             body: JSON.stringify({
               name: trimmedName,
-              photo_url: editPhotoUrl.trim() || null,
+              photo_url: nextPhotoUrl,
             }),
           },
         )
@@ -96,10 +169,14 @@ export function ProfilePage() {
         updateUser({
           ...user,
           name: trimmedName,
-          photoUrl: editPhotoUrl.trim() || undefined,
+          photoUrl: nextPhotoUrl || undefined,
         })
       }
 
+      setEditPhotoUrl(nextPhotoUrl || '')
+      setSelectedImage(null)
+      setPreviewUrl(null)
+      if (fileInputRef.current) fileInputRef.current.value = ''
       showToast('Profile updated successfully.')
       setIsEditing(false)
     } catch (error) {
@@ -203,20 +280,33 @@ export function ProfilePage() {
                 )}
 
                 <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
-                  <div className="flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-blue-600 font-bold text-2xl text-white shadow-md">
-                    {editPhotoUrl ? (
-                      <img
-                        src={editPhotoUrl}
-                        alt={editName || displayName}
-                        className="size-full rounded-2xl object-cover"
-                        referrerPolicy="no-referrer"
-                        onError={(e) => {
-                          (e.target as HTMLElement).style.display = 'none'
-                        }}
-                      />
-                    ) : (
-                      userInitials
-                    )}
+                  <div className="flex shrink-0 flex-col items-center">
+                    <div className="flex size-20 items-center justify-center overflow-hidden rounded-2xl bg-blue-600 font-bold text-2xl text-white shadow-md">
+                      {previewUrl || editPhotoUrl ? (
+                        <img
+                          src={previewUrl || editPhotoUrl}
+                          alt={editName || displayName}
+                          className="size-full rounded-2xl object-cover"
+                          referrerPolicy="no-referrer"
+                        />
+                      ) : (
+                        userInitials
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="mt-3 text-sm text-blue-600 hover:underline dark:text-blue-400"
+                    >
+                      Change picture
+                    </button>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      ref={fileInputRef}
+                      className="hidden"
+                      onChange={handleImageSelect}
+                    />
                   </div>
 
                   <div className="flex-1 space-y-4">
@@ -236,26 +326,6 @@ export function ProfilePage() {
                         placeholder="Your full name"
                         className="mt-1.5 block w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm text-slate-900 placeholder-slate-400 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder-slate-500"
                       />
-                    </div>
-
-                    <div>
-                      <label
-                        htmlFor="profile-photo"
-                        className="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300"
-                      >
-                        Profile Picture URL
-                      </label>
-                      <input
-                        id="profile-photo"
-                        type="url"
-                        value={editPhotoUrl}
-                        onChange={(e) => setEditPhotoUrl(e.target.value)}
-                        placeholder="https://example.com/avatar.jpg"
-                        className="mt-1.5 block w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm text-slate-900 placeholder-slate-400 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder-slate-500"
-                      />
-                      <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
-                        Paste a direct URL to an avatar image. Leave empty to use default initials.
-                      </p>
                     </div>
 
                     <div className="flex items-center gap-3 pt-2">

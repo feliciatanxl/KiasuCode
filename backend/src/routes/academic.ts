@@ -70,6 +70,8 @@ const databaseToApiStatus: Record<ModuleRow['status'], ModuleStatus> = {
   'In Progress': 'in-progress',
   Merged: 'merged',
 }
+const maxProfilePhotoUrlLength = 2_800_000
+const supportedProfileImageDataUrl = /^data:image\/(?:gif|jpeg|png|webp);base64,/i
 
 class InvalidAcademicRequestError extends Error {}
 
@@ -668,6 +670,18 @@ router.put('/user/profile', async (request: Request, response: Response) => {
 
     if (!newName) {
       throw new InvalidAcademicRequestError('A valid full name is required.')
+    }
+
+    if (newPhotoUrl && newPhotoUrl.length > maxProfilePhotoUrlLength) {
+      throw new InvalidAcademicRequestError('Profile pictures must be 2 MB or smaller.')
+    }
+
+    if (
+      newPhotoUrl &&
+      !supportedProfileImageDataUrl.test(newPhotoUrl) &&
+      !/^https?:\/\//i.test(newPhotoUrl)
+    ) {
+      throw new InvalidAcademicRequestError('Invalid profile picture format.')
     }
 
     await db.execute<ResultSetHeader>(

@@ -1,46 +1,45 @@
-import {
-  TelegramLoginButton,
-  type TelegramLoginWidgetData,
-} from '@advanceddev/telegram-login-react'
-import { GoogleLogin, GoogleOAuthProvider, type CredentialResponse } from '@react-oauth/google'
-import { jwtDecode, type JwtPayload } from 'jwt-decode'
-import { useCallback, useState } from 'react'
+import { GoogleOAuthProvider, useGoogleLogin } from '@react-oauth/google'
+import { useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 
 import { Logo } from '../components/Logo'
-import {
-  useAuth,
-  type AuthProviderName,
-  type AuthUser,
-} from '../context/AuthContext'
-
-interface GoogleIdTokenClaims extends JwtPayload {
-  sub: string
-  email?: string
-  name?: string
-  given_name?: string
-  picture?: string
-}
+import { useAuth, type AuthUser } from '../context/AuthContext'
 
 interface AuthSessionResponse {
   user: AuthUser
   sessionToken: string
 }
 
-type AuthSessionRequest =
-  | {
-      provider: 'google'
-      credential: string
-      profile: AuthUser
-    }
-  | {
-      provider: 'telegram'
-      authData: TelegramLoginWidgetData
-      profile: AuthUser
-    }
-
 const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID?.trim() ?? ''
-const telegramBotName = import.meta.env.VITE_TELEGRAM_BOT_NAME?.trim() ?? ''
+
+const configuredAuthApiUrl =
+  import.meta.env.VITE_AUTH_API_URL?.trim().replace(/\/$/, '') ?? ''
+
+const isLoopbackHost = (hostname: string) =>
+  hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1'
+
+function getAuthApiUrl(): string {
+  if (!configuredAuthApiUrl) {
+    return window.location.origin
+  }
+
+  try {
+    const configuredUrl = new URL(configuredAuthApiUrl)
+
+    if (
+      isLoopbackHost(configuredUrl.hostname) &&
+      !isLoopbackHost(window.location.hostname)
+    ) {
+      return window.location.origin
+    }
+  } catch {
+    // A relative configured URL should remain relative to the current origin.
+  }
+
+  return configuredAuthApiUrl
+}
+
+const authApiUrl = getAuthApiUrl()
 
 function isAuthUser(value: unknown): value is AuthUser {
   if (!value || typeof value !== 'object') {
@@ -56,45 +55,6 @@ function isAuthUser(value: unknown): value is AuthUser {
   )
 }
 
-async function exchangeProviderCredential(
-  request: AuthSessionRequest,
-): Promise<AuthSessionResponse> {
-  try {
-    const response = await fetch(
-      `${import.meta.env.VITE_AUTH_API_URL}/auth/session`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-        },
-        body: JSON.stringify(request),
-      },
-    )
-    const body = (await response.json().catch(() => null)) as
-      | (Partial<AuthSessionResponse> & { error?: string })
-      | null
-
-    if (!response.ok) {
-      throw new Error(body?.error || `Authentication failed (${response.status}).`)
-    }
-
-    if (
-      !body ||
-      !isAuthUser(body.user) ||
-      typeof body.sessionToken !== 'string' ||
-      !body.sessionToken
-    ) {
-      throw new Error('The authentication server returned an invalid session.')
-    }
-
-    return { user: body.user, sessionToken: body.sessionToken }
-  } catch (error) {
-    console.error('Auth Fetch Error:', error)
-    throw error
-  }
-}
-
 function formatError(error: unknown): string {
   return error instanceof Error ? error.message : 'Unable to sign in. Please try again.'
 }
@@ -103,55 +63,29 @@ function LoginPageContent() {
   const { isAuthenticated, login } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
-  const [activeProvider, setActiveProvider] = useState<AuthProviderName | null>(null)
   const [authError, setAuthError] = useState<string | null>(null)
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false)
 
   const fromPath = (location.state as { from?: string } | null)?.from || '/dashboard'
-
-  const completeLogin = useCallback(
-    async (request: AuthSessionRequest) => {
-      setActiveProvider(request.provider)
-      setAuthError(null)
-
-      try {
-        const session = await exchangeProviderCredential(request)
-        login(session.user, session.sessionToken)
-        navigate(fromPath, { replace: true })
-      } catch (error) {
-        setAuthError(formatError(error))
-      } finally {
-        setActiveProvider(null)
-      }
-    },
-    [login, navigate, fromPath],
-  )
-
-  if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />
-  }
 
   const handleLocalSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setIsSubmitting(true)
-    setActiveProvider('local')
     setAuthError(null)
 
     try {
-      const response = await fetch(
-        `${import.meta.env.VITE_AUTH_API_URL}/auth/login`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Accept: 'application/json',
-          },
-          body: JSON.stringify({ email, password }),
+      const response = await fetch(`${authApiUrl}/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
         },
-      )
+        body: JSON.stringify({ email, password }),
+      })
 
       const body = (await response.json().catch(() => null)) as
         | (Partial<AuthSessionResponse> & { error?: string })
@@ -176,55 +110,73 @@ function LoginPageContent() {
       setAuthError(formatError(error))
     } finally {
       setIsSubmitting(false)
-      setActiveProvider(null)
     }
   }
 
-  const handleGoogleSuccess = (response: CredentialResponse) => {
+  const completeGoogleLogin = async (accessToken: string) => {
+    setIsGoogleSubmitting(true)
+    setAuthError(null)
+
     try {
-      if (!response.credential) {
-        throw new Error('Google did not return an ID credential.')
-      }
-
-      const claims = jwtDecode<GoogleIdTokenClaims>(response.credential)
-
-      if (!claims.sub) {
-        throw new Error('Google returned a credential without a user ID.')
-      }
-
-      const profile: AuthUser = {
-        id: claims.sub,
-        name: claims.name || claims.given_name || claims.email || 'Google user',
-        email: claims.email,
-        photoUrl: claims.picture,
-        provider: 'google',
-      }
-
-      void completeLogin({
-        provider: 'google',
-        credential: response.credential,
-        profile,
+      const response = await fetch(`${authApiUrl}/auth/session`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({
+          provider: 'google',
+          credential: accessToken,
+        }),
       })
+      const body = (await response.json().catch(() => null)) as
+        | (Partial<AuthSessionResponse> & { error?: string })
+        | null
+
+      if (!response.ok) {
+        throw new Error(body?.error || `Google sign-in failed (${response.status}).`)
+      }
+
+      if (
+        !body ||
+        !isAuthUser(body.user) ||
+        typeof body.sessionToken !== 'string' ||
+        !body.sessionToken
+      ) {
+        throw new Error('The authentication server returned an invalid session.')
+      }
+
+      login(body.user, body.sessionToken)
+      navigate(fromPath, { replace: true })
     } catch (error) {
       setAuthError(formatError(error))
+    } finally {
+      setIsGoogleSubmitting(false)
     }
   }
 
-  const handleTelegramSuccess = (authData: TelegramLoginWidgetData) => {
-    const profile: AuthUser = {
-      id: String(authData.id),
-      name:
-        [authData.first_name, authData.last_name].filter(Boolean).join(' ') ||
-        authData.username ||
-        'Telegram user',
-      photoUrl: authData.photo_url,
-      provider: 'telegram',
-    }
+  const startGoogleLogin = useGoogleLogin({
+    flow: 'implicit',
+    prompt: 'select_account',
+    scope: 'openid profile email',
+    onSuccess: (response) => {
+      void completeGoogleLogin(response.access_token)
+    },
+    onError: () => {
+      setAuthError('Google sign-in was cancelled or failed.')
+    },
+    onNonOAuthError: (error) => {
+      setAuthError(
+        error.type === 'popup_failed_to_open'
+          ? 'The Google sign-in popup was blocked. Allow popups and try again.'
+          : 'Google sign-in was cancelled.',
+      )
+    },
+  })
 
-    void completeLogin({ provider: 'telegram', authData, profile })
+  if (isAuthenticated) {
+    return <Navigate to="/dashboard" replace />
   }
-
-  const isBusy = activeProvider !== null || isSubmitting
 
   return (
     <main className="auth-page !bg-slate-50 px-4 text-slate-900 transition-colors dark:!bg-slate-900 dark:text-slate-100 sm:px-6">
@@ -293,7 +245,7 @@ function LoginPageContent() {
 
             <button
               type="submit"
-              disabled={isBusy}
+              disabled={isSubmitting}
               className="w-full rounded-lg bg-blue-600 py-2.5 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isSubmitting ? 'Signing in…' : 'Sign In'}
@@ -308,16 +260,14 @@ function LoginPageContent() {
             <hr className="flex-grow border-slate-200 dark:border-slate-700" />
           </div>
 
-          <div className="flex flex-col gap-3" aria-busy={isBusy}>
+          <div className="flex flex-col gap-3">
             {/* Google Authentication Button */}
-            <div className="relative w-full">
+            <div className="w-full">
               <button
                 type="button"
-                onClick={() => {
-                  const authUrl = `${import.meta.env.VITE_AUTH_API_URL || 'http://localhost:3000'}/api/auth/google`
-                  window.location.href = authUrl
-                }}
-                className="flex w-full items-center justify-center gap-3 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 cursor-pointer dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                disabled={isGoogleSubmitting || !googleClientId}
+                onClick={() => startGoogleLogin()}
+                className="relative z-10 flex w-full cursor-pointer items-center justify-center gap-3 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
               >
                 <svg className="size-4 shrink-0" viewBox="0 0 24 24">
                   <path
@@ -337,59 +287,29 @@ function LoginPageContent() {
                     d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.35 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
                   />
                 </svg>
-                <span>Continue with Google</span>
+                <span>
+                  {isGoogleSubmitting ? 'Completing Google sign-in…' : 'Continue with Google'}
+                </span>
               </button>
-              {googleClientId && (
-                <div className="absolute inset-0 z-10 flex items-center justify-center opacity-0 overflow-hidden cursor-pointer">
-                  <div className="w-full h-full scale-[2] origin-center opacity-0 cursor-pointer">
-                    <GoogleLogin
-                      onSuccess={handleGoogleSuccess}
-                      onError={() => setAuthError('Google sign-in was cancelled or failed.')}
-                      size="large"
-                      width="400"
-                    />
-                  </div>
-                </div>
-              )}
             </div>
 
             {/* Telegram Authentication Button */}
-            <div className="relative w-full">
+            <div className="w-full">
               <button
                 type="button"
                 onClick={() => {
-                  const authUrl = `${import.meta.env.VITE_AUTH_API_URL || 'http://localhost:3000'}/api/auth/telegram`
-                  window.location.href = authUrl
+                  window.location.href = `${authApiUrl}/api/auth/telegram`
                 }}
-                className="flex w-full items-center justify-center gap-3 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 cursor-pointer dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                className="relative z-10 flex w-full cursor-pointer items-center justify-center gap-3 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
               >
                 <svg className="size-4 shrink-0 text-[#229ed9]" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 0 0-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.37.08 0 .27.02.39.12.1.08.13.19.14.27-.01.07.01.25 0 .37z"/>
                 </svg>
                 <span>Continue with Telegram</span>
               </button>
-              {telegramBotName && (
-                <div className="absolute inset-0 z-10 flex items-center justify-center opacity-0 overflow-hidden cursor-pointer">
-                  <div className="w-full h-full scale-[2] origin-center opacity-0 cursor-pointer">
-                    <TelegramLoginButton
-                      botUsername={telegramBotName}
-                      onAuthCallback={handleTelegramSuccess}
-                      requestAccess="write"
-                      size="large"
-                      userPic
-                      lang="en"
-                    />
-                  </div>
-                </div>
-              )}
             </div>
           </div>
 
-          {activeProvider && activeProvider !== 'local' && (
-            <p className="auth-message" role="status">
-              Completing {activeProvider} sign-in…
-            </p>
-          )}
           {authError && (
             <p className="auth-message auth-message--error" role="alert">
               {authError}
@@ -419,10 +339,6 @@ function LoginPageContent() {
 }
 
 export function LoginPage() {
-  if (!googleClientId) {
-    return <LoginPageContent />
-  }
-
   return (
     <GoogleOAuthProvider clientId={googleClientId}>
       <LoginPageContent />

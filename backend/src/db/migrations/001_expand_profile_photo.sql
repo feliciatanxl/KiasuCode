@@ -1,0 +1,2 @@
+ALTER TABLE users
+  MODIFY COLUMN photo_url LONGTEXT NULL;
