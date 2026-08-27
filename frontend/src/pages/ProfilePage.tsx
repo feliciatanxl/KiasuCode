@@ -1,5 +1,4 @@
 import {
-  useEffect,
   useRef,
   useState,
   type ChangeEvent,
@@ -61,7 +60,6 @@ export function ProfilePage() {
   const [editPhotoUrl, setEditPhotoUrl] = useState(user?.photoUrl || '')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [selectedImage, setSelectedImage] = useState<File | null>(null)
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [isSavingProfile, setIsSavingProfile] = useState(false)
   const [profileError, setProfileError] = useState<string | null>(null)
 
@@ -75,14 +73,6 @@ export function ProfilePage() {
   const displayEmail = user?.email || 'felicia@u.nus.edu'
   const provider = user?.provider || 'local'
 
-  useEffect(() => {
-    return () => {
-      if (previewUrl) {
-        URL.revokeObjectURL(previewUrl)
-      }
-    }
-  }, [previewUrl])
-
   const userInitials = displayName
     .split(/\s+/)
     .map((n) => n[0])
@@ -94,7 +84,6 @@ export function ProfilePage() {
     setEditName(user?.name || 'Felicia Tan')
     setEditPhotoUrl(user?.photoUrl || '')
     setSelectedImage(null)
-    setPreviewUrl(null)
     if (fileInputRef.current) fileInputRef.current.value = ''
     setProfileError(null)
     setIsEditing(true)
@@ -104,7 +93,6 @@ export function ProfilePage() {
     setEditName(user?.name || 'Felicia Tan')
     setEditPhotoUrl(user?.photoUrl || '')
     setSelectedImage(null)
-    setPreviewUrl(null)
     if (fileInputRef.current) fileInputRef.current.value = ''
     setProfileError(null)
     setIsEditing(false)
@@ -128,7 +116,6 @@ export function ProfilePage() {
     }
 
     setSelectedImage(file)
-    setPreviewUrl(URL.createObjectURL(file))
     setProfileError(null)
   }
 
@@ -175,7 +162,6 @@ export function ProfilePage() {
 
       setEditPhotoUrl(nextPhotoUrl || '')
       setSelectedImage(null)
-      setPreviewUrl(null)
       if (fileInputRef.current) fileInputRef.current.value = ''
       showToast('Profile updated successfully.')
       setIsEditing(false)
@@ -282,9 +268,9 @@ export function ProfilePage() {
                 <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
                   <div className="flex shrink-0 flex-col items-center">
                     <div className="flex size-20 items-center justify-center overflow-hidden rounded-2xl bg-blue-600 font-bold text-2xl text-white shadow-md">
-                      {previewUrl || editPhotoUrl ? (
+                      {editPhotoUrl ? (
                         <img
-                          src={previewUrl || editPhotoUrl}
+                          src={editPhotoUrl}
                           alt={editName || displayName}
                           className="size-full rounded-2xl object-cover"
                           referrerPolicy="no-referrer"
@@ -307,6 +293,11 @@ export function ProfilePage() {
                       className="hidden"
                       onChange={handleImageSelect}
                     />
+                    {selectedImage && (
+                      <p className="mt-2 max-w-32 truncate text-center text-xs text-slate-500 dark:text-slate-400">
+                        {selectedImage.name}
+                      </p>
+                    )}
                   </div>
 
                   <div className="flex-1 space-y-4">

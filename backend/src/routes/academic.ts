@@ -1,4 +1,5 @@
 import { Router, type Request, type Response } from 'express'
+import rateLimit from 'express-rate-limit'
 import type {
   AcademicSemester,
   CreateModuleInput,
@@ -76,8 +77,15 @@ const supportedProfileImageDataUrl = /^data:image\/(?:gif|jpeg|png|webp);base64,
 class InvalidAcademicRequestError extends Error {}
 
 const router = Router()
+const academicRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 300,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: { error: 'Too many API requests. Please try again later.' },
+})
 
-router.use(authenticateRequest)
+router.use(authenticateRequest, academicRateLimiter)
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)

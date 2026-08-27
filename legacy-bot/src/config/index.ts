@@ -61,11 +61,13 @@ dotenv.config();
  */
 const hasTelegram = process.env.TELEGRAM_TOKEN || process.env.BOT_TOKEN;
 const hasDatabase = process.env.MYSQL_URL || (process.env.DB_HOST && process.env.DB_USER && process.env.DB_NAME);
+const jwtSecret = process.env.JWT_SECRET?.trim();
 
-if (!hasTelegram || !hasDatabase) {
+if (!hasTelegram || !hasDatabase || !jwtSecret) {
   const missing = [];
   if (!hasTelegram) missing.push("TELEGRAM_TOKEN (or BOT_TOKEN)");
   if (!hasDatabase) missing.push("DB_HOST/USER/NAME (or MYSQL_URL)");
+  if (!jwtSecret) missing.push("JWT_SECRET");
 
   throw new Error(
     `⚠️ DEPLOYMENT_FAILURE: Missing [${missing.join(", ")}]. Check your .env or Railway Variables lor!`
@@ -90,6 +92,10 @@ export const config = {
     password: process.env.DB_PASSWORD || "",
     name: process.env.DB_NAME || "kiasucode",
     url: process.env.MYSQL_URL, // Pass the master URL if it exists
+  },
+
+  security: {
+    jwtSecret,
   },
 
   environment: process.env.NODE_ENV || "development",

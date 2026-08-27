@@ -4,6 +4,7 @@ import { handleGpaCommand } from "./gpa";
 import { handleLogsCommand } from "./logs";
 import { handlePipelineCommand } from "./pipeline";
 import { handleHistoryCommand } from "./kaypoh";
+import { config } from "../config";
 
 export async function handleDashboardMenu(ctx: Context): Promise<void> {
   const userId = ctx.from?.id;
@@ -12,12 +13,8 @@ export async function handleDashboardMenu(ctx: Context): Promise<void> {
   // 🌐 Base URL configuration (fallback to local if running on your machine)
   const webUrl = process.env.WEB_URL || "https://kiasucode-production.up.railway.app";
   
-  // 🔐 Secure Token Generation
-  // We use a fallback secret for local dev, but you MUST set JWT_SECRET in Railway
-  const jwtSecret = process.env.JWT_SECRET || "local-dev-super-secret-key";
-  
   // Sign a token containing the userId, valid for exactly 1 hour
-  const token = jwt.sign({ userId: userId }, jwtSecret, { expiresIn: '1h' });
+  const token = jwt.sign({ userId: userId }, config.security.jwtSecret, { expiresIn: '1h' });
 
   // 🔗 The new secure Magic Link
   const portalLink = `${webUrl}/auth/${token}`;

@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs'
 import { Router, type Request, type Response } from 'express'
+import rateLimit from 'express-rate-limit'
 import jwt from 'jsonwebtoken'
 import type { ResultSetHeader, RowDataPacket } from 'mysql2'
 import { v4 as uuidv4 } from 'uuid'
@@ -42,6 +43,15 @@ interface VerifiedIdentity {
 class InvalidAuthRequestError extends Error {}
 
 const router = Router()
+const authRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 30,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: { error: 'Too many authentication attempts. Please try again later.' },
+})
+
+router.use(authRateLimiter)
 
 function requireEnvironmentVariable(name: string): string {
   const value = process.env[name]?.trim()

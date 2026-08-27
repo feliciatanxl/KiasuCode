@@ -4,11 +4,72 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto'; 
 import rateLimit from 'express-rate-limit'; 
 import { getStudentProfile, getStudentHistory } from './database/queries';
+import { config } from './config';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const JWT_SECRET = process.env.JWT_SECRET || "local-dev-super-secret-key";
-const BOT_TOKEN = process.env.TELEGRAM_TOKEN || ""; 
+const JWT_SECRET = config.security.jwtSecret;
+const BOT_TOKEN = config.telegram.token;
+const SESSION_COOKIE = 'kiasu_session';
+const SESSION_COOKIE_MAX_AGE = 24 * 60 * 60 * 1000;
+const SESSION_ENCRYPTION_KEY = crypto.createHash('sha256').update(JWT_SECRET).digest();
+
+function encryptSessionUserId(userId: string | number): string {
+    const initializationVector = crypto.randomBytes(12);
+    const cipher = crypto.createCipheriv('aes-256-gcm', SESSION_ENCRYPTION_KEY, initializationVector);
+    const ciphertext = Buffer.concat([
+        cipher.update(String(userId), 'utf8'),
+        cipher.final(),
+    ]);
+    const authenticationTag = cipher.getAuthTag();
+
+    return Buffer.concat([initializationVector, authenticationTag, ciphertext]).toString('base64url');
+}
+
+function decryptSessionUserId(value: unknown): number | null {
+    if (typeof value !== 'string' || !value) return null;
+
+    try {
+        const payload = Buffer.from(value, 'base64url');
+        if (payload.length <= 28) return null;
+
+        const initializationVector = payload.subarray(0, 12);
+        const authenticationTag = payload.subarray(12, 28);
+        const ciphertext = payload.subarray(28);
+        const decipher = crypto.createDecipheriv('aes-256-gcm', SESSION_ENCRYPTION_KEY, initializationVector);
+        decipher.setAuthTag(authenticationTag);
+        const userIdText = Buffer.concat([
+            decipher.update(ciphertext),
+            decipher.final(),
+        ]).toString('utf8');
+        const userId = Number(userIdText);
+
+        return /^\d+$/.test(userIdText) && Number.isSafeInteger(userId) && userId > 0
+            ? userId
+            : null;
+    } catch {
+        return null;
+    }
+}
+
+function setSessionCookie(res: express.Response, userId: string | number): void {
+    res.cookie(SESSION_COOKIE, encryptSessionUserId(userId), {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+        maxAge: SESSION_COOKIE_MAX_AGE,
+    });
+}
+
+function clearSessionCookie(res: express.Response): void {
+    res.clearCookie(SESSION_COOKIE, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+    });
+}
 
 app.use(cookieParser());
 
@@ -54,7 +115,7 @@ function sanitizeHTML(str: string | number): string {
 
 // 🏠 LANDING PAGE (Hacker/Singlish Theme)
 app.get('/', (req, res) => {
-    if (req.cookies.kiasu_session) return res.redirect('/portal');
+    if (req.cookies[SESSION_COOKIE]) return res.redirect('/portal');
 
     res.send(`
     <!DOCTYPE html>
@@ -106,23 +167,24 @@ app.get('/auth/telegram/callback', (req, res) => {
     const isValid = verifyTelegramAuth(req.query);
     if (!isValid) return res.status(403).send("<h1 style='font-family:monospace; background:black; color:red; padding:20px;'>> ERROR 403: Kena blocked. Invalid Auth Signature.</h1>");
 
-    res.cookie('kiasu_session', req.query.id, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        maxAge: 24 * 60 * 60 * 1000 
-    });
+    if (typeof req.query.id !== 'string' || !/^\d+$/.test(req.query.id)) {
+        return res.status(400).send('Invalid Telegram user identifier.');
+    }
+
+    setSessionCookie(res, req.query.id);
     res.redirect('/portal');
 });
 
 // 🔐 MAGIC LINK ROUTE
 app.get('/auth/:token', (req, res) => {
     try {
-        const decoded = jwt.verify(req.params.token, JWT_SECRET) as { userId: number };
-        res.cookie('kiasu_session', decoded.userId, { 
-            httpOnly: true, 
-            secure: process.env.NODE_ENV === 'production',
-            maxAge: 24 * 60 * 60 * 1000 
-        });
+        const decoded = jwt.verify(req.params.token, JWT_SECRET) as { userId?: unknown };
+        if ((typeof decoded.userId !== 'number' && typeof decoded.userId !== 'string') ||
+            !/^\d+$/.test(String(decoded.userId))) {
+            throw new Error('Magic link is missing a valid user identifier.');
+        }
+
+        setSessionCookie(res, decoded.userId);
         res.redirect('/portal');
     } catch (error) {
         res.status(401).send(`
@@ -157,14 +219,17 @@ app.get('/auth/:token', (req, res) => {
 
 // 🚪 LOGOUT ROUTE
 app.get('/logout', (req, res) => {
-    res.clearCookie('kiasu_session');
+    clearSessionCookie(res);
     res.redirect('/'); 
 });
 
 // 🛡️ SECURE PORTAL ROUTE (Singlish + Coding Theme)
 app.get('/portal', async (req, res, next) => {
-    const userId = req.cookies.kiasu_session;
-    if (!userId) return res.redirect('/');
+    const userId = decryptSessionUserId(req.cookies[SESSION_COOKIE]);
+    if (!userId) {
+        clearSessionCookie(res);
+        return res.redirect('/');
+    }
 
     try {
         const profile = await getStudentProfile(userId);
