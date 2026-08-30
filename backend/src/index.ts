@@ -5,17 +5,35 @@ import express from 'express'
 import rateLimit from 'express-rate-limit'
 import type { HealthResponse } from '@kiasucode/shared'
 
+import http from 'node:http'
+import path from 'node:path'
+
 import authRouter from './routes/auth.js'
 import academicRouter from './routes/academic.js'
+import countdownsRouter from './routes/countdowns.js'
+import filesRouter from './routes/files.js'
+import friendsRouter from './routes/friends.js'
+import gamificationRouter from './routes/gamification.js'
+import { errorHandler, notFoundHandler } from './middleware/errorHandler.js'
+import { setupStudyRoomSocket } from './sockets/studyRoom.js'
+
 
 const app = express()
 const port = Number(process.env.PORT ?? 3001)
+const allowedOrigins = (process.env.FRONTEND_URL ?? '')
+  .split(',')
+  .map((origin) => origin.trim().replace(/\/+$/, ''))
+  .filter(Boolean)
 const globalRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 1_000,
   standardHeaders: 'draft-8',
   legacyHeaders: false,
-  message: { error: 'Too many requests. Please try again later.' },
+  message: {
+    success: false,
+    message: 'Too many requests. Please try again later.',
+    code: 'RATE_LIMITED',
+  },
 })
 
 if (!Number.isInteger(port) || port <= 0 || port > 65_535) {
@@ -23,19 +41,25 @@ if (!Number.isInteger(port) || port <= 0 || port > 65_535) {
 }
 
 app.disable('x-powered-by')
-if (process.env.NODE_ENV === 'production') {
-  app.set('trust proxy', 1)
-}
+// ngrok is the single reverse-proxy hop in front of this Express process.
+app.set('trust proxy', 1)
 app.use(cors({
-  origin(_origin, callback) {
-    // Allow local and ngrok origins while developing.
-    callback(null, true)
+  origin(origin, callback) {
+    if (!origin || allowedOrigins.includes(origin.replace(/\/+$/, ''))) {
+      callback(null, true)
+      return
+    }
+
+    // Reject the CORS request without raising an application error.
+    callback(null, false)
   },
   credentials: true,
 }))
 app.use(globalRateLimiter)
 // A 2 MB image expands to roughly 2.7 MB when encoded as a Base64 data URL.
 app.use(express.json({ limit: '3mb' }))
+
+app.use('/uploads', express.static(path.resolve(process.cwd(), 'uploads')))
 
 app.get('/health', (_request, response) => {
   const payload: HealthResponse = {
@@ -48,8 +72,17 @@ app.get('/health', (_request, response) => {
 })
 
 app.use('/auth', authRouter)
+app.use('/api', filesRouter)
+app.use('/api', friendsRouter)
+app.use('/api', countdownsRouter)
+app.use('/api', gamificationRouter)
 app.use('/api', academicRouter)
+app.use(notFoundHandler)
+app.use(errorHandler)
 
-app.listen(port, () => {
+const httpServer = http.createServer(app)
+setupStudyRoomSocket(httpServer, allowedOrigins)
+
+httpServer.listen(port, () => {
   console.log(`Backend listening on http://localhost:${port}`)
 })

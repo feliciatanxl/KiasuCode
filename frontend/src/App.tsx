@@ -8,20 +8,31 @@ import {
   useNavigate,
 } from 'react-router-dom'
 
+import { ErrorBoundary } from './components/ErrorBoundary'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { ToastProvider } from './context/ToastContext'
+import { CountdownsView } from './pages/CountdownsView'
 import { Dashboard } from './pages/Dashboard'
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
 import { LandingPage } from './pages/LandingPage'
 import { LoginPage } from './pages/LoginPage'
+import { NotFoundPage } from './pages/NotFoundPage'
+import { PetView } from './pages/PetView'
 import { ProfilePage } from './pages/ProfilePage'
 import { RegisterPage } from './pages/RegisterPage'
 import { SettingsPage } from './pages/SettingsPage'
+import { ServerErrorPage } from './pages/ServerErrorPage'
+import { StudyRoom } from './pages/StudyRoom'
+import { TimerView } from './pages/TimerView'
 import './App.css'
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, isLoading } = useAuth()
   const location = useLocation()
+
+  if (isLoading) {
+    return <main className="route-loading min-h-screen dark:bg-slate-900 dark:text-white"><code>restoring auth/session...</code></main>
+  }
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />
@@ -37,12 +48,45 @@ function AppRoutes() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/500" element={<ServerErrorPage />} />
       <Route path="/logout" element={<LogoutRoute />} />
       <Route
         path="/dashboard"
         element={
           <ProtectedRoute>
             <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/countdowns"
+        element={
+          <ProtectedRoute>
+            <CountdownsView />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/timer"
+        element={
+          <ProtectedRoute>
+            <TimerView />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/study-room"
+        element={
+          <ProtectedRoute>
+            <StudyRoom />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/pet"
+        element={
+          <ProtectedRoute>
+            <PetView />
           </ProtectedRoute>
         }
       />
@@ -62,7 +106,7 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="*" element={<NotFoundPage />} />
     </Routes>
   )
 }
@@ -72,22 +116,31 @@ function LogoutRoute() {
   const navigate = useNavigate()
 
   useEffect(() => {
-    logout()
-    navigate('/', { replace: true })
+    void logout().finally(() => navigate('/', { replace: true }))
   }, [logout, navigate])
 
-  return <main className="route-loading min-h-screen dark:bg-slate-900 dark:text-white"><code>closing auth/session...</code></main>
+  return <main className="route-loading min-h-screen dark:bg-slate-900 dark:text-slate-100"><code>closing auth/session...</code></main>
 }
 
 function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <ToastProvider>
-          <AppRoutes />
-        </ToastProvider>
+        <RouteTree />
       </AuthProvider>
     </BrowserRouter>
+  )
+}
+
+function RouteTree() {
+  const location = useLocation()
+
+  return (
+    <ErrorBoundary key={location.key}>
+      <ToastProvider>
+        <AppRoutes />
+      </ToastProvider>
+    </ErrorBoundary>
   )
 }
 

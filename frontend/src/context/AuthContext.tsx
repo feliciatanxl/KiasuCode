@@ -2,10 +2,15 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react'
+import { useNavigate } from 'react-router-dom'
+
+import { getApiBaseUrl, setUnauthorizedHandler } from '../utils/api'
 
 export type AuthProviderName = 'telegram' | 'google' | 'local'
 
@@ -17,109 +22,150 @@ export interface AuthUser {
   provider: AuthProviderName
 }
 
-interface AuthSession {
-  user: AuthUser
-  sessionToken: string
-}
-
 interface AuthContextValue {
   isAuthenticated: boolean
+  isLoading: boolean
   user: AuthUser | null
-  sessionToken: string | null
-  login: (user: AuthUser, sessionToken: string) => void
-  logout: () => void
+  login: (user: AuthUser) => void
+  logout: () => Promise<void>
   updateUser: (user: AuthUser) => void
 }
 
-const AUTH_STORAGE_KEY = 'kiasucode.auth.session'
-const LEGACY_AUTH_STORAGE_KEY = 'kiasucode.auth.user'
+interface SessionResponse {
+  user: AuthUser
+}
 
+const legacyStorageKeys = [
+  'kiasucode.auth.session',
+  'kiasucode.auth.user',
+]
 const AuthContext = createContext<AuthContextValue | null>(null)
 
 function isAuthProvider(value: unknown): value is AuthProviderName {
   return value === 'telegram' || value === 'google' || value === 'local'
 }
 
-function isAuthUser(value: unknown): value is AuthUser {
-  if (!value || typeof value !== 'object') {
-    return false
-  }
+// oxlint-disable-next-line react/only-export-components -- Runtime guard accompanies the shared auth type.
+export function isAuthUser(value: unknown): value is AuthUser {
+  if (!value || typeof value !== 'object') return false
 
   const user = value as Partial<AuthUser>
 
   return (
-    typeof user.id === 'string' &&
-    user.id.length > 0 &&
-    typeof user.name === 'string' &&
-    user.name.length > 0 &&
-    (user.email === undefined || typeof user.email === 'string') &&
-    (user.photoUrl === undefined || typeof user.photoUrl === 'string') &&
-    isAuthProvider(user.provider)
+    typeof user.id === 'string'
+    && user.id.length > 0
+    && typeof user.name === 'string'
+    && user.name.length > 0
+    && (user.email === undefined || typeof user.email === 'string')
+    && (user.photoUrl === undefined || typeof user.photoUrl === 'string')
+    && isAuthProvider(user.provider)
   )
 }
 
-function readStoredSession(): AuthSession | null {
-  try {
-    const storedSession = window.localStorage.getItem(AUTH_STORAGE_KEY)
-
-    if (!storedSession) {
-      return null
-    }
-
-    const session = JSON.parse(storedSession) as Partial<AuthSession>
-
-    if (!isAuthUser(session.user) || typeof session.sessionToken !== 'string') {
-      window.localStorage.removeItem(AUTH_STORAGE_KEY)
-      return null
-    }
-
-    return session as AuthSession
-  } catch {
-    window.localStorage.removeItem(AUTH_STORAGE_KEY)
-    return null
-  }
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<AuthSession | null>(readStoredSession)
+  const [user, setUser] = useState<AuthUser | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const restoreControllerRef = useRef<AbortController | null>(null)
+  const navigate = useNavigate()
 
-  const login = useCallback((user: AuthUser, sessionToken: string) => {
-    if (!sessionToken.trim()) {
-      throw new Error('A non-empty session token is required to log in.')
+  useEffect(() => {
+    for (const key of legacyStorageKeys) window.localStorage.removeItem(key)
+
+    const controller = new AbortController()
+    restoreControllerRef.current = controller
+
+    void fetch(`${getApiBaseUrl()}/auth/session`, {
+      credentials: 'include',
+      headers: { Accept: 'application/json' },
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (response.status === 401) {
+          setUser(null)
+          return
+        }
+
+        const body = (await response.json().catch(() => null)) as
+          | Partial<SessionResponse>
+          | null
+
+        if (!response.ok || !isAuthUser(body?.user)) {
+          throw new Error('Unable to restore the browser session.')
+        }
+
+        setUser(body.user)
+      })
+      .catch((error: unknown) => {
+        if (!(error instanceof DOMException && error.name === 'AbortError')) {
+          console.error('Unable to restore authentication session.', error)
+          setUser(null)
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setIsLoading(false)
+        if (restoreControllerRef.current === controller) {
+          restoreControllerRef.current = null
+        }
+      })
+
+    return () => {
+      controller.abort()
+      if (restoreControllerRef.current === controller) {
+        restoreControllerRef.current = null
+      }
     }
-
-    const nextSession: AuthSession = { user, sessionToken }
-
-    window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(nextSession))
-    window.localStorage.removeItem(LEGACY_AUTH_STORAGE_KEY)
-    setSession(nextSession)
   }, [])
 
-  const logout = useCallback(() => {
-    window.localStorage.removeItem(AUTH_STORAGE_KEY)
-    window.localStorage.removeItem(LEGACY_AUTH_STORAGE_KEY)
-    setSession(null)
+  useEffect(
+    () => setUnauthorizedHandler(() => {
+      setUser(null)
+      setIsLoading(false)
+      navigate('/login', {
+        replace: true,
+        state: { reason: 'session-expired' },
+      })
+    }),
+    [navigate],
+  )
+
+  const login = useCallback((authenticatedUser: AuthUser) => {
+    restoreControllerRef.current?.abort()
+    restoreControllerRef.current = null
+    setUser(authenticatedUser)
+    setIsLoading(false)
+  }, [])
+
+  const logout = useCallback(async () => {
+    restoreControllerRef.current?.abort()
+    restoreControllerRef.current = null
+    setUser(null)
+    setIsLoading(false)
+
+    try {
+      await fetch(`${getApiBaseUrl()}/auth/session`, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: { Accept: 'application/json' },
+      })
+    } catch (error) {
+      console.error('Unable to notify the server about logout.', error)
+    }
   }, [])
 
   const updateUser = useCallback((updatedUser: AuthUser) => {
-    setSession((prev) => {
-      if (!prev) return null
-      const nextSession: AuthSession = { ...prev, user: updatedUser }
-      window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(nextSession))
-      return nextSession
-    })
+    setUser(updatedUser)
   }, [])
 
   const value = useMemo<AuthContextValue>(
     () => ({
-      isAuthenticated: session !== null,
-      user: session?.user ?? null,
-      sessionToken: session?.sessionToken ?? null,
+      isAuthenticated: user !== null,
+      isLoading,
+      user,
       login,
       logout,
       updateUser,
     }),
-    [login, logout, updateUser, session],
+    [isLoading, login, logout, updateUser, user],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
@@ -129,9 +175,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 export function useAuth(): AuthContextValue {
   const context = useContext(AuthContext)
 
-  if (!context) {
-    throw new Error('useAuth must be used inside an AuthProvider')
-  }
+  if (!context) throw new Error('useAuth must be used inside an AuthProvider')
 
   return context
 }

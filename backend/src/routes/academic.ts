@@ -1,5 +1,6 @@
 import { Router, type Request, type Response } from 'express'
 import rateLimit from 'express-rate-limit'
+import bcrypt from 'bcrypt'
 import type {
   AcademicSemester,
   CreateModuleInput,
@@ -479,6 +480,25 @@ router.get(
   },
 )
 
+router.get('/modules', async (_request: Request, response: Response) => {
+  try {
+    const [rows] = await db.execute<ModuleRow[]>(
+      `SELECT m.*, s.academic_year, s.term
+         FROM modules AS m
+         INNER JOIN semesters AS s ON s.id = m.semester_id
+         INNER JOIN institutions AS i ON i.id = s.institution_id
+        WHERE i.user_id = ?
+        ORDER BY m.module_code ASC`,
+      [getUserId(response)],
+    )
+
+    response.status(200).json({ modules: rows.map(serializeModule) })
+  } catch (error) {
+    console.error('Unable to load user modules.', error)
+    response.status(500).json({ error: 'Unable to load user modules.' })
+  }
+})
+
 router.get(
   '/institutions/:institutionId/modules',
   async (request: Request, response: Response) => {
@@ -741,8 +761,6 @@ router.post('/auth/set-password', async (request: Request, response: Response) =
       throw new InvalidAcademicRequestError('Password must be at least 6 characters long.')
     }
 
-    const bcryptModule = await import('bcryptjs')
-    const bcrypt = bcryptModule.default || bcryptModule
     const passwordHash = await bcrypt.hash(passwordValue, 10)
 
     await db.execute<ResultSetHeader>(

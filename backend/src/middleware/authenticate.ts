@@ -1,6 +1,8 @@
 import type { NextFunction, Request, Response } from 'express'
 import jwt from 'jsonwebtoken'
 
+import { clearSessionCookie, readSessionCookie } from '../utils/session.js'
+
 function requireEnvironmentVariable(name: string): string {
   const value = process.env[name]?.trim()
 
@@ -16,16 +18,20 @@ export function authenticateRequest(
   response: Response,
   next: NextFunction,
 ) {
-  const authorization = request.get('authorization')
+  const sessionToken = readSessionCookie(request)
 
-  if (!authorization?.startsWith('Bearer ')) {
-    response.status(401).json({ error: 'Authentication is required.' })
+  if (!sessionToken) {
+    response.status(401).json({
+      success: false,
+      message: 'Authentication is required.',
+      code: 'AUTHENTICATION_REQUIRED',
+    })
     return
   }
 
   try {
     const payload = jwt.verify(
-      authorization.slice('Bearer '.length),
+      sessionToken,
       requireEnvironmentVariable('JWT_SECRET'),
       {
         algorithms: ['HS256'],
@@ -41,6 +47,11 @@ export function authenticateRequest(
     response.locals.userId = payload.sub
     next()
   } catch {
-    response.status(401).json({ error: 'The session is invalid or expired.' })
+    clearSessionCookie(response)
+    response.status(401).json({
+      success: false,
+      message: 'The session is invalid or expired.',
+      code: 'SESSION_INVALID',
+    })
   }
 }

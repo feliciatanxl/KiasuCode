@@ -18,7 +18,6 @@ import {
 import { Logo } from '../components/Logo'
 import { Navbar } from '../components/Navbar'
 import { TelegramConnectModal } from '../components/TelegramConnectModal'
-import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { apiRequest, formatApiError, isAbortError } from '../utils/api'
 import { InstitutionsView } from './InstitutionsView'
@@ -83,7 +82,6 @@ export function Dashboard() {
   const [isCreatingInstitution, setIsCreatingInstitution] = useState(false)
   const [institutionName, setInstitutionName] = useState('')
   const [institutionError, setInstitutionError] = useState<string | null>(null)
-  const { sessionToken } = useAuth()
   const { showToast } = useToast()
 
   const depth = directoryStack.length
@@ -100,11 +98,9 @@ export function Dashboard() {
     : ''
 
   useEffect(() => {
-    if (!sessionToken) return
-
     const controller = new AbortController()
 
-    void apiRequest<InstitutionsResponse>('/api/institutions', sessionToken, {
+    void apiRequest<InstitutionsResponse>('/api/institutions', {
       signal: controller.signal,
     })
       .then(({ data }) => setInstitutions(data.institutions))
@@ -116,16 +112,15 @@ export function Dashboard() {
       })
 
     return () => controller.abort()
-  }, [sessionToken])
+  }, [])
 
   useEffect(() => {
-    if (!sessionToken || !selectedInstitution) return
+    if (!selectedInstitution) return
 
     const controller = new AbortController()
 
     void apiRequest<SemestersResponse>(
       `/api/institutions/${selectedInstitution.id}/semesters`,
-      sessionToken,
       { signal: controller.signal },
     )
       .then(({ data }) => setSemesters(data.semesters))
@@ -137,16 +132,15 @@ export function Dashboard() {
       })
 
     return () => controller.abort()
-  }, [selectedInstitution, sessionToken])
+  }, [selectedInstitution])
 
   useEffect(() => {
-    if (!sessionToken || !selectedSemester) return
+    if (!selectedSemester) return
 
     const controller = new AbortController()
 
     void apiRequest<ModulesResponse>(
       `/api/semesters/${selectedSemester.id}/modules`,
-      sessionToken,
       { signal: controller.signal },
     )
       .then(({ data }) => setModules(data.modules))
@@ -158,7 +152,7 @@ export function Dashboard() {
       })
 
     return () => controller.abort()
-  }, [selectedSemester, sessionToken])
+  }, [selectedSemester])
 
   const popToDepth = useCallback((targetDepth: number) => {
     setDirectoryStack((stack) => stack.slice(0, targetDepth))
@@ -233,7 +227,7 @@ export function Dashboard() {
     event.preventDefault()
     const name = institutionName.trim()
 
-    if (!sessionToken || !name) return
+    if (!name) return
 
     setIsCreatingInstitution(true)
     setInstitutionError(null)
@@ -242,7 +236,6 @@ export function Dashboard() {
     try {
       const { data, status } = await apiRequest<InstitutionResponse>(
         '/api/institutions',
-        sessionToken,
         { method: 'POST', body: JSON.stringify({ name }) },
       )
 
@@ -266,13 +259,10 @@ export function Dashboard() {
   }
 
   const updateModule = async (id: string, patch: Partial<Module>) => {
-    if (!sessionToken) return
-
     setApiError(null)
     try {
       const { data, status } = await apiRequest<ModuleResponse>(
         `/api/modules/${id}`,
-        sessionToken,
         { method: 'PATCH', body: JSON.stringify(patch) },
       )
 
@@ -288,13 +278,10 @@ export function Dashboard() {
   }
 
   const deleteModule = async (id: string) => {
-    if (!sessionToken) return
-
     setApiError(null)
     try {
       const { status } = await apiRequest<{ success: boolean }>(
         `/api/modules/${id}`,
-        sessionToken,
         { method: 'DELETE' },
       )
 
@@ -311,44 +298,40 @@ export function Dashboard() {
     <div className="app-shell bg-slate-50 text-slate-900 transition-colors duration-300 dark:bg-slate-900 dark:text-slate-100">
       <Navbar onConnectTelegram={() => setIsTelegramOpen(true)} />
 
-      <main id="top">
-        <section
-          className="dashboard-section min-h-[calc(100vh-72px)] border-slate-200 bg-slate-50 transition-colors duration-300 dark:border-slate-700 dark:bg-slate-900"
-          id="dashboard"
-        >
-          <div className="mx-auto w-full max-w-7xl">
-            <header className="flex flex-row justify-between items-end w-full mb-6">
-              <div className="flex flex-col gap-2 justify-start">
-                <Breadcrumbs
-                  ancestors={breadcrumbAncestors}
-                  current={currentDirectoryLabel}
-                />
-                <h1 className="m-0 text-3xl leading-tight font-bold tracking-tight text-slate-900 dark:text-slate-100">
-                  {depth === 0
-                    ? 'Academic Institutions'
-                    : depth === 1
-                      ? `${selectedInstitution?.name ?? ''} Semesters`
-                      : 'Build Overview'}
-                </h1>
-              </div>
-              {depth === 0 && institutions.length > 0 && !isLoading ? (
-                <button
-                  className="inline-flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-blue-700 bg-blue-600 px-3.5 text-xs font-bold text-white shadow-[3px_3px_0_#a9c7ff] transition-colors hover:bg-blue-700 dark:border-blue-500 dark:bg-blue-600 dark:hover:bg-blue-500"
-                  type="button"
-                  onClick={openInstitutionForm}
-                >
-                  <span aria-hidden="true">+</span> New
-                </button>
-              ) : depth === 2 && selectedSemester ? (
-                <div className="branch-badge">
-                  <span aria-hidden="true">⑂</span>
-                  <div>
-                    <small>CURRENT TERM</small>
-                    <strong>{semesterLabel}</strong>
-                  </div>
+      <main id="top" className="min-h-[calc(100vh-72px)] flex-1">
+        <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+          <header className="flex flex-row justify-between items-end w-full mb-6">
+            <div className="flex flex-col gap-2 justify-start">
+              <Breadcrumbs
+                ancestors={breadcrumbAncestors}
+                current={currentDirectoryLabel}
+              />
+              <h1 className="m-0 text-3xl leading-tight font-bold tracking-tight text-slate-900 dark:text-slate-100">
+                {depth === 0
+                  ? 'Academic Institutions'
+                  : depth === 1
+                    ? `${selectedInstitution?.name ?? ''} Semesters`
+                    : 'Build Overview'}
+              </h1>
+            </div>
+            {depth === 0 && institutions.length > 0 && !isLoading ? (
+              <button
+                className="inline-flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-blue-700 bg-blue-600 px-3.5 text-xs font-bold text-white shadow-[3px_3px_0_#a9c7ff] transition-colors hover:bg-blue-700 dark:border-blue-500 dark:bg-blue-600 dark:hover:bg-blue-500"
+                type="button"
+                onClick={openInstitutionForm}
+              >
+                <span aria-hidden="true">+</span> New
+              </button>
+            ) : depth === 2 && selectedSemester ? (
+              <div className="branch-badge">
+                <span aria-hidden="true">⑂</span>
+                <div>
+                  <small>CURRENT TERM</small>
+                  <strong>{semesterLabel}</strong>
                 </div>
-              ) : null}
-            </header>
+              </div>
+            ) : null}
+          </header>
 
           {apiError ? (
             <p
@@ -410,9 +393,9 @@ export function Dashboard() {
               semester={selectedSemester}
             />
           ) : null}
-          </div>
-        </section>
+        </div>
       </main>
+
 
       <footer>
         <div className="brand brand--footer">

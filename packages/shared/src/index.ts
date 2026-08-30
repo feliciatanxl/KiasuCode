@@ -63,3 +63,82 @@ export interface CreateModuleInput {
 export type GradeScale = Record<GradeLetter, number>
 
 export type DevLinguaFlavor = 'positive' | 'negative' | 'casual'
+
+export type CountdownCategory =
+  | 'Exam'
+  | 'Assignment'
+  | 'Project'
+  | 'Personal'
+
+export interface AcademicCountdown {
+  id: string
+  moduleId: string | null
+  title: string
+  targetDate: string
+  category: CountdownCategory
+  createdAt: string
+}
+
+export interface CreateCountdownInput {
+  moduleId: string | null
+  title: string
+  targetDate: string
+  category: CountdownCategory
+}
+
+export interface ModuleFile {
+  id: string
+  moduleId: string
+  userId: string
+  fileName: string
+  fileUrl: string
+  fileSizeKb: number
+  createdAt: string
+}
+
+export type FriendshipStatus = 'Pending' | 'Accepted'
+
+export interface FriendUser {
+  id: string
+  name: string
+  email?: string | null
+  photoUrl?: string | null
+}
+
+export interface FriendshipItem {
+  id: string
+  friend: FriendUser
+  status: FriendshipStatus
+  isRequester: boolean
+  createdAt: string
+}
+
+export interface SendFriendRequestInput {
+  target: string
+}
+
+export type RoomTimerStatus = 'idle' | 'running' | 'paused' | 'completed'
+
+export interface RoomParticipant {
+  userId: string
+  name: string
+  photoUrl?: string | null
+  joinedAt: string
+}
+
+export interface RoomState {
+  roomId: string
+  status: RoomTimerStatus
+  durationSeconds: number
+  remainingSeconds: number
+  participants: RoomParticipant[]
+  activeSince?: string | null
+}
+
+export interface TimerCompletePayload {
+  roomId: string
+  coinsEarned: number
+  completedAt: string
+}
+
+

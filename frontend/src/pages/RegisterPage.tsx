@@ -2,11 +2,11 @@ import { useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 
 import { Logo } from '../components/Logo'
-import { useAuth, type AuthUser } from '../context/AuthContext'
+import { isAuthUser, useAuth, type AuthUser } from '../context/AuthContext'
+import { getApiBaseUrl } from '../utils/api'
 
 interface RegisterResponse {
   user: AuthUser
-  sessionToken: string
 }
 
 function formatError(error: unknown): string {
@@ -56,9 +56,10 @@ export function RegisterPage() {
 
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_AUTH_API_URL}/auth/register`,
+        `${getApiBaseUrl()}/auth/register`,
         {
           method: 'POST',
+          credentials: 'include',
           headers: {
             'Content-Type': 'application/json',
             Accept: 'application/json',
@@ -79,11 +80,11 @@ export function RegisterPage() {
         throw new Error(body?.error || `Registration failed (${response.status}).`)
       }
 
-      if (!body || !body.user || typeof body.sessionToken !== 'string') {
+      if (!body || !isAuthUser(body.user)) {
         throw new Error('The authentication server returned an invalid session.')
       }
 
-      login(body.user, body.sessionToken)
+      login(body.user)
       navigate('/dashboard', { replace: true })
     } catch (error) {
       setAuthError(formatError(error))

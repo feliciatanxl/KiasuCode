@@ -47,6 +47,7 @@ const sharedPoolOptions = {
   connectionLimit: 10,
   queueLimit: 0,
   enableKeepAlive: true,
+  timezone: 'Z',
 } satisfies PoolOptions
 
 const poolOptions: PoolOptions = databaseUrl

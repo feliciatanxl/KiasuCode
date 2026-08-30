@@ -47,7 +47,7 @@ function fileToDataUrl(file: File): Promise<string> {
 }
 
 export function ProfilePage() {
-  const { user, sessionToken, updateUser } = useAuth()
+  const { user, updateUser } = useAuth()
   const { showToast } = useToast()
 
   const [isTelegramOpen, setIsTelegramOpen] = useState(false)
@@ -136,28 +136,19 @@ export function ProfilePage() {
         ? await fileToDataUrl(selectedImage)
         : editPhotoUrl.trim() || null
 
-      if (sessionToken) {
-        const response = await apiRequest<ProfileUpdateResponse>(
-          '/api/user/profile',
-          sessionToken,
-          {
-            method: 'PUT',
-            body: JSON.stringify({
-              name: trimmedName,
-              photo_url: nextPhotoUrl,
-            }),
-          },
-        )
+      const response = await apiRequest<ProfileUpdateResponse>(
+        '/api/user/profile',
+        {
+          method: 'PUT',
+          body: JSON.stringify({
+            name: trimmedName,
+            photo_url: nextPhotoUrl,
+          }),
+        },
+      )
 
-        if (response.data.user) {
-          updateUser(response.data.user)
-        }
-      } else if (user) {
-        updateUser({
-          ...user,
-          name: trimmedName,
-          photoUrl: nextPhotoUrl || undefined,
-        })
+      if (response.data.user) {
+        updateUser(response.data.user)
       }
 
       setEditPhotoUrl(nextPhotoUrl || '')
@@ -189,16 +180,13 @@ export function ProfilePage() {
     setIsSettingPassword(true)
 
     try {
-      if (sessionToken) {
-        await apiRequest<SetPasswordResponse>(
-          '/api/auth/set-password',
-          sessionToken,
-          {
-            method: 'POST',
-            body: JSON.stringify({ password: newPassword }),
-          },
-        )
-      }
+      await apiRequest<SetPasswordResponse>(
+        '/api/auth/set-password',
+        {
+          method: 'POST',
+          body: JSON.stringify({ password: newPassword }),
+        },
+      )
 
       setHasLocalPassword(true)
       setIsPasswordModalOpen(false)

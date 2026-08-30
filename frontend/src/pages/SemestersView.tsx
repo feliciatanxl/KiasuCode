@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import type { AcademicSemester, Institution, Module } from '@kiasucode/shared'
 
 import { GpaDashboard } from '../components/GpaDashboard'
-import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
 import { useToast } from '../context/ToastContext'
 import { apiRequest, formatApiError, isAbortError } from '../utils/api'
@@ -61,7 +60,6 @@ export function SemestersView({
   const [error, setError] = useState<string | null>(null)
   const [institutionModules, setInstitutionModules] = useState<Module[]>([])
   const yearPickerRef = useRef<HTMLDivElement | null>(null)
-  const { sessionToken } = useAuth()
   const { theme } = useTheme()
   const { showToast } = useToast()
 
@@ -91,13 +89,12 @@ export function SemestersView({
   }, [isYearPickerOpen])
 
   useEffect(() => {
-    if (!sessionToken || !institution.id) return
+    if (!institution.id) return
 
     const controller = new AbortController()
 
     void apiRequest<{ modules: Module[] }>(
       `/api/institutions/${institution.id}/modules`,
-      sessionToken,
       { signal: controller.signal },
     )
       .then(({ data }) => setInstitutionModules(data.modules))
@@ -111,7 +108,7 @@ export function SemestersView({
       })
 
     return () => controller.abort()
-  }, [institution.id, sessionToken])
+  }, [institution.id])
 
   const cumulativeGpa = useMemo(
     () => calculateCurrentGpa(institutionModules, currentSchoolKey),
@@ -143,15 +140,12 @@ export function SemestersView({
 
   const createSemester = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (!sessionToken) return
-
     setIsSubmitting(true)
     setError(null)
 
     try {
       const { data, status } = await apiRequest<SemesterResponse>(
         '/api/semesters',
-        sessionToken,
         {
           method: 'POST',
           body: JSON.stringify({

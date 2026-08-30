@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import type { Institution } from '@kiasucode/shared'
 
-import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { apiRequest, formatApiError } from '../utils/api'
 
@@ -26,11 +25,10 @@ export function InstitutionsView({
   } | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
-  const { sessionToken } = useAuth()
   const { showToast } = useToast()
 
   const confirmDeleteInstitution = async () => {
-    if (!sessionToken || !institutionToDelete) return
+    if (!institutionToDelete) return
 
     setIsDeleting(true)
     setDeleteError(null)
@@ -38,7 +36,6 @@ export function InstitutionsView({
     try {
       const { status } = await apiRequest<{ success: boolean }>(
         `/api/institutions/${institutionToDelete.id}`,
-        sessionToken,
         { method: 'DELETE' },
       )
 

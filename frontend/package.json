@@ -14,10 +14,10 @@
     "@advanceddev/telegram-login-react": "^1.2.1",
     "@kiasucode/shared": "*",
     "@react-oauth/google": "^0.13.5",
-    "jwt-decode": "^4.0.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "react-router-dom": "^7.18.2"
+    "react-router-dom": "^7.18.2",
+    "socket.io-client": "^4.8.3"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",

@@ -1,16 +1,27 @@
-import bcrypt from 'bcryptjs'
-import { Router, type Request, type Response } from 'express'
+import bcrypt from 'bcrypt'
+import {
+  Router,
+  type NextFunction,
+  type Request,
+  type Response,
+} from 'express'
 import rateLimit from 'express-rate-limit'
 import jwt from 'jsonwebtoken'
 import type { ResultSetHeader, RowDataPacket } from 'mysql2'
 import { v4 as uuidv4 } from 'uuid'
 
 import { db } from '../config/db.js'
+import { authenticateRequest } from '../middleware/authenticate.js'
+import { AppError } from '../middleware/errorHandler.js'
 import {
   AuthVerificationError,
   verifyGoogleToken,
-  verifyTelegramAuth,
 } from '../utils/auth.js'
+import { clearSessionCookie, setSessionCookie } from '../utils/session.js'
+import {
+  verifyTelegramAuth,
+  type VerifiedTelegramUser,
+} from '../utils/telegramAuth.js'
 
 type AuthProvider = 'google' | 'telegram' | 'local'
 
@@ -69,7 +80,7 @@ function generateSessionToken(userId: string): string {
     requireEnvironmentVariable('JWT_SECRET'),
     {
       algorithm: 'HS256',
-      expiresIn: '7d',
+      expiresIn: '1h',
       issuer: 'kiasucode',
       audience: 'kiasucode-frontend',
     },
@@ -130,6 +141,77 @@ function serializeUser(row: UserRow): AuthUser {
   }
 }
 
+function sendAuthenticatedUser(
+  response: Response,
+  status: number,
+  user: AuthUser,
+): void {
+  setSessionCookie(response, generateSessionToken(user.id))
+  response.set('Cache-Control', 'no-store')
+  response.status(status).json({ user })
+}
+
+async function upsertTelegramUser(
+  telegramUser: VerifiedTelegramUser,
+): Promise<UserRow> {
+  const canonicalProviderId = `telegram:${telegramUser.providerId}`
+  const name = (
+    [telegramUser.firstName, telegramUser.lastName]
+      .filter(Boolean)
+      .join(' ')
+    || telegramUser.username
+    || 'Telegram user'
+  ).slice(0, 160)
+  const photoUrl = telegramUser.photoUrl ?? null
+  const [existingRows] = await db.execute<UserRow[]>(
+    `SELECT *
+       FROM users
+      WHERE provider = 'telegram'
+        AND provider_id IN (?, ?)
+      LIMIT 1`,
+    [canonicalProviderId, telegramUser.providerId],
+  )
+  const existingUser = existingRows[0]
+
+  if (existingUser) {
+    await db.execute<ResultSetHeader>(
+      `UPDATE users
+          SET name = ?, photo_url = ?
+        WHERE id = ?`,
+      [name, photoUrl, existingUser.id],
+    )
+  } else {
+    await db.execute<ResultSetHeader>(
+      `INSERT INTO users
+        (id, provider, provider_id, email, password_hash, name, photo_url)
+       VALUES (?, 'telegram', ?, NULL, NULL, ?, ?)
+       ON DUPLICATE KEY UPDATE name = ?, photo_url = ?`,
+      [
+        uuidv4(),
+        canonicalProviderId,
+        name,
+        photoUrl,
+        name,
+        photoUrl,
+      ],
+    )
+  }
+
+  const [rows] = await db.execute<UserRow[]>(
+    `SELECT *
+       FROM users
+      WHERE provider = 'telegram'
+        AND provider_id IN (?, ?)
+      LIMIT 1`,
+    [canonicalProviderId, telegramUser.providerId],
+  )
+  const user = rows[0]
+
+  if (!user) throw new Error('Unable to load Telegram user after authentication.')
+
+  return user
+}
+
 router.post('/register', async (request: Request, response: Response) => {
   try {
     const body: unknown = request.body
@@ -187,10 +269,7 @@ router.post('/register', async (request: Request, response: Response) => {
       throw new Error('Unable to create the user account.')
     }
 
-    const user = serializeUser(userRow)
-    const sessionToken = generateSessionToken(user.id)
-
-    response.status(201).json({ user, sessionToken })
+    sendAuthenticatedUser(response, 201, serializeUser(userRow))
   } catch (error) {
     if (error instanceof InvalidAuthRequestError) {
       response.status(400).json({ error: error.message })
@@ -240,10 +319,7 @@ router.post('/login', async (request: Request, response: Response) => {
       return
     }
 
-    const user = serializeUser(userRow)
-    const sessionToken = generateSessionToken(user.id)
-
-    response.status(200).json({ user, sessionToken })
+    sendAuthenticatedUser(response, 200, serializeUser(userRow))
   } catch (error) {
     if (error instanceof InvalidAuthRequestError) {
       response.status(400).json({ error: error.message })
@@ -254,6 +330,25 @@ router.post('/login', async (request: Request, response: Response) => {
     response.status(500).json({ error: 'Unable to sign in.' })
   }
 })
+
+router.post(
+  '/telegram',
+  async (request: Request, response: Response, next: NextFunction) => {
+    try {
+      const telegramUser = verifyTelegramAuth(request.body)
+      const user = await upsertTelegramUser(telegramUser)
+
+      sendAuthenticatedUser(response, 200, serializeUser(user))
+    } catch (error) {
+      if (error instanceof AuthVerificationError) {
+        next(new AppError(401, error.message, 'TELEGRAM_AUTH_INVALID'))
+        return
+      }
+
+      next(error)
+    }
+  },
+)
 
 router.post('/session', async (request: Request, response: Response) => {
   try {
@@ -318,10 +413,7 @@ router.post('/session', async (request: Request, response: Response) => {
       throw new Error('Provider ID collision detected.')
     }
 
-    const user = serializeUser(userRow)
-    const sessionToken = generateSessionToken(user.id)
-
-    response.status(200).json({ user, sessionToken })
+    sendAuthenticatedUser(response, 200, serializeUser(userRow))
   } catch (error) {
     if (error instanceof InvalidAuthRequestError) {
       response.status(400).json({ error: error.message })
@@ -333,15 +425,40 @@ router.post('/session', async (request: Request, response: Response) => {
       return
     }
 
-    const authError = error instanceof Error ? error : new Error(String(error))
-
-    console.error('Auth Crash Details:', error)
-    response.status(500).json({
-      error: 'Unable to create authentication session.',
-      details: authError.message,
-      stack: authError.stack,
-    })
+    console.error('Unable to create authentication session.', error)
+    response.status(500).json({ error: 'Unable to create authentication session.' })
   }
+})
+
+router.get(
+  '/session',
+  authenticateRequest,
+  async (_request: Request, response: Response) => {
+    try {
+      const [rows] = await db.execute<UserRow[]>(
+        'SELECT * FROM users WHERE id = ? LIMIT 1',
+        [response.locals.userId as string],
+      )
+      const userRow = rows[0]
+
+      if (!userRow) {
+        clearSessionCookie(response)
+        response.status(401).json({ error: 'The session user no longer exists.' })
+        return
+      }
+
+      response.set('Cache-Control', 'no-store')
+      response.status(200).json({ user: serializeUser(userRow) })
+    } catch (error) {
+      console.error('Unable to restore authentication session.', error)
+      response.status(500).json({ error: 'Unable to restore authentication session.' })
+    }
+  },
+)
+
+router.delete('/session', (_request: Request, response: Response) => {
+  clearSessionCookie(response)
+  response.status(204).send()
 })
 
 export default router

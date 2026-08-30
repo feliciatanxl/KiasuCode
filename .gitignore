@@ -5,6 +5,10 @@ node_modules/
 dist/
 coverage/
 *.tsbuildinfo
+test-results/
+playwright-report/
+blob-report/
+uploads/
 
 # Environment files
 .env

@@ -13,9 +13,12 @@
     "dev:backend": "npm run dev --workspace @kiasucode/backend",
     "build": "npm run build --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "lint": "npm run lint --workspaces --if-present"
+    "lint": "npm run lint --workspaces --if-present",
+    "test:e2e": "playwright test"
   },
+
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "concurrently": "^9.2.1"
   },
   "engines": {

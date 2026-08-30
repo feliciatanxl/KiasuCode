@@ -8,8 +8,10 @@ import type {
 } from '@kiasucode/shared'
 
 import { GpaDashboard } from '../components/GpaDashboard'
+import { ModuleFilesList } from '../components/ModuleFilesList'
 import { ModulePipeline } from '../components/ModulePipeline'
-import { useAuth } from '../context/AuthContext'
+import { PomodoroTimer } from '../components/PomodoroTimer'
+
 import { useTheme } from '../context/ThemeContext'
 import { useToast } from '../context/ToastContext'
 import { apiRequest, formatApiError } from '../utils/api'
@@ -66,10 +68,12 @@ export function ModulesView({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [draft, setDraft] = useState(initialDraft)
   const [error, setError] = useState<string | null>(null)
-  const { sessionToken } = useAuth()
+  const [focusModuleId, setFocusModuleId] = useState('')
   const { theme } = useTheme()
   const { showToast } = useToast()
   const semesterLabel = `${semester.academicYear} · ${semester.term}`
+  const focusModule =
+    modules.find((module) => module.id === focusModuleId) ?? modules[0]
 
   const currentGpa = useMemo(
     () => calculateCurrentGpa(modules, currentSchoolKey),
@@ -101,15 +105,12 @@ export function ModulesView({
 
   const createModule = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (!sessionToken) return
-
     setIsSubmitting(true)
     setError(null)
 
     try {
       const { data, status } = await apiRequest<ModuleResponse>(
         '/api/modules',
-        sessionToken,
         {
           method: 'POST',
           body: JSON.stringify({
@@ -148,6 +149,54 @@ export function ModulesView({
         gpaLabel="Term GPA"
         maxScale={schoolScale.max}
       />
+
+      {focusModule ? (
+        <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.8fr)]">
+          <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+            <span className="eyebrow">pomodoro/module.select</span>
+            <h2 className="mt-1 text-lg font-bold text-slate-900 dark:text-slate-100">
+              Choose a focus module
+            </h2>
+            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+              Complete the full 25-minute focus block to log study time and earn one coin per minute.
+            </p>
+            <label className="mt-5 block text-sm font-medium text-slate-700 dark:text-slate-200">
+              Module
+              <select
+                className="mt-2 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                value={focusModule.id}
+                onChange={(event) => setFocusModuleId(event.target.value)}
+              >
+                {modules.map((module) => (
+                  <option key={module.id} value={module.id}>
+                    {module.moduleCode} — {module.moduleName}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </section>
+
+          <PomodoroTimer
+            key={focusModule.id}
+            moduleCode={focusModule.moduleCode}
+            moduleId={focusModule.id}
+            onSessionCompleted={(coinsEarned) =>
+              showToast(`Focus session complete: +${coinsEarned} coins.`)
+            }
+          />
+        </div>
+      ) : null}
+
+      {focusModule ? (
+        <div className="mt-6">
+          <ModuleFilesList
+            key={focusModule.id}
+            moduleId={focusModule.id}
+            moduleCode={focusModule.moduleCode}
+          />
+        </div>
+      ) : null}
+
 
       <div className="mt-6">
         {isLoading ? (
