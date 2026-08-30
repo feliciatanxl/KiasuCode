@@ -366,6 +366,8 @@ router.post(
 )
 
 router.post('/session', async (request: Request, response: Response) => {
+  console.log('Login Payload:', request.body)
+
   try {
     const body: unknown = request.body
 
@@ -431,7 +433,7 @@ router.post('/session', async (request: Request, response: Response) => {
     sendAuthenticatedUser(request, response, 200, serializeUser(userRow))
   } catch (error) {
     if (error instanceof InvalidAuthRequestError) {
-      response.status(400).json({ error: error.message })
+      response.status(400).json({ error: error.message, receivedBody: request.body })
       return
     }
 

@@ -51,6 +51,13 @@ if (!Number.isInteger(port) || port <= 0 || port > 65_535) {
 app.disable('x-powered-by')
 // ngrok is the single reverse-proxy hop in front of this Express process.
 app.set('trust proxy', 1)
+
+app.use((_req, res, next) => {
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups')
+  res.setHeader('Cross-Origin-Embedder-Policy', 'credentialless')
+  next()
+})
+
 app.use(cors({
   origin(origin, callback) {
     if (!origin || allowedOrigins.includes(origin.replace(/\/+$/, ''))) {
