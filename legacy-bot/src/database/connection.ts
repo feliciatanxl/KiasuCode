@@ -46,22 +46,32 @@ let pool: mysql.Pool | null = null;
 
 export async function initializeDatabase(): Promise<void> {
   try {
-    // 1. Check if we have the "Master String" from Railway
-    const connectionUri = process.env.MYSQL_URL;
+    // 1. Check if we have the "Master String" from Railway / Cloud
+    const connectionUri = process.env.DATABASE_URL || process.env.MYSQL_URL;
 
     if (connectionUri) {
-      // CLOUD MODE: Railway provides the full string (Host, User, Pass, Port, DB)
+      // CLOUD MODE: Connection URL provides Host, User, Pass, Port, DB
       pool = mysql.createPool(connectionUri);
-      console.log("🚀 Connected via Railway MYSQL_URL - Cloud deployment active!");
+      console.log("🚀 Connected via Railway DATABASE_URL / MYSQL_URL - Cloud deployment active!");
     } else {
-      // LOCAL MODE: Connect using your separate .env variables
+      const host = process.env.DB_HOST;
+      const user = process.env.DB_USER;
+      const password = process.env.DB_PASSWORD;
+      const database = process.env.DB_NAME;
+
+      if (!host || !user || !database || password === undefined) {
+        throw new Error(
+          "Missing required database environment variables (DB_HOST, DB_USER, DB_NAME, DB_PASSWORD). Check your .env file!"
+        );
+      }
+
+      // LOCAL MODE: Connect using separate .env variables
       pool = mysql.createPool({
-        host: process.env.DB_HOST || "localhost",
-        // Convert the string from .env to a Number, fallback to 3306
-        port: Number(process.env.DB_PORT) || 3306, 
-        user: process.env.DB_USER || "root",
-        password: process.env.DB_PASSWORD || "",
-        database: process.env.DB_NAME || "kiasucode_test",
+        host,
+        port: Number(process.env.DB_PORT) || 3306,
+        user,
+        password,
+        database,
         waitForConnections: true,
         connectionLimit: 10,
         queueLimit: 0,

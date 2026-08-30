@@ -10,7 +10,7 @@ export interface ServerErrorInfo {
 }
 
 const configuredApiBaseUrl =
-  import.meta.env.VITE_AUTH_API_URL?.trim().replace(/\/$/, '') ?? ''
+  (import.meta.env.VITE_API_URL || import.meta.env.VITE_AUTH_API_URL)?.trim().replace(/\/$/, '') ?? ''
 const localApiBaseUrl = 'http://localhost:3000'
 let unauthorizedHandler: (() => void) | null = null
 let serverErrorHandler: ((error: ServerErrorInfo) => void) | null = null
@@ -66,7 +66,7 @@ export function getApiBaseUrl(): string {
   if (configuredApiBaseUrl) return configuredApiBaseUrl
   if (import.meta.env.DEV) return localApiBaseUrl
 
-  throw new Error('VITE_AUTH_API_URL must be configured in production.')
+  throw new Error('VITE_API_URL or VITE_AUTH_API_URL must be configured in production.')
 }
 
 export function setUnauthorizedHandler(handler: () => void): () => void {

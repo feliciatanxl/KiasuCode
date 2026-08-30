@@ -226,26 +226,22 @@ export function ProfilePage() {
       <Navbar onConnectTelegram={() => setIsTelegramOpen(true)} />
 
       <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
-        <div className="mb-6 flex items-center justify-between">
-          <div>
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-              <Link to="/dashboard" className="hover:text-blue-600 dark:hover:text-blue-400">
-                Dashboard
-              </Link>
-              <span>/</span>
-              <span>Account</span>
-            </div>
-            <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
-              User Profile
-            </h1>
-          </div>
-
+        <div className="mb-6">
           <Link
             to="/dashboard"
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+            className="mb-4 inline-flex items-center gap-2 text-sm text-slate-500 transition-colors hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
           >
-            ← Back to Dashboard
+            <span>←</span>
+            <span>Back to Dashboard</span>
           </Link>
+          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+            <span>Profile</span>
+            <span>/</span>
+            <span>Account</span>
+          </div>
+          <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
+            User Profile
+          </h1>
         </div>
 
         <div className="grid gap-6">
