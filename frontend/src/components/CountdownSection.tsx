@@ -42,7 +42,7 @@ export function CountdownSection({
 }: CountdownSectionProps) {
   const [countdowns, setCountdowns] = useState<AcademicCountdown[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [isFormOpen, setIsFormOpen] = useState(false)
+  const [isModalOpen, setIsModalOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -76,17 +76,6 @@ export function CountdownSection({
     return () => controller.abort()
   }, [])
 
-  const closeForm = () => {
-    if (isSubmitting) return
-    setIsFormOpen(false)
-    setTitle('')
-    setTargetDate('')
-    setCategory('Exam')
-    setColor(defaultCountdownColor)
-    setEditingId(null)
-    setError(null)
-  }
-
   const openCreateForm = () => {
     if (isSubmitting) return
 
@@ -96,7 +85,7 @@ export function CountdownSection({
     setCategory('Exam')
     setColor(defaultCountdownColor)
     setError(null)
-    setIsFormOpen(true)
+    setIsModalOpen(true)
   }
 
   const handleEdit = (countdown: AcademicCountdown) => {
@@ -108,7 +97,7 @@ export function CountdownSection({
     setCategory(countdown.category)
     setColor(resolveCountdownColor(countdown.color || defaultCountdownColor))
     setError(null)
-    setIsFormOpen(true)
+    setIsModalOpen(true)
   }
 
   const createCountdown = async (event: FormEvent<HTMLFormElement>) => {
@@ -146,7 +135,7 @@ export function CountdownSection({
           : [...current, data.countdown],
       ))
       onCountdownSaved?.(data.countdown)
-      setIsFormOpen(false)
+      setIsModalOpen(false)
       setTitle('')
       setTargetDate('')
       setCategory('Exam')
@@ -204,101 +193,128 @@ export function CountdownSection({
         </button>
       </div>
 
-      {isFormOpen ? (
-        <form
-          className="mt-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800 sm:p-5"
-          onSubmit={createCountdown}
+      {isModalOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          onClick={() => setIsModalOpen(false)}
         >
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
-            <div className="md:col-span-4">
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
-                Title
-                <input
-                  className="mt-2 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal normal-case tracking-normal text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
-                  value={title}
-                  onChange={(event) => setTitle(event.target.value)}
-                  maxLength={255}
-                  placeholder="CS2103 final exam"
-                  autoFocus
-                  required
-                />
-              </label>
+          <div
+            className="w-full max-w-2xl rounded-xl border border-gray-700 bg-gray-900 p-6 shadow-2xl relative"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-4 border-b border-gray-700">
+              <h3 className="text-base font-bold text-white">
+                {editingId ? 'Edit Countdown' : 'Create New Countdown'}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(false)}
+                className="text-gray-400 hover:text-white transition-colors"
+                aria-label="Close modal"
+              >
+                ✕
+              </button>
             </div>
 
-            <div className="md:col-span-3">
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
-                Target date
-                <input
-                  className="mt-2 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal normal-case tracking-normal text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
-                  type="datetime-local"
-                  value={targetDate}
-                  onChange={(event) => setTargetDate(event.target.value)}
-                  required
-                />
-              </label>
-            </div>
-
-            <div className="md:col-span-3">
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
-                Category
-                <input
-                  className="mt-2 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal normal-case tracking-normal text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
-                  type="text"
-                  list="category-options"
-                  value={category}
-                  onChange={(event) => setCategory(event.target.value)}
-                  maxLength={50}
-                  placeholder="Exam, Assignment, CCA…"
-                  required
-                />
-              </label>
-              <datalist id="category-options">
-                {categoryOptions.map((item) => <option key={item} value={item} />)}
-              </datalist>
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
-                Color
-                <div className="mt-2 flex h-11 items-center gap-2">
-                  <input
-                    type="color"
-                    value={resolveCountdownColor(color)}
-                    onChange={(event) => setColor(event.target.value)}
-                    className="h-10 w-10 cursor-pointer rounded border-0 p-0"
-                    title="Pick a color"
-                  />
-                  <input
-                    type="text"
-                    value={color}
-                    onChange={(event) => setColor(event.target.value)}
-                    className="h-11 w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2.5 font-mono text-xs font-normal normal-case tracking-normal text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
-                    placeholder="#3b82f6"
-                    maxLength={7}
-                  />
+            <form className="mt-4" onSubmit={createCountdown}>
+              {error ? (
+                <div className="mb-4 rounded-lg border border-red-900/50 bg-red-950/30 p-3 text-xs text-red-300" role="alert">
+                  {error}
                 </div>
-              </label>
-            </div>
-          </div>
+              ) : null}
 
-          <div className="mt-4 flex justify-end gap-2">
-            <button
-              className="button button--ghost"
-              type="button"
-              onClick={closeForm}
-              disabled={isSubmitting}
-            >
-              Cancel
-            </button>
-            <button
-              className="button button--primary"
-              type="submit"
-              disabled={isSubmitting || !title.trim() || !targetDate || !category.trim()}
-            >
-              {isSubmitting ? 'Saving…' : editingId ? 'Save Changes' : 'Create'}
-            </button>
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+                <div className="md:col-span-4">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-gray-300">
+                    Title
+                    <input
+                      className="mt-2 h-11 w-full rounded-lg border border-gray-700 bg-gray-800 px-3 text-sm font-normal normal-case tracking-normal text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                      value={title}
+                      onChange={(event) => setTitle(event.target.value)}
+                      maxLength={255}
+                      placeholder="CS2103 final exam"
+                      autoFocus
+                      required
+                    />
+                  </label>
+                </div>
+
+                <div className="md:col-span-3">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-gray-300">
+                    Target date
+                    <input
+                      className="mt-2 h-11 w-full rounded-lg border border-gray-700 bg-gray-800 px-3 text-sm font-normal normal-case tracking-normal text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                      type="datetime-local"
+                      value={targetDate}
+                      onChange={(event) => setTargetDate(event.target.value)}
+                      required
+                    />
+                  </label>
+                </div>
+
+                <div className="md:col-span-3">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-gray-300">
+                    Category
+                    <input
+                      className="mt-2 h-11 w-full rounded-lg border border-gray-700 bg-gray-800 px-3 text-sm font-normal normal-case tracking-normal text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                      type="text"
+                      list="category-options"
+                      value={category}
+                      onChange={(event) => setCategory(event.target.value)}
+                      maxLength={50}
+                      placeholder="Exam, Assignment, CCA…"
+                      required
+                    />
+                  </label>
+                  <datalist id="category-options">
+                    {categoryOptions.map((item) => <option key={item} value={item} />)}
+                  </datalist>
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-gray-300">
+                    Color
+                    <div className="mt-2 flex h-11 items-center gap-2">
+                      <input
+                        type="color"
+                        value={resolveCountdownColor(color)}
+                        onChange={(event) => setColor(event.target.value)}
+                        className="h-10 w-10 cursor-pointer rounded border-0 p-0"
+                        title="Pick a color"
+                      />
+                      <input
+                        type="text"
+                        value={color}
+                        onChange={(event) => setColor(event.target.value)}
+                        className="h-11 w-full min-w-0 rounded-lg border border-gray-700 bg-gray-800 px-2.5 font-mono text-xs font-normal normal-case tracking-normal text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                        placeholder="#3b82f6"
+                        maxLength={7}
+                      />
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              <div className="mt-6 flex justify-end gap-2">
+                <button
+                  className="button button--ghost"
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  disabled={isSubmitting}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="button button--primary"
+                  type="submit"
+                  disabled={isSubmitting || !title.trim() || !targetDate || !category.trim()}
+                >
+                  {isSubmitting ? 'Saving…' : editingId ? 'Save Changes' : 'Create'}
+                </button>
+              </div>
+            </form>
           </div>
-        </form>
+        </div>
       ) : null}
 
       {error ? (
