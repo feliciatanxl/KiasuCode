@@ -29,8 +29,8 @@ type TimerStatus =
   | 'completed'
   | 'error'
 
-const focusDurationMinutes = 25
-const focusDurationSeconds = focusDurationMinutes * 60
+const durationOptions = [15, 25, 45, 60] as const
+const defaultDurationMinutes = 25
 
 function formatTime(totalSeconds: number): string {
   const minutes = Math.floor(totalSeconds / 60)
@@ -46,7 +46,13 @@ export function PomodoroTimer({
   moduleId,
   onSessionCompleted,
 }: PomodoroTimerProps) {
-  const [remainingSeconds, setRemainingSeconds] = useState(focusDurationSeconds)
+  const [selectedDurationMinutes, setSelectedDurationMinutes] = useState(
+    defaultDurationMinutes,
+  )
+  const selectedDurationSeconds = selectedDurationMinutes * 60
+  const [remainingSeconds, setRemainingSeconds] = useState(
+    defaultDurationMinutes * 60,
+  )
   const [status, setStatus] = useState<TimerStatus>('idle')
   const [message, setMessage] = useState<string | null>(null)
   const [coinsBalance, setCoinsBalance] = useState<number | null>(null)
@@ -56,10 +62,10 @@ export function PomodoroTimer({
   const resetTimer = useCallback(() => {
     endAtRef.current = null
     completionSentRef.current = false
-    setRemainingSeconds(focusDurationSeconds)
+    setRemainingSeconds(selectedDurationSeconds)
     setStatus('idle')
     setMessage(null)
-  }, [])
+  }, [selectedDurationSeconds])
 
   useEffect(() => {
     if (status !== 'running') return
@@ -88,7 +94,7 @@ export function PomodoroTimer({
           method: 'POST',
           body: JSON.stringify({
             module_id: moduleId,
-            duration_minutes: focusDurationMinutes,
+            duration_minutes: selectedDurationMinutes,
           }),
         })
 
@@ -107,7 +113,7 @@ export function PomodoroTimer({
       setMessage(`${formatApiError(error)} Your completed timer can be retried.`)
       setStatus('error')
     }
-  }, [moduleId, onSessionCompleted])
+  }, [moduleId, onSessionCompleted, selectedDurationMinutes])
 
   useEffect(() => {
     if (
@@ -145,8 +151,16 @@ export function PomodoroTimer({
     void recordCompletedSession()
   }
 
+  const selectDuration = (durationMinutes: number) => {
+    if (status !== 'idle') return
+
+    setSelectedDurationMinutes(durationMinutes)
+    setRemainingSeconds(durationMinutes * 60)
+    setMessage(null)
+  }
+
   const progress =
-    ((focusDurationSeconds - remainingSeconds) / focusDurationSeconds) * 100
+    ((selectedDurationSeconds - remainingSeconds) / selectedDurationSeconds) * 100
 
   return (
     <section
@@ -169,6 +183,35 @@ export function PomodoroTimer({
           </span>
         ) : null}
       </div>
+
+      {status === 'idle' ? (
+        <fieldset className="mt-5">
+          <legend className="mb-2 w-full text-center text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">
+            Focus duration
+          </legend>
+          <div className="mx-auto grid max-w-sm grid-cols-4 gap-2 rounded-xl bg-slate-100 p-1.5 dark:bg-slate-900/70">
+            {durationOptions.map((durationMinutes) => {
+              const isSelected = durationMinutes === selectedDurationMinutes
+
+              return (
+                <button
+                  className={`rounded-lg px-2 py-2 text-xs font-bold transition ${
+                    isSelected
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'text-slate-500 hover:bg-white hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white'
+                  }`}
+                  type="button"
+                  key={durationMinutes}
+                  onClick={() => selectDuration(durationMinutes)}
+                  aria-pressed={isSelected}
+                >
+                  {durationMinutes}m
+                </button>
+              )
+            })}
+          </div>
+        </fieldset>
+      ) : null}
 
       <div className="mt-5 text-center">
         <output

@@ -1,8 +1,5 @@
-import { useEffect, useState, type FormEvent } from 'react'
-import type {
-  AcademicCountdown,
-  CountdownCategory,
-} from '@kiasucode/shared'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import type { AcademicCountdown } from '@kiasucode/shared'
 
 import { useToast } from '../context/ToastContext'
 import { apiRequest, formatApiError, isAbortError } from '../utils/api'
@@ -16,12 +13,10 @@ interface CountdownResponse {
   countdown: AcademicCountdown
 }
 
-const categories: CountdownCategory[] = [
-  'Exam',
-  'Assignment',
-  'Project',
-  'Personal',
-]
+interface CountdownSectionProps {
+  onCountdownDeleted?: (countdownId: string) => void
+  onCountdownSaved?: (countdown: AcademicCountdown) => void
+}
 
 function sortCountdowns(countdowns: AcademicCountdown[]): AcademicCountdown[] {
   return [...countdowns].sort(
@@ -30,17 +25,34 @@ function sortCountdowns(countdowns: AcademicCountdown[]): AcademicCountdown[] {
   )
 }
 
-export function CountdownSection() {
+function formatDateTimeLocal(targetDate: string): string {
+  const date = new Date(targetDate)
+  const timezoneOffsetMs = date.getTimezoneOffset() * 60 * 1000
+
+  return new Date(date.getTime() - timezoneOffsetMs).toISOString().slice(0, 16)
+}
+
+export function CountdownSection({
+  onCountdownDeleted,
+  onCountdownSaved,
+}: CountdownSectionProps) {
   const [countdowns, setCountdowns] = useState<AcademicCountdown[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [title, setTitle] = useState('')
   const [targetDate, setTargetDate] = useState('')
-  const [category, setCategory] = useState<CountdownCategory>('Exam')
+  const [category, setCategory] = useState('Exam')
   const [error, setError] = useState<string | null>(null)
   const { showToast } = useToast()
+  const categoryOptions = useMemo(
+    () => [...new Set(countdowns.map((countdown) => countdown.category))].sort(
+      (left, right) => left.localeCompare(right),
+    ),
+    [countdowns],
+  )
 
   useEffect(() => {
     const controller = new AbortController()
@@ -65,34 +77,76 @@ export function CountdownSection() {
     setTitle('')
     setTargetDate('')
     setCategory('Exam')
+    setEditingId(null)
     setError(null)
+  }
+
+  const openCreateForm = () => {
+    if (isSubmitting) return
+
+    setEditingId(null)
+    setTitle('')
+    setTargetDate('')
+    setCategory('Exam')
+    setError(null)
+    setIsFormOpen(true)
+  }
+
+  const handleEdit = (countdown: AcademicCountdown) => {
+    if (isSubmitting) return
+
+    setEditingId(countdown.id)
+    setTitle(countdown.title)
+    setTargetDate(formatDateTimeLocal(countdown.targetDate))
+    setCategory(countdown.category)
+    setError(null)
+    setIsFormOpen(true)
   }
 
   const createCountdown = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
 
-    if (!title.trim() || !targetDate) return
+    if (!title.trim() || !targetDate || !category.trim()) return
 
     setIsSubmitting(true)
     setError(null)
 
     try {
-      const { data } = await apiRequest<CountdownResponse>('/api/countdowns', {
-        method: 'POST',
-        body: JSON.stringify({
-          title: title.trim(),
-          targetDate: new Date(targetDate).toISOString(),
-          category,
-          moduleId: null,
-        }),
-      })
+      const currentEditingId = editingId
+      const existingCountdown = currentEditingId
+        ? countdowns.find((countdown) => countdown.id === currentEditingId)
+        : null
+      const { data } = await apiRequest<CountdownResponse>(
+        currentEditingId ? `/api/countdowns/${currentEditingId}` : '/api/countdowns',
+        {
+          method: currentEditingId ? 'PUT' : 'POST',
+          body: JSON.stringify({
+            title: title.trim(),
+            targetDate: new Date(targetDate).toISOString(),
+            category: category.trim(),
+            moduleId: existingCountdown?.moduleId ?? null,
+          }),
+        },
+      )
 
-      setCountdowns((current) => sortCountdowns([...current, data.countdown]))
+      setCountdowns((current) => sortCountdowns(
+        currentEditingId
+          ? current.map((countdown) =>
+              countdown.id === currentEditingId ? data.countdown : countdown,
+            )
+          : [...current, data.countdown],
+      ))
+      onCountdownSaved?.(data.countdown)
       setIsFormOpen(false)
       setTitle('')
       setTargetDate('')
       setCategory('Exam')
-      showToast('Academic countdown created.')
+      setEditingId(null)
+      showToast(
+        currentEditingId
+          ? 'Academic countdown updated.'
+          : 'Academic countdown created.',
+      )
     } catch (createError) {
       setError(formatApiError(createError))
     } finally {
@@ -109,6 +163,7 @@ export function CountdownSection() {
         method: 'DELETE',
       })
       setCountdowns((current) => current.filter((item) => item.id !== id))
+      onCountdownDeleted?.(id)
       showToast('Countdown removed.')
     } catch (deleteError) {
       setError(formatApiError(deleteError))
@@ -132,10 +187,8 @@ export function CountdownSection() {
         <button
           className="button button--primary"
           type="button"
-          onClick={() => {
-            setError(null)
-            setIsFormOpen(true)
-          }}
+          onClick={openCreateForm}
+          disabled={isSubmitting}
         >
           <span aria-hidden="true">+</span> New Countdown
         </button>
@@ -167,17 +220,23 @@ export function CountdownSection() {
           </label>
           <label className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
             Category
-            <select
+            <input
               className="mt-2 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal normal-case tracking-normal text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
+              type="text"
+              list="category-options"
               value={category}
-              onChange={(event) => setCategory(event.target.value as CountdownCategory)}
-            >
-              {categories.map((item) => <option key={item} value={item}>{item}</option>)}
-            </select>
+              onChange={(event) => setCategory(event.target.value)}
+              maxLength={50}
+              placeholder="Exam, Assignment, CCA…"
+              required
+            />
+            <datalist id="category-options">
+              {categoryOptions.map((item) => <option key={item} value={item} />)}
+            </datalist>
           </label>
           <div className="flex items-end gap-2 sm:col-span-2 lg:col-span-1">
-            <button className="button button--primary flex-1" type="submit" disabled={isSubmitting || !title.trim() || !targetDate}>
-              {isSubmitting ? 'Saving…' : 'Save'}
+            <button className="button button--primary flex-1" type="submit" disabled={isSubmitting || !title.trim() || !targetDate || !category.trim()}>
+              {isSubmitting ? 'Saving…' : editingId ? 'Save Changes' : 'Create'}
             </button>
             <button className="button button--ghost" type="button" onClick={closeForm} disabled={isSubmitting}>
               Cancel
@@ -206,6 +265,7 @@ export function CountdownSection() {
               isDeleting={deletingId === countdown.id}
               key={countdown.id}
               onDelete={deleteCountdown}
+              onEdit={handleEdit}
             />
           ))}
         </div>

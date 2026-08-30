@@ -158,7 +158,7 @@ export function ModulesView({
               Choose a focus module
             </h2>
             <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-              Complete the full 25-minute focus block to log study time and earn one coin per minute.
+              Choose a focus duration, complete the full block, and earn one coin per minute.
             </p>
             <label className="mt-5 block text-sm font-medium text-slate-700 dark:text-slate-200">
               Module

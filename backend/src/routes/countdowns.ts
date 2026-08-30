@@ -26,12 +26,6 @@ interface CountdownRow extends RowDataPacket {
 }
 
 const router = Router()
-const countdownCategories = new Set<CountdownCategory>([
-  'Exam',
-  'Assignment',
-  'Project',
-  'Personal',
-])
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
@@ -82,7 +76,7 @@ function parseCreateCountdownInput(body: unknown): CreateCountdownInput {
   const targetDate = typeof rawTargetDate === 'string'
     ? new Date(rawTargetDate)
     : new Date(Number.NaN)
-  const category = body.category
+  const category = typeof body.category === 'string' ? body.category.trim() : ''
   const rawModuleId = body.moduleId ?? body.module_id ?? null
   const moduleId = typeof rawModuleId === 'string' && rawModuleId.trim()
     ? rawModuleId.trim()
@@ -100,8 +94,12 @@ function parseCreateCountdownInput(body: unknown): CreateCountdownInput {
     throw new AppError(400, 'Target date must be a valid date and time.', 'INVALID_TARGET_DATE')
   }
 
-  if (!countdownCategories.has(category as CountdownCategory)) {
-    throw new AppError(400, 'Countdown category is invalid.', 'INVALID_COUNTDOWN_CATEGORY')
+  if (!category || category.length > 50) {
+    throw new AppError(
+      400,
+      'Countdown category must be between 1 and 50 characters.',
+      'INVALID_COUNTDOWN_CATEGORY',
+    )
   }
 
   if (moduleId && moduleId.length !== 36) {
@@ -111,7 +109,7 @@ function parseCreateCountdownInput(body: unknown): CreateCountdownInput {
   return {
     title,
     targetDate: targetDate.toISOString(),
-    category: category as CountdownCategory,
+    category,
     moduleId,
   }
 }
@@ -187,6 +185,76 @@ router.post(
       if (!countdown) throw new Error('Unable to load the created countdown.')
 
       response.status(201).json({ countdown: serializeCountdown(countdown) })
+    } catch (error) {
+      next(error)
+    }
+  },
+)
+
+router.put(
+  '/countdowns/:id',
+  authenticateRequest,
+  async (request: Request, response: Response, next: NextFunction) => {
+    try {
+      const input = parseCreateCountdownInput(request.body)
+      const countdownId = getCountdownId(request)
+      const userId = getUserId(response)
+      const [existingRows] = await db.execute<CountdownRow[]>(
+        `SELECT id, module_id, title, target_date, category, created_at
+           FROM academic_countdowns
+          WHERE id = ? AND user_id = ?
+          LIMIT 1`,
+        [countdownId, userId],
+      )
+
+      if (!existingRows[0]) {
+        throw new AppError(404, 'Countdown not found.', 'COUNTDOWN_NOT_FOUND')
+      }
+
+      if (input.moduleId) {
+        const [moduleRows] = await db.execute<RowDataPacket[]>(
+          `SELECT m.id
+             FROM modules AS m
+             INNER JOIN semesters AS s ON s.id = m.semester_id
+             INNER JOIN institutions AS i ON i.id = s.institution_id
+            WHERE m.id = ? AND i.user_id = ?
+            LIMIT 1`,
+          [input.moduleId, userId],
+        )
+
+        if (!moduleRows[0]) {
+          throw new AppError(404, 'Module not found.', 'MODULE_NOT_FOUND')
+        }
+      }
+
+      await db.execute<ResultSetHeader>(
+        `UPDATE academic_countdowns
+            SET title = ?, target_date = ?, category = ?, module_id = ?
+          WHERE id = ? AND user_id = ?`,
+        [
+          input.title,
+          new Date(input.targetDate),
+          input.category,
+          input.moduleId,
+          countdownId,
+          userId,
+        ],
+      )
+
+      const [rows] = await db.execute<CountdownRow[]>(
+        `SELECT id, module_id, title, target_date, category, created_at
+           FROM academic_countdowns
+          WHERE id = ? AND user_id = ?
+          LIMIT 1`,
+        [countdownId, userId],
+      )
+      const countdown = rows[0]
+
+      if (!countdown) {
+        throw new AppError(404, 'Countdown not found.', 'COUNTDOWN_NOT_FOUND')
+      }
+
+      response.status(200).json({ countdown: serializeCountdown(countdown) })
     } catch (error) {
       next(error)
     }

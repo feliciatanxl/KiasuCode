@@ -1,20 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { AcademicCountdown, CountdownCategory } from '@kiasucode/shared'
+import type { AcademicCountdown } from '@kiasucode/shared'
+
+import { getCategoryColor } from '../utils/colors'
 
 interface CountdownCardProps {
   countdown: AcademicCountdown
   isDeleting?: boolean
   onDelete: (id: string) => Promise<void>
+  onEdit?: (countdown: AcademicCountdown) => void
 }
 
 const hourMs = 60 * 60 * 1000
 const dayMs = 24 * hourMs
-const categoryStyles: Record<CountdownCategory, string> = {
-  Exam: 'bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300',
-  Assignment: 'bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300',
-  Project: 'bg-violet-100 text-violet-700 dark:bg-violet-950/60 dark:text-violet-300',
-  Personal: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300',
-}
 
 function clamp(value: number): number {
   return Math.min(100, Math.max(0, value))
@@ -24,6 +21,7 @@ export function CountdownCard({
   countdown,
   isDeleting = false,
   onDelete,
+  onEdit,
 }: CountdownCardProps) {
   const [now, setNow] = useState(() => Date.now())
 
@@ -53,23 +51,38 @@ export function CountdownCard({
   const ringRadius = 25
   const ringCircumference = 2 * Math.PI * ringRadius
   const ringOffset = ringCircumference * (1 - timing.remainingPercent / 100)
+  const categoryColor = getCategoryColor(countdown.category)
 
   return (
     <article className="min-w-[280px] snap-start rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800 sm:min-w-[320px]">
       <div className="flex items-start justify-between gap-3">
-        <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${categoryStyles[countdown.category]}`}>
+        <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-950 shadow-sm ${categoryColor}`}>
           {countdown.category}
         </span>
-        <button
-          className="grid size-8 place-items-center rounded-lg text-slate-400 transition hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-red-950/40 dark:hover:text-red-300"
-          type="button"
-          onClick={() => void onDelete(countdown.id)}
-          disabled={isDeleting}
-          aria-label={`Delete ${countdown.title}`}
-          title="Delete countdown"
-        >
-          {isDeleting ? '…' : '×'}
-        </button>
+        <div className="flex items-center gap-1">
+          {onEdit ? (
+            <button
+              className="rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-400 transition hover:bg-blue-50 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-blue-950/40 dark:hover:text-blue-300"
+              type="button"
+              onClick={() => onEdit(countdown)}
+              disabled={isDeleting}
+              aria-label={`Edit ${countdown.title}`}
+              title="Edit countdown"
+            >
+              Edit
+            </button>
+          ) : null}
+          <button
+            className="grid size-8 place-items-center rounded-lg text-slate-400 transition hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-red-950/40 dark:hover:text-red-300"
+            type="button"
+            onClick={() => void onDelete(countdown.id)}
+            disabled={isDeleting}
+            aria-label={`Delete ${countdown.title}`}
+            title="Delete countdown"
+          >
+            {isDeleting ? '…' : '×'}
+          </button>
+        </div>
       </div>
 
       <div className="mt-4 flex items-center gap-4">

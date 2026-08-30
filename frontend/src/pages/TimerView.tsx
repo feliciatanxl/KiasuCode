@@ -59,7 +59,7 @@ export function TimerView() {
             Solo Pomodoro Focus Sprint
           </h1>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Lock in for 25 uninterrupted minutes. Complete sessions to level up your pet and earn study coins.
+            Choose a focus length, lock in, and earn one study coin for every completed minute.
           </p>
         </div>
 
@@ -192,7 +192,7 @@ export function TimerView() {
                 <span>🪙</span> Focus Sprint Reward
               </div>
               <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
-                Completing a 25-minute Pomodoro session grants coins to feed your Tamagotchi pet companion.
+                Completing the selected Pomodoro duration grants one coin per minute to feed your Tamagotchi pet companion.
               </p>
             </div>
           </section>

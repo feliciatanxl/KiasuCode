@@ -138,11 +138,11 @@ export function LandingPage() {
               </h3>
               <p>
                 Turn brutal revision sprints into tangible dopamine. Lock into focused
-                25-minute study intervals linked directly to your active modules.
+                15, 25, 45, or 60-minute study intervals linked directly to your active modules.
                 Earn study coins, replenish your pet's hunger, and maintain 100% happiness.
               </p>
               <ul>
-                <li><span>✓</span> 25-minute Pomodoro timers linked to active modules</li>
+                <li><span>✓</span> Adjustable Pomodoro timers linked to active modules</li>
                 <li><span>✓</span> 1 study coin awarded per minute of focused revision</li>
                 <li><span>✓</span> Interactive pet feeding with dynamic hunger & happiness stats</li>
               </ul>

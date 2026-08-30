@@ -1,24 +1,18 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { AcademicCountdown, CountdownCategory } from '@kiasucode/shared'
+import type { AcademicCountdown } from '@kiasucode/shared'
 
 import { CountdownSection } from '../components/CountdownSection'
 import { Logo } from '../components/Logo'
 import { Navbar } from '../components/Navbar'
 import { TelegramConnectModal } from '../components/TelegramConnectModal'
 import { apiRequest, isAbortError } from '../utils/api'
+import { getCategoryColor } from '../utils/colors'
 
 interface CountdownsResponse {
   countdowns: AcademicCountdown[]
 }
 
 const DAYS_OF_WEEK = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-
-const categoryDotColors: Record<CountdownCategory, string> = {
-  Exam: 'bg-red-500',
-  Assignment: 'bg-blue-500',
-  Project: 'bg-violet-500',
-  Personal: 'bg-emerald-500',
-}
 
 function isSameCalendarDay(d1: Date, d2: Date): boolean {
   return (
@@ -147,6 +141,28 @@ export function CountdownsView() {
     if (!selectedDate) return []
     return countdowns.filter((c) => isSameCalendarDay(new Date(c.targetDate), selectedDate))
   }, [selectedDate, countdowns])
+  const categories = useMemo(
+    () => [...new Set(countdowns.map((countdown) => countdown.category))].sort(
+      (left, right) => left.localeCompare(right),
+    ),
+    [countdowns],
+  )
+
+  const handleCountdownSaved = (savedCountdown: AcademicCountdown) => {
+    setCountdowns((current) =>
+      current.some((countdown) => countdown.id === savedCountdown.id)
+        ? current.map((countdown) =>
+            countdown.id === savedCountdown.id ? savedCountdown : countdown,
+          )
+        : [...current, savedCountdown],
+    )
+  }
+
+  const handleCountdownDeleted = (countdownId: string) => {
+    setCountdowns((current) =>
+      current.filter((countdown) => countdown.id !== countdownId),
+    )
+  }
 
   return (
     <div className="app-shell bg-slate-50 text-slate-900 transition-colors duration-300 dark:bg-slate-900 dark:text-slate-100 min-h-screen flex flex-col justify-between">
@@ -249,7 +265,7 @@ export function CountdownsView() {
                       {cell.countdowns.slice(0, 3).map((countdown) => (
                         <span
                           key={countdown.id}
-                          className={`size-1.5 sm:size-2 rounded-full ${categoryDotColors[countdown.category]}`}
+                          className={`size-1.5 sm:size-2 rounded-full ${getCategoryColor(countdown.category)}`}
                           title={`${countdown.category}: ${countdown.title}`}
                         />
                       ))}
@@ -282,7 +298,7 @@ export function CountdownsView() {
                   {selectedDateCountdowns.map((item) => (
                     <li key={item.id} className="flex items-center justify-between py-2 text-xs">
                       <div className="flex items-center gap-2">
-                        <span className={`size-2 rounded-full ${categoryDotColors[item.category]}`} />
+                        <span className={`size-2 rounded-full ${getCategoryColor(item.category)}`} />
                         <strong className="text-slate-900 dark:text-slate-100">{item.title}</strong>
                         <span className="text-slate-400 uppercase text-[10px]">({item.category})</span>
                       </div>
@@ -301,27 +317,21 @@ export function CountdownsView() {
           {/* CALENDAR CATEGORY LEGEND */}
           <div className="mt-6 flex flex-wrap items-center gap-4 border-t border-slate-100 pt-4 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">
             <span className="font-semibold text-slate-700 dark:text-slate-300">Legend:</span>
-            <div className="flex items-center gap-1.5">
-              <span className="size-2 rounded-full bg-red-500" />
-              <span>Exam</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="size-2 rounded-full bg-blue-500" />
-              <span>Assignment</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="size-2 rounded-full bg-violet-500" />
-              <span>Project</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="size-2 rounded-full bg-emerald-500" />
-              <span>Personal</span>
-            </div>
+            {categories.map((category) => (
+              <div className="flex items-center gap-1.5" key={category}>
+                <span className={`size-2 rounded-full ${getCategoryColor(category)}`} />
+                <span>{category}</span>
+              </div>
+            ))}
+            {categories.length === 0 ? <span>No categories yet</span> : null}
           </div>
         </section>
 
         {/* COUNTDOWN SECTION (CAROUSEL & CREATE MODAL) */}
-        <CountdownSection />
+        <CountdownSection
+          onCountdownDeleted={handleCountdownDeleted}
+          onCountdownSaved={handleCountdownSaved}
+        />
       </main>
 
       <footer>

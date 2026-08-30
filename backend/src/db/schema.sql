@@ -130,7 +130,7 @@ CREATE TABLE IF NOT EXISTS academic_countdowns (
   module_id CHAR(36) NULL,
   title VARCHAR(255) NOT NULL,
   target_date DATETIME NOT NULL,
-  category ENUM('Exam', 'Assignment', 'Project', 'Personal') NOT NULL,
+  category VARCHAR(50) NOT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_academic_countdowns_user_target (user_id, target_date),
@@ -190,5 +190,4 @@ CREATE TABLE IF NOT EXISTS friendships (
 ) ENGINE = InnoDB
   DEFAULT CHARACTER SET = utf8mb4
   COLLATE = utf8mb4_0900_ai_ci;
-
 

@@ -64,11 +64,7 @@ export type GradeScale = Record<GradeLetter, number>
 
 export type DevLinguaFlavor = 'positive' | 'negative' | 'casual'
 
-export type CountdownCategory =
-  | 'Exam'
-  | 'Assignment'
-  | 'Project'
-  | 'Personal'
+export type CountdownCategory = string
 
 export interface AcademicCountdown {
   id: string
@@ -140,5 +136,4 @@ export interface TimerCompletePayload {
   coinsEarned: number
   completedAt: string
 }
-
 
