@@ -1,5 +1,7 @@
 ﻿<div align="center">
 
+<img src="./frontend/public/favicon.svg" alt="KiasuCode Logo" height="120" />
+
 # KiasuCode 🚀
 
 **The all-in-one Academic Operating System for Singaporean students.**
@@ -34,35 +36,6 @@ Whether you are calculating cumulative CAP/GPA targets, managing module assets a
 - 🍅 **Pomodoro Pet Companion**: A gamified study timer featuring customizable Focus and Break cycles. Completing focus blocks rewards you with study coins to feed and level up your virtual desk companion.
 - 📱 **Telegram Bot Integration**: An automated notification pipeline built with Telegraf that syncs directly with the database to push daily deadline reminders and academic progress reports directly to your phone.
 - 📂 **Module File Management**: Dedicated document vaults for every module to easily organize, upload, and download lecture slides, lab manuals, past-year papers, and project specs.
-
----
-
-## 📸 Visual Tour
-
-<div align="center">
-  <table>
-    <tr>
-      <td width="50%">
-        <h4 align="center">📊 Dashboard & GPA Pipeline</h4>
-        <img src="./frontend/src/assets/screenshots/dashboard.png" alt="Dashboard View" width="100%" />
-      </td>
-      <td width="50%">
-        <h4 align="center">⏱️ Solo Focus Timer & Pet</h4>
-        <img src="./frontend/src/assets/screenshots/timer.png" alt="Solo Timer" width="100%" />
-      </td>
-    </tr>
-    <tr>
-      <td width="50%">
-        <h4 align="center">⏳ DaysMatter Countdowns</h4>
-        <img src="./frontend/src/assets/screenshots/countdowns.png" alt="Countdowns View" width="100%" />
-      </td>
-      <td width="50%">
-        <h4 align="center">⚙️ Settings & Telegram Alerts</h4>
-        <img src="./frontend/src/assets/screenshots/settings.png" alt="Settings & Alerts" width="100%" />
-      </td>
-    </tr>
-  </table>
-</div>
 
 ---
 
