@@ -1,4 +1,4 @@
-﻿import { GoogleOAuthProvider, useGoogleLogin } from '@react-oauth/google'
+import { GoogleOAuthProvider, useGoogleLogin } from '@react-oauth/google'
 import { useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 
@@ -109,7 +109,10 @@ function LoginPageContent() {
           'Content-Type': 'application/json',
           Accept: 'application/json',
         },
-        body: JSON.stringify({ access_token: accessToken }),
+        body: JSON.stringify({
+          provider: 'google',
+          access_token: accessToken,
+        }),
       })
 
       const body = (await response.json().catch(() => null)) as

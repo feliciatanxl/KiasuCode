@@ -94,13 +94,24 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function getGoogleCredential(payload: unknown): string {
-  if (typeof payload === 'string') return payload
+  if (typeof payload === 'string' && payload.trim()) return payload.trim()
 
-  if (isRecord(payload) && typeof payload.credential === 'string') {
-    return payload.credential
+  if (isRecord(payload)) {
+    if (typeof payload.access_token === 'string' && payload.access_token.trim()) {
+      return payload.access_token.trim()
+    }
+    if (typeof payload.credential === 'string' && payload.credential.trim()) {
+      return payload.credential.trim()
+    }
+    if (typeof payload.token === 'string' && payload.token.trim()) {
+      return payload.token.trim()
+    }
+    if (typeof payload.payload === 'string' && payload.payload.trim()) {
+      return payload.payload.trim()
+    }
   }
 
-  throw new InvalidAuthRequestError('Google credential is required.')
+  throw new InvalidAuthRequestError('Google access token is required.')
 }
 
 async function verifyIdentity(
@@ -384,11 +395,17 @@ router.post('/session', async (request: Request, response: Response) => {
     // `payload` is the canonical API field. The fallbacks keep the current
     // frontend request format working while clients migrate to the new shape.
     const payload = body.payload ?? (
-      provider === 'google' ? body.credential : body.authData
+      provider === 'google'
+        ? (body.access_token ?? body.credential ?? body.token)
+        : (body.credential ?? body.authData ?? body.token)
     )
 
-    if (payload === undefined || payload === null) {
-      throw new InvalidAuthRequestError('Authentication payload is required.')
+    if (payload === undefined || payload === null || (typeof payload === 'string' && !payload.trim())) {
+      throw new InvalidAuthRequestError(
+        provider === 'google'
+          ? 'Google access token is required.'
+          : 'Authentication payload is required.',
+      )
     }
 
     const identity = await verifyIdentity(provider, payload)
