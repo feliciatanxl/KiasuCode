@@ -1,6 +1,5 @@
 import {
   Router,
-  type NextFunction,
   type Request,
   type Response,
 } from 'express'
@@ -10,7 +9,6 @@ import { v4 as uuidv4 } from 'uuid'
 
 import { db } from '../config/db.js'
 import { authenticateRequest } from '../middleware/authenticate.js'
-import { AppError } from '../middleware/errorHandler.js'
 
 interface UserLookupRow extends RowDataPacket {
   id: string
@@ -49,7 +47,7 @@ function getParam(request: Request, name: string): string {
   if (Array.isArray(value) && typeof value[0] === 'string' && value[0].trim()) {
     return value[0].trim()
   }
-  throw new AppError(400, `Parameter ${name} is required.`, `INVALID_${name.toUpperCase()}`)
+  throw new Error(`Parameter ${name} is required.`)
 }
 
 function toIsoString(value: Date | string): string {
@@ -79,7 +77,7 @@ function serializeFriendship(row: FriendshipDbRow, currentUserId: string): Frien
 router.get(
   '/friends',
   authenticateRequest,
-  async (_request: Request, response: Response, next: NextFunction) => {
+  async (_request: Request, response: Response) => {
     try {
       const currentUserId = getUserId(response)
 
@@ -106,7 +104,8 @@ router.get(
         friends: rows.map((row) => serializeFriendship(row, currentUserId)),
       })
     } catch (error) {
-      next(error)
+      console.error('Unable to load friends: %o', error)
+      response.status(500).json({ error: 'Unable to load friends list.' })
     }
   },
 )
@@ -115,7 +114,7 @@ router.get(
 router.get(
   '/friends/requests',
   authenticateRequest,
-  async (_request: Request, response: Response, next: NextFunction) => {
+  async (_request: Request, response: Response) => {
     try {
       const currentUserId = getUserId(response)
 
@@ -160,7 +159,8 @@ router.get(
         outgoing: outgoingRows.map((r) => serializeFriendship(r, currentUserId)),
       })
     } catch (error) {
-      next(error)
+      console.error('Unable to load friend requests: %o', error)
+      response.status(500).json({ error: 'Unable to load friend requests.' })
     }
   },
 )
@@ -169,21 +169,23 @@ router.get(
 router.post(
   '/friends/request',
   authenticateRequest,
-  async (request: Request, response: Response, next: NextFunction) => {
+  async (request: Request, response: Response) => {
     try {
       if (!isRecord(request.body)) {
-        throw new AppError(400, 'A JSON request body is required.', 'INVALID_REQUEST_BODY')
+        response.status(400).json({ error: 'A JSON request body is required.' })
+        return
       }
 
       const rawTarget = request.body.target ?? request.body.email ?? request.body.username
       if (typeof rawTarget !== 'string' || !rawTarget.trim()) {
-        throw new AppError(400, 'Friend email or username is required.', 'INVALID_TARGET')
+        response.status(400).json({ error: 'Friend email or username is required.' })
+        return
       }
 
       const target = rawTarget.trim().toLowerCase()
       const currentUserId = getUserId(response)
 
-      // Lookup target user by email, name, provider_id, or ID
+      // Validation 1: Query the database to find the user by the provided email/username
       const [users] = await db.execute<UserLookupRow[]>(
         `SELECT id, name, email, photo_url
            FROM users
@@ -197,11 +199,14 @@ router.post(
 
       const addressee = users[0]
       if (!addressee) {
-        throw new AppError(404, 'User not found with the provided email or username.', 'USER_NOT_FOUND')
+        response.status(404).json({ error: 'Student not found. Check the email and try again.' })
+        return
       }
 
+      // Validation 2: If the target user's ID matches the authenticated user's ID
       if (addressee.id === currentUserId) {
-        throw new AppError(400, 'You cannot send a friend request to yourself.', 'SELF_REQUEST')
+        response.status(400).json({ error: 'You cannot add yourself as a friend.' })
+        return
       }
 
       // Check existing friendship
@@ -217,10 +222,12 @@ router.post(
       if (existing[0]) {
         const existingStatus = existing[0].status
         if (existingStatus === 'Accepted') {
-          throw new AppError(409, 'You are already friends with this user.', 'ALREADY_FRIENDS')
+          response.status(409).json({ error: 'You are already friends with this student.' })
+          return
         }
         if (existing[0].requester_id === currentUserId) {
-          throw new AppError(409, 'Friend request already sent.', 'REQUEST_PENDING')
+          response.status(409).json({ error: 'Friend request already sent.' })
+          return
         } else {
           // If the other user already requested us, automatically accept!
           await db.execute<ResultSetHeader>(
@@ -235,6 +242,7 @@ router.post(
         }
       }
 
+      // Only execute the INSERT query if both validations pass
       const friendshipId = uuidv4()
       await db.execute<ResultSetHeader>(
         `INSERT INTO friendships (id, requester_id, addressee_id, status)
@@ -248,7 +256,8 @@ router.post(
         friendshipId,
       })
     } catch (error) {
-      next(error)
+      console.error('Unable to send friend request: %o', error)
+      response.status(500).json({ error: 'Unable to send friend request. Please try again.' })
     }
   },
 )
@@ -257,7 +266,7 @@ router.post(
 router.post(
   '/friends/:id/accept',
   authenticateRequest,
-  async (request: Request, response: Response, next: NextFunction) => {
+  async (request: Request, response: Response) => {
     try {
       const friendshipId = getParam(request, 'id')
       const currentUserId = getUserId(response)
@@ -270,12 +279,14 @@ router.post(
       )
 
       if (result.affectedRows === 0) {
-        throw new AppError(404, 'Pending friend request not found.', 'REQUEST_NOT_FOUND')
+        response.status(404).json({ error: 'Pending friend request not found.' })
+        return
       }
 
       response.status(200).json({ success: true, message: 'Friend request accepted.' })
     } catch (error) {
-      next(error)
+      console.error('Unable to accept friend request: %o', error)
+      response.status(500).json({ error: 'Unable to accept friend request.' })
     }
   },
 )
@@ -284,7 +295,7 @@ router.post(
 router.delete(
   '/friends/:id',
   authenticateRequest,
-  async (request: Request, response: Response, next: NextFunction) => {
+  async (request: Request, response: Response) => {
     try {
       const friendshipId = getParam(request, 'id')
       const currentUserId = getUserId(response)
@@ -296,12 +307,14 @@ router.delete(
       )
 
       if (result.affectedRows === 0) {
-        throw new AppError(404, 'Friendship not found.', 'FRIENDSHIP_NOT_FOUND')
+        response.status(404).json({ error: 'Friendship not found.' })
+        return
       }
 
       response.status(200).json({ success: true, message: 'Friendship removed.' })
     } catch (error) {
-      next(error)
+      console.error('Unable to remove friendship: %o', error)
+      response.status(500).json({ error: 'Unable to remove friendship.' })
     }
   },
 )

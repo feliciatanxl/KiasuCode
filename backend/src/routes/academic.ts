@@ -304,7 +304,7 @@ router.get('/institutions', async (_request: Request, response: Response) => {
 
     response.status(200).json({ institutions: rows.map(serializeInstitution) })
   } catch (error) {
-    console.error('Unable to load institutions.', error)
+    console.error('Unable to load institutions: %o', error)
     response.status(500).json({ error: 'Unable to load institutions.' })
   }
 })
@@ -332,7 +332,7 @@ router.post('/institutions', async (request: Request, response: Response) => {
       return
     }
 
-    console.error('Unable to create institution.', error)
+    console.error('Unable to create institution: %o', error)
     response.status(500).json({ error: 'Unable to create institution.' })
   }
 })
@@ -357,7 +357,7 @@ router.delete('/institutions/:id', async (request: Request, response: Response) 
       return
     }
 
-    console.error('Unable to delete institution.', error)
+    console.error('Unable to delete institution: %o', error)
     response.status(500).json({ error: 'Unable to delete institution.' })
   }
 })
@@ -409,7 +409,7 @@ router.post('/semesters', async (request: Request, response: Response) => {
       return
     }
 
-    console.error('Unable to create semester.', error)
+    console.error('Unable to create semester: %o', error)
     response.status(500).json({ error: 'Unable to create semester.' })
   }
 })
@@ -453,7 +453,7 @@ router.post('/modules', async (request: Request, response: Response) => {
       return
     }
 
-    console.error('Unable to create module.', error)
+    console.error('Unable to create module: %o', error)
     response.status(500).json({ error: 'Unable to create module.' })
   }
 })
@@ -474,7 +474,7 @@ router.get(
 
       response.status(200).json({ semesters: rows.map(serializeSemester) })
     } catch (error) {
-      console.error('Unable to load semesters.', error)
+      console.error('Unable to load semesters: %o', error)
       response.status(500).json({ error: 'Unable to load semesters.' })
     }
   },
@@ -494,7 +494,7 @@ router.get('/modules', async (_request: Request, response: Response) => {
 
     response.status(200).json({ modules: rows.map(serializeModule) })
   } catch (error) {
-    console.error('Unable to load user modules.', error)
+    console.error('Unable to load user modules: %o', error)
     response.status(500).json({ error: 'Unable to load user modules.' })
   }
 })
@@ -516,7 +516,7 @@ router.get(
 
       response.status(200).json({ modules: rows.map(serializeModule) })
     } catch (error) {
-      console.error('Unable to load institution modules.', error)
+      console.error('Unable to load institution modules: %o', error)
       response.status(500).json({ error: 'Unable to load institution modules.' })
     }
   },
@@ -539,7 +539,7 @@ router.get(
 
       response.status(200).json({ modules: rows.map(serializeModule) })
     } catch (error) {
-      console.error('Unable to load modules.', error)
+      console.error('Unable to load modules: %o', error)
       response.status(500).json({ error: 'Unable to load modules.' })
     }
   },
@@ -569,7 +569,7 @@ router.post(
         return
       }
 
-      console.error('Unable to create module.', error)
+      console.error('Unable to create module: %o', error)
       response.status(500).json({ error: 'Unable to create module.' })
     }
   },
@@ -653,7 +653,7 @@ router.patch('/modules/:moduleId', async (request: Request, response: Response) 
       return
     }
 
-    console.error('Unable to update module.', error)
+    console.error('Unable to update module: %o', error)
     response.status(500).json({ error: 'Unable to update module.' })
   }
 })
@@ -677,27 +677,28 @@ router.delete('/modules/:moduleId', async (request: Request, response: Response)
 
     response.status(200).json({ success: true })
   } catch (error) {
-    console.error('Unable to delete module.', error)
+    console.error('Unable to delete module: %o', error)
     response.status(500).json({ error: 'Unable to delete module.' })
   }
 })
 
-router.put('/user/profile', async (request: Request, response: Response) => {
+const handleUpdateUserProfile = async (request: Request, response: Response) => {
   try {
     const userId = getUserId(response)
     if (!isRecord(request.body)) {
       throw new InvalidAcademicRequestError('A JSON request body is required.')
     }
 
-    const { name, photo_url, photoUrl } = request.body
-    const newName = typeof name === 'string' ? name.trim() : ''
+    const { name, username, photo_url, photoUrl } = request.body
+    const rawUsername = username ?? name
+    const newName = typeof rawUsername === 'string' ? rawUsername.trim() : ''
     const rawPhotoUrl = photo_url ?? photoUrl
     const newPhotoUrl = typeof rawPhotoUrl === 'string'
       ? rawPhotoUrl.trim()
       : null
 
     if (!newName) {
-      throw new InvalidAcademicRequestError('A valid full name is required.')
+      throw new InvalidAcademicRequestError('A valid username is required.')
     }
 
     if (newPhotoUrl && newPhotoUrl.length > maxProfilePhotoUrlLength) {
@@ -710,6 +711,17 @@ router.put('/user/profile', async (request: Request, response: Response) => {
       !/^https?:\/\//i.test(newPhotoUrl)
     ) {
       throw new InvalidAcademicRequestError('Invalid profile picture format.')
+    }
+
+    // Check if username is already taken by another user
+    const [existingUsernames] = await db.execute<RowDataPacket[]>(
+      'SELECT id FROM users WHERE LOWER(name) = LOWER(?) AND id != ? LIMIT 1',
+      [newName, userId],
+    )
+
+    if (existingUsernames.length > 0) {
+      response.status(400).json({ error: 'Username is already taken. Please choose another.' })
+      return
     }
 
     await db.execute<ResultSetHeader>(
@@ -744,10 +756,13 @@ router.put('/user/profile', async (request: Request, response: Response) => {
       return
     }
 
-    console.error('Unable to update user profile.', error)
+    console.error('Unable to update user profile: %o', error)
     response.status(500).json({ error: 'Unable to update user profile.' })
   }
-})
+}
+
+router.put('/user/profile', handleUpdateUserProfile)
+router.put('/profile', handleUpdateUserProfile)
 
 router.post('/auth/set-password', async (request: Request, response: Response) => {
   try {
@@ -775,7 +790,7 @@ router.post('/auth/set-password', async (request: Request, response: Response) =
       return
     }
 
-    console.error('Unable to set user password.', error)
+    console.error('Unable to set user password: %o', error)
     response.status(500).json({ error: 'Unable to set password.' })
   }
 })

@@ -128,8 +128,8 @@ async function applyPetDecay(
   await connection.execute<ResultSetHeader>(
     `UPDATE pets
         SET hunger_level = ?, last_interacted_at = ?
-      WHERE id = ?`,
-    [hungerLevel, decayCheckpoint, pet.id],
+      WHERE id = ? AND user_id = ?`,
+    [hungerLevel, decayCheckpoint, pet.id, pet.user_id],
   )
 
   return {
@@ -244,8 +244,8 @@ router.post(
       const [sessionRows] = await connection.execute<StudySessionRow[]>(
         `SELECT id, module_id, duration_minutes, created_at
            FROM study_sessions
-          WHERE id = ?`,
-        [sessionId],
+          WHERE id = ? AND user_id = ?`,
+        [sessionId, userId],
       )
       const studySession = sessionRows[0]
       const coinsBalance = await getWalletBalance(connection, userId)
@@ -271,7 +271,7 @@ router.post(
         return
       }
 
-      console.error('Unable to record study session.', error)
+      console.error('Unable to record study session: %o', error)
       response.status(500).json({ error: 'Unable to record study session.' })
     } finally {
       connection?.release()
@@ -302,7 +302,7 @@ router.get(
       })
     } catch (error) {
       if (connection) await connection.rollback().catch(() => undefined)
-      console.error('Unable to load pet status.', error)
+      console.error('Unable to load pet status: %o', error)
       response.status(500).json({ error: 'Unable to load pet status.' })
     } finally {
       connection?.release()
@@ -361,16 +361,16 @@ router.post(
         `UPDATE pets
             SET hunger_level = ?, happiness_level = ?,
                 last_interacted_at = CURRENT_TIMESTAMP
-          WHERE id = ?`,
-        [hungerLevel, happinessLevel, pet.id],
+          WHERE id = ? AND user_id = ?`,
+        [hungerLevel, happinessLevel, pet.id, userId],
       )
 
       const [updatedPetRows] = await connection.execute<PetRow[]>(
         `SELECT id, user_id, name, hunger_level, happiness_level,
                 last_interacted_at
            FROM pets
-          WHERE id = ?`,
-        [pet.id],
+          WHERE id = ? AND user_id = ?`,
+        [pet.id, userId],
       )
       const updatedPet = updatedPetRows[0]
 
@@ -384,7 +384,7 @@ router.post(
       })
     } catch (error) {
       if (connection) await connection.rollback().catch(() => undefined)
-      console.error('Unable to buy pet food.', error)
+      console.error('Unable to buy pet food: %o', error)
       response.status(500).json({ error: 'Unable to buy pet food.' })
     } finally {
       connection?.release()

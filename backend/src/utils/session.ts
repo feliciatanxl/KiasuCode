@@ -1,7 +1,7 @@
 import type { CookieOptions, Request, Response } from 'express'
 
 export const sessionCookieName = 'kiasucode_session'
-export const sessionMaxAgeMs = 30 * 24 * 60 * 60 * 1000
+export const sessionMaxAgeMs = 60 * 60 * 1000 // 1 hour (3600000 milliseconds)
 
 const isProduction = process.env.NODE_ENV === 'production'
 
@@ -23,11 +23,18 @@ function requestRequiresSecureCookie(request: Request): boolean {
 
 function sessionCookieOptions(request: Request): CookieOptions {
   const requireSecure = requestRequiresSecureCookie(request)
+  const isNgrok = [
+    request.headers.origin,
+    request.headers.host,
+    request.headers['x-forwarded-host'],
+  ]
+    .flatMap((value) => typeof value === 'string' ? [value] : value ?? [])
+    .some((value) => value.toLowerCase().includes('ngrok'))
 
   return {
     httpOnly: true,
-    secure: requireSecure,
-    sameSite: requireSecure ? 'none' : 'lax',
+    secure: isProduction || requireSecure,
+    sameSite: isNgrok ? 'none' : 'lax',
     maxAge: sessionMaxAgeMs,
     path: '/',
   }

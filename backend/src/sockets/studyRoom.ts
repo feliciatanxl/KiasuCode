@@ -1,5 +1,5 @@
 import type { Server as HttpServer } from 'node:http'
-import type { RoomParticipant, RoomState } from '@kiasucode/shared'
+import type { ChatMessage, RoomParticipant, RoomState, UserPresence } from '@kiasucode/shared'
 import jwt from 'jsonwebtoken'
 import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise'
 import { Server, type Socket } from 'socket.io'
@@ -12,6 +12,7 @@ interface UserLookupRow extends RowDataPacket {
   id: string
   name: string
   photo_url: string | null
+  session_version?: number
 }
 
 interface AuthenticatedSocketData {
@@ -29,11 +30,19 @@ interface RoomInternalState {
   timerInterval: NodeJS.Timeout | null
 }
 
+interface UserPresenceRecord {
+  socketIds: Set<string>
+  user: AuthenticatedSocketData
+  status: 'online' | 'offline'
+  roomId: string | null
+}
+
 const DEFAULT_ROOM_ID = 'general'
 const DEFAULT_DURATION_SECONDS = 25 * 60 // 25 minutes
 const COINS_PER_SESSION = 25
 
 const rooms = new Map<string, RoomInternalState>()
+const userPresenceMap = new Map<string, UserPresenceRecord>()
 
 function parseCookie(cookieHeader: string | undefined, name: string): string | null {
   if (!cookieHeader) return null
@@ -121,9 +130,31 @@ async function awardRoomParticipantsCoins(room: RoomInternalState): Promise<void
         [userId, COINS_PER_SESSION, COINS_PER_SESSION],
       )
     } catch (error) {
-      console.error(`Unable to award coins for user ${userId}:`, error)
+      console.error('Unable to award coins for user %s: %o', userId, error)
     }
   }
+}
+
+function broadcastUserPresence(io: Server, userId: string, status: 'online' | 'offline', roomId: string | null): void {
+  const payload: UserPresence = {
+    userId,
+    status,
+    roomId,
+  }
+  io.emit('presence_update', payload)
+}
+
+function getInitialPresenceMap(): Record<string, { status: 'online' | 'offline'; roomId: string | null }> {
+  const result: Record<string, { status: 'online' | 'offline'; roomId: string | null }> = {}
+  for (const [uid, record] of userPresenceMap.entries()) {
+    if (record.status === 'online') {
+      result[uid] = {
+        status: 'online',
+        roomId: record.roomId,
+      }
+    }
+  }
+  return result
 }
 
 export function setupStudyRoomSocket(httpServer: HttpServer, allowedOrigins: string[]): Server {
@@ -166,14 +197,24 @@ export function setupStudyRoomSocket(httpServer: HttpServer, allowedOrigins: str
       }
 
       const userId = payload.sub
+      const tokenSessionVersion = typeof payload === 'object' && payload !== null && 'session_version' in payload
+        ? Number(payload.session_version)
+        : undefined
+
       const [rows] = await db.execute<UserLookupRow[]>(
-        `SELECT id, name, photo_url FROM users WHERE id = ? LIMIT 1`,
+        `SELECT id, name, photo_url, session_version FROM users WHERE id = ? LIMIT 1`,
         [userId],
       )
 
       const userRow = rows[0]
       if (!userRow) {
         return next(new Error('USER_NOT_FOUND'))
+      }
+
+      if (tokenSessionVersion !== undefined && userRow.session_version !== undefined) {
+        if (tokenSessionVersion !== Number(userRow.session_version)) {
+          return next(new Error('SESSION_SUPERSEDED'))
+        }
       }
 
       socket.data = {
@@ -186,16 +227,52 @@ export function setupStudyRoomSocket(httpServer: HttpServer, allowedOrigins: str
     } catch {
       next(new Error('AUTHENTICATION_FAILED'))
     }
-
   })
 
   io.on('connection', (socket: Socket) => {
     const user = socket.data as AuthenticatedSocketData
 
+    // Register user presence
+    let presence = userPresenceMap.get(user.userId)
+    if (!presence) {
+      presence = {
+        socketIds: new Set([socket.id]),
+        user,
+        status: 'online',
+        roomId: null,
+      }
+      userPresenceMap.set(user.userId, presence)
+    } else {
+      presence.socketIds.add(socket.id)
+      presence.status = 'online'
+    }
+
+    // Send initial presence map to newly connected user
+    socket.emit('initial_presence', getInitialPresenceMap())
+    broadcastUserPresence(io, user.userId, 'online', presence.roomId)
+
     socket.on('join_room', (data: { roomId?: string }) => {
       const roomId = data?.roomId?.trim() || DEFAULT_ROOM_ID
-      const room = getOrCreateRoom(roomId)
 
+      // Leave previous rooms if any
+      for (const currentRoomId of socket.rooms) {
+        if (currentRoomId !== socket.id && currentRoomId !== roomId) {
+          socket.leave(currentRoomId)
+          const oldRoom = rooms.get(currentRoomId)
+          if (oldRoom) {
+            oldRoom.participants.delete(socket.id)
+            if (oldRoom.participants.size === 0 && oldRoom.timerInterval) {
+              clearInterval(oldRoom.timerInterval)
+              oldRoom.timerInterval = null
+              oldRoom.status = 'idle'
+              oldRoom.remainingSeconds = DEFAULT_DURATION_SECONDS
+            }
+            io.to(currentRoomId).emit('room_state', serializeRoomState(oldRoom))
+          }
+        }
+      }
+
+      const room = getOrCreateRoom(roomId)
       socket.join(roomId)
       room.participants.set(socket.id, {
         socketId: socket.id,
@@ -203,8 +280,60 @@ export function setupStudyRoomSocket(httpServer: HttpServer, allowedOrigins: str
         joinedAt: new Date().toISOString(),
       })
 
+      // Update presence
+      const userPres = userPresenceMap.get(user.userId)
+      if (userPres) {
+        userPres.roomId = roomId
+        broadcastUserPresence(io, user.userId, 'online', roomId)
+      }
+
       // Send initial room state to joining client and broadcast to room
       io.to(roomId).emit('room_state', serializeRoomState(room))
+    })
+
+    socket.on('leave_room', (data: { roomId?: string }) => {
+      const roomId = data?.roomId?.trim() || DEFAULT_ROOM_ID
+      socket.leave(roomId)
+      const room = rooms.get(roomId)
+      if (room) {
+        room.participants.delete(socket.id)
+        if (room.participants.size === 0 && room.timerInterval) {
+          clearInterval(room.timerInterval)
+          room.timerInterval = null
+          room.status = 'idle'
+          room.remainingSeconds = DEFAULT_DURATION_SECONDS
+        }
+        io.to(roomId).emit('room_state', serializeRoomState(room))
+      }
+
+      // Update presence
+      const userPres = userPresenceMap.get(user.userId)
+      if (userPres) {
+        userPres.roomId = null
+        broadcastUserPresence(io, user.userId, 'online', null)
+      }
+    })
+
+    socket.on('send_message', (data: { roomId?: string; message?: string }) => {
+      const roomId = data?.roomId?.trim() || DEFAULT_ROOM_ID
+      const rawMessage = typeof data?.message === 'string' ? data.message.trim() : ''
+
+      if (!rawMessage || rawMessage.length > 500) {
+        return
+      }
+
+      const chatMessage: ChatMessage = {
+        id: uuidv4(),
+        roomId,
+        userId: user.userId,
+        userName: user.name,
+        userPhotoUrl: user.photoUrl,
+        message: rawMessage,
+        timestamp: new Date().toISOString(),
+      }
+
+      // Broadcast message only to participants in this room
+      io.to(roomId).emit('chat_message', chatMessage)
     })
 
     socket.on('timer_start', (data: { roomId?: string }) => {
@@ -279,6 +408,17 @@ export function setupStudyRoomSocket(httpServer: HttpServer, allowedOrigins: str
             room.remainingSeconds = DEFAULT_DURATION_SECONDS
           }
           io.to(roomId).emit('room_state', serializeRoomState(room))
+        }
+      }
+
+      const userPres = userPresenceMap.get(user.userId)
+      if (userPres) {
+        userPres.socketIds.delete(socket.id)
+        if (userPres.socketIds.size === 0) {
+          userPres.status = 'offline'
+          userPres.roomId = null
+          userPresenceMap.delete(user.userId)
+          broadcastUserPresence(io, user.userId, 'offline', null)
         }
       }
     })

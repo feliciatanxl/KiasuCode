@@ -32,6 +32,16 @@ if (!fs.existsSync(uploadsDirectory)) {
   fs.mkdirSync(uploadsDirectory, { recursive: true })
 }
 
+function getSafeUploadFilePath(fileNameOrUrl: string): string {
+  const baseName = path.basename(fileNameOrUrl)
+  const normalizedUploadDir = path.resolve(uploadsDirectory)
+  const resolvedPath = path.resolve(normalizedUploadDir, baseName)
+  if (!resolvedPath.startsWith(normalizedUploadDir + path.sep) && resolvedPath !== normalizedUploadDir) {
+    throw new AppError(400, 'Invalid file path.', 'INVALID_FILE_PATH')
+  }
+  return resolvedPath
+}
+
 const storage = multer.diskStorage({
   destination(_req, _file, callback) {
     callback(null, uploadsDirectory)
@@ -40,7 +50,8 @@ const storage = multer.diskStorage({
     const ext = path.extname(file.originalname)
     const base = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 80)
     const uniqueSuffix = `${Date.now()}-${uuidv4().slice(0, 8)}`
-    callback(null, `${base}-${uniqueSuffix}${ext}`)
+    const safeFilename = path.basename(`${base}-${uniqueSuffix}${ext}`)
+    callback(null, safeFilename)
   },
 })
 
@@ -176,7 +187,8 @@ router.post(
       response.status(201).json({ file: serializeFile(createdFile) })
     } catch (error) {
       if (request.file) {
-        fs.promises.unlink(request.file.path).catch(() => undefined)
+        const safeCleanupPath = getSafeUploadFilePath(request.file.filename)
+        fs.promises.unlink(safeCleanupPath).catch(() => undefined)
       }
       next(error)
     }
@@ -203,8 +215,7 @@ async function handleDeleteFile(fileId: string, userId: string, response: Respon
       [fileId, userId],
     )
 
-    const storedFileName = path.basename(fileRow.file_url)
-    const diskPath = path.join(uploadsDirectory, storedFileName)
+    const diskPath = getSafeUploadFilePath(fileRow.file_url)
     await fs.promises.unlink(diskPath).catch(() => undefined)
 
     response.status(200).json({ success: true })
@@ -212,6 +223,39 @@ async function handleDeleteFile(fileId: string, userId: string, response: Respon
     next(error)
   }
 }
+
+router.get(
+  '/files/:id/download',
+  authenticateRequest,
+  async (request: Request, response: Response, next: NextFunction) => {
+    try {
+      const fileId = getParam(request, 'id')
+      const userId = getUserId(response)
+
+      const [rows] = await db.execute<FileRow[]>(
+        `SELECT id, module_id, user_id, file_name, file_url, file_size_kb, created_at
+           FROM module_files
+          WHERE id = ? AND user_id = ?
+          LIMIT 1`,
+        [fileId, userId],
+      )
+
+      const fileRow = rows[0]
+      if (!fileRow) {
+        throw new AppError(404, 'File not found or access denied.', 'FILE_NOT_FOUND')
+      }
+
+      const safePath = getSafeUploadFilePath(fileRow.file_url)
+      if (!fs.existsSync(safePath)) {
+        throw new AppError(404, 'File not found on disk.', 'FILE_NOT_FOUND')
+      }
+
+      response.download(safePath, path.basename(fileRow.file_name))
+    } catch (error) {
+      next(error)
+    }
+  },
+)
 
 router.delete(
   '/files/:id',

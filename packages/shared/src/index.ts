@@ -138,3 +138,21 @@ export interface TimerCompletePayload {
   coinsEarned: number
   completedAt: string
 }
+
+export interface ChatMessage {
+  id: string
+  roomId: string
+  userId: string
+  userName: string
+  userPhotoUrl?: string | null
+  message: string
+  timestamp: string
+}
+
+export interface UserPresence {
+  userId: string
+  status: 'online' | 'offline'
+  roomId: string | null
+}
+
+

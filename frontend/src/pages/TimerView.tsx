@@ -93,8 +93,8 @@ export function TimerView() {
                     : 'Choose an academic module from the right panel to activate the Pomodoro timer and earn study coins.'}
                 </p>
                 {modules.length === 0 && (
-                  <Link to="/dashboard" className="button button--primary mt-5 inline-flex">
-                    Go to Dashboard
+                  <Link to="/dashboard" className="button button--primary mt-5 inline-flex text-white hover:text-white !text-white">
+                    <span className="text-white hover:text-white !text-white font-bold">Go to Dashboard</span>
                   </Link>
                 )}
               </div>
@@ -173,9 +173,9 @@ export function TimerView() {
                   </p>
                   <Link
                     to="/dashboard"
-                    className="mt-4 inline-flex rounded-lg bg-blue-600 px-3.5 py-2 text-xs font-bold text-white shadow hover:bg-blue-500"
+                    className="mt-4 inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:text-white !text-white shadow-sm hover:bg-blue-700 transition-colors"
                   >
-                    + Add Module on Dashboard
+                    <span className="text-white hover:text-white !text-white font-bold">+ Add Module on Dashboard</span>
                   </Link>
                 </div>
               )}

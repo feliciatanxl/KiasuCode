@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import type {
+  ChatMessage,
   FriendshipItem,
   RoomParticipant,
   RoomState,
   RoomTimerStatus,
   TimerCompletePayload,
+  UserPresence,
 } from '@kiasucode/shared'
 import { io, type Socket } from 'socket.io-client'
 
@@ -15,24 +17,88 @@ import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { apiRequest, formatApiError, getApiBaseUrl, isAbortError } from '../utils/api'
 
-const DEFAULT_ROOM_ID = 'general'
+interface StudyRoomCard {
+  id: string
+  title: string
+  category: string
+  description: string
+  icon: string
+  badgeColor: string
+  accentColor: string
+}
+
+const STUDY_ROOMS: StudyRoomCard[] = [
+  {
+    id: 'general',
+    title: 'Campus General',
+    category: 'Open Hall',
+    description: 'Casual multiplayer study hall for open discussion & group focus.',
+    icon: '🏫',
+    badgeColor: 'bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300',
+    accentColor: 'border-blue-200 dark:border-blue-800 hover:border-blue-400',
+  },
+  {
+    id: 'deep-work',
+    title: 'Deep Work',
+    category: 'Intense Sprint',
+    description: 'High-intensity silent sprint room. Keep chat minimal and grind out hard problem sets.',
+    icon: '⚡',
+    badgeColor: 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300',
+    accentColor: 'border-amber-200 dark:border-amber-800 hover:border-amber-400',
+  },
+  {
+    id: 'quiet-pomodoro',
+    title: 'Quiet Pomodoro',
+    category: 'Standard 25/5',
+    description: 'Standard 25-minute synchronized pomodoro clock with calm ambient vibes.',
+    icon: '⏳',
+    badgeColor: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300',
+    accentColor: 'border-emerald-200 dark:border-emerald-800 hover:border-emerald-400',
+  },
+  {
+    id: 'exam-prep',
+    title: 'Exam Prep',
+    category: 'Finals Revision',
+    description: 'Finals sprint room. Share questions, conquer past-year papers together.',
+    icon: '🎯',
+    badgeColor: 'bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300',
+    accentColor: 'border-purple-200 dark:border-purple-800 hover:border-purple-400',
+  },
+]
+
 const TOTAL_DURATION_SECONDS = 25 * 60
 
 export function StudyRoom() {
   const { user } = useAuth()
   const { showToast } = useToast()
   const [isTelegramOpen, setIsTelegramOpen] = useState(false)
-  const [roomId] = useState(DEFAULT_ROOM_ID)
+
+  // Navigation & Room state
+  const [activeTab, setActiveTab] = useState<'lobby' | 'room' | 'friends'>('lobby')
+  const [currentRoom, setCurrentRoom] = useState<string | null>(null)
+
+  // Lobby Search & Invite Code State
+  const [searchQuery, setSearchQuery] = useState('')
+  const [inviteCodeInput, setInviteCodeInput] = useState('')
 
   // WebSocket state
   const [isConnected, setIsConnected] = useState(false)
   const [isReconnecting, setIsReconnecting] = useState(false)
   const socketRef = useRef<Socket | null>(null)
 
+  // Presence State: userId -> { status, roomId }
+  const [presenceMap, setPresenceMap] = useState<Record<string, { status: 'online' | 'offline'; roomId: string | null }>>({})
+
   // Room state
   const [timerStatus, setTimerStatus] = useState<RoomTimerStatus>('idle')
   const [remainingSeconds, setRemainingSeconds] = useState(TOTAL_DURATION_SECONDS)
   const [participants, setParticipants] = useState<RoomParticipant[]>([])
+
+  // Chat state
+  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [inputMessage, setInputMessage] = useState('')
+  const [roomSubTab, setRoomSubTab] = useState<'buddies' | 'chat'>('buddies')
+  const chatBottomRef = useRef<HTMLDivElement | null>(null)
 
   // Friends state
   const [friends, setFriends] = useState<FriendshipItem[]>([])
@@ -41,7 +107,6 @@ export function StudyRoom() {
   const [friendTarget, setFriendTarget] = useState('')
   const [isSendingRequest, setIsSendingRequest] = useState(false)
   const [friendError, setFriendError] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<'room' | 'friends'>('room')
 
   // Coin Reward celebration modal
   const [celebrationCoins, setCelebrationCoins] = useState<number | null>(null)
@@ -61,7 +126,7 @@ export function StudyRoom() {
       })
       .catch((err: unknown) => {
         if (!isAbortError(err)) {
-          console.error('Failed to load friends:', err)
+          console.error('Failed to load friends: %o', err)
         }
       })
       .finally(() => {
@@ -77,12 +142,20 @@ export function StudyRoom() {
     return () => controller.abort()
   }, [])
 
+  // Auto-scroll chat to latest message
+  useEffect(() => {
+    if (roomSubTab === 'chat') {
+      chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [messages, roomSubTab])
 
   // Setup WebSocket connection
   useEffect(() => {
+    const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:'
     const socket = io(getApiBaseUrl(), {
       path: '/socket.io',
-      transports: ['polling', 'websocket'],
+      transports: ['websocket', 'polling'],
+      secure: isHttps,
       withCredentials: true,
       reconnection: true,
       reconnectionAttempts: 20,
@@ -94,7 +167,9 @@ export function StudyRoom() {
     socket.on('connect', () => {
       setIsConnected(true)
       setIsReconnecting(false)
-      socket.emit('join_room', { roomId })
+      if (currentRoom) {
+        socket.emit('join_room', { roomId: currentRoom })
+      }
     })
 
     socket.on('connect_error', () => {
@@ -106,35 +181,121 @@ export function StudyRoom() {
       setIsConnected(false)
     })
 
-    socket.on('room_state', (state: RoomState) => {
-      setTimerStatus(state.status)
-      setRemainingSeconds(state.remainingSeconds)
-      setParticipants(state.participants)
+    // Presence listeners
+    socket.on('initial_presence', (initialPresence: Record<string, { status: 'online' | 'offline'; roomId: string | null }>) => {
+      setPresenceMap(initialPresence)
     })
 
-    socket.on('timer_tick', (data: { remainingSeconds: number; status: RoomTimerStatus }) => {
-      setRemainingSeconds(data.remainingSeconds)
-      setTimerStatus(data.status)
+    socket.on('presence_update', (update: UserPresence) => {
+      setPresenceMap((prev) => ({
+        ...prev,
+        [update.userId]: {
+          status: update.status,
+          roomId: update.roomId,
+        },
+      }))
+    })
+
+    socket.on('room_state', (state: RoomState) => {
+      if (currentRoom && state.roomId === currentRoom) {
+        setTimerStatus(state.status)
+        setRemainingSeconds(state.remainingSeconds)
+        setParticipants(state.participants)
+      }
+    })
+
+    socket.on('chat_message', (chatMsg: ChatMessage) => {
+      if (currentRoom && chatMsg.roomId === currentRoom) {
+        setMessages((prev) => [...prev, chatMsg])
+      }
+    })
+
+    socket.on('timer_tick', (data: { roomId: string; remainingSeconds: number; status: RoomTimerStatus }) => {
+      if (currentRoom && data.roomId === currentRoom) {
+        setRemainingSeconds(data.remainingSeconds)
+        setTimerStatus(data.status)
+      }
     })
 
     socket.on('timer_complete', (payload: TimerCompletePayload) => {
-      setCelebrationCoins(payload.coinsEarned)
-      showToast(`🎉 Focus session complete! +${payload.coinsEarned} coins awarded to all participants!`)
+      if (currentRoom && payload.roomId === currentRoom) {
+        setCelebrationCoins(payload.coinsEarned)
+        showToast(`🎉 Focus session complete! +${payload.coinsEarned} coins awarded to all participants!`)
+      }
     })
 
     return () => {
       socket.disconnect()
       socketRef.current = null
     }
-  }, [roomId, showToast])
+  }, [currentRoom, showToast])
+
+  // Join room helper
+  const handleJoinRoom = (roomId: string) => {
+    const cleanRoomId = roomId.trim().toLowerCase()
+    if (!cleanRoomId) return
+
+    if (currentRoom !== cleanRoomId) {
+      setCurrentRoom(cleanRoomId)
+      setMessages([])
+      setParticipants([])
+      setRemainingSeconds(TOTAL_DURATION_SECONDS)
+      setTimerStatus('idle')
+      socketRef.current?.emit('join_room', { roomId: cleanRoomId })
+    }
+    setActiveTab('room')
+  }
+
+  // Leave room helper
+  const handleLeaveRoom = () => {
+    if (currentRoom) {
+      socketRef.current?.emit('leave_room', { roomId: currentRoom })
+    }
+    setCurrentRoom(null)
+    setMessages([])
+    setParticipants([])
+    setTimerStatus('idle')
+    setRemainingSeconds(TOTAL_DURATION_SECONDS)
+    setActiveTab('lobby')
+  }
+
+  // Create custom room
+  const handleCreateCustomRoom = () => {
+    const customCode = Math.random().toString(36).substring(2, 8).toUpperCase()
+    handleJoinRoom(customCode)
+    showToast(`✨ Custom room created! Share code: ${customCode}`)
+  }
+
+  // Join via Invite Code form
+  const handleJoinByCode = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    const cleanCode = inviteCodeInput.trim().toUpperCase()
+    if (!cleanCode) return
+    setInviteCodeInput('')
+    handleJoinRoom(cleanCode)
+  }
 
   // Timer controls
   const handleStartTimer = () => {
-    socketRef.current?.emit('timer_start', { roomId })
+    if (!currentRoom) return
+    socketRef.current?.emit('timer_start', { roomId: currentRoom })
   }
 
   const handleResetTimer = () => {
-    socketRef.current?.emit('timer_reset', { roomId })
+    if (!currentRoom) return
+    socketRef.current?.emit('timer_reset', { roomId: currentRoom })
+  }
+
+  // Chat actions
+  const handleSendMessage = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    if (!inputMessage.trim() || !isConnected || !currentRoom) return
+
+    socketRef.current?.emit('send_message', {
+      roomId: currentRoom,
+      message: inputMessage.trim(),
+    })
+    setInputMessage('')
   }
 
   // Friend actions
@@ -146,12 +307,12 @@ export function StudyRoom() {
     setFriendError(null)
 
     try {
-      await apiRequest<{ success: boolean; message: string }>('/api/friends/request', {
+      const response = await apiRequest<{ success: boolean; message: string }>('/api/friends/request', {
         method: 'POST',
         body: JSON.stringify({ target: friendTarget.trim() }),
       })
 
-      showToast('Friend request sent successfully!')
+      showToast(response.data.message || 'Friend request sent successfully!')
       setFriendTarget('')
       void loadFriendsData()
     } catch (err) {
@@ -184,6 +345,34 @@ export function StudyRoom() {
       showToast(formatApiError(err), 'error')
     }
   }
+
+  // Filtered rooms in Lobby
+  const filteredRooms = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase()
+    if (!query) return STUDY_ROOMS
+    return STUDY_ROOMS.filter(
+      (room) =>
+        room.title.toLowerCase().includes(query) ||
+        room.category.toLowerCase().includes(query) ||
+        room.description.toLowerCase().includes(query),
+    )
+  }, [searchQuery])
+
+  // Current Room metadata
+  const currentRoomInfo = useMemo(() => {
+    if (!currentRoom) return null
+    return (
+      STUDY_ROOMS.find((r) => r.id === currentRoom) ?? {
+        id: currentRoom,
+        title: `Room #${currentRoom.toUpperCase()}`,
+        category: 'Custom Room',
+        description: 'Private custom study room.',
+        icon: '🔒',
+        badgeColor: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300',
+        accentColor: 'border-indigo-200 dark:border-indigo-800',
+      }
+    )
+  }, [currentRoom])
 
   // Format timer values
   const minutes = Math.floor(remainingSeconds / 60)
@@ -222,7 +411,7 @@ export function StudyRoom() {
           </div>
         )}
 
-        {/* HEADER */}
+        {/* HEADER & TOP TOGGLE BUTTONS (Only Lobby & Friends) */}
         <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
           <div>
             <div className="flex items-center gap-2">
@@ -239,24 +428,24 @@ export function StudyRoom() {
               </span>
             </div>
             <h1 className="mt-1 text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
-              Multiplayer Study Room
+              Multiplayer Study Hub
             </h1>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              Synchronize 25-minute Pomodoro study sprints with friends and earn 25 coins together.
+              Join synchronized 25-minute Pomodoro study sprints with friends and earn 25 coins together.
             </p>
           </div>
 
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setActiveTab('room')}
+              onClick={() => setActiveTab('lobby')}
               className={`rounded-lg px-4 py-2 text-xs font-bold transition-colors ${
-                activeTab === 'room'
+                activeTab === 'lobby'
                   ? 'bg-blue-600 text-white shadow-sm'
                   : 'bg-white text-slate-600 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
               }`}
             >
-              Study Room ({participants.length})
+              Lobby
             </button>
             <button
               type="button"
@@ -277,182 +466,462 @@ export function StudyRoom() {
           </div>
         </div>
 
-        {/* MAIN GRID */}
-        {activeTab === 'room' ? (
-          <div className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
-            {/* SYNCHRONIZED TIMER CARD */}
-            <section
-              className="flex flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm dark:border-slate-700 dark:bg-slate-800 sm:p-12"
-              aria-labelledby="timer-heading"
-            >
-              <span className="eyebrow" id="timer-heading">room/{roomId} · synchronized</span>
-
-              {/* CIRCULAR PROGRESS */}
-              <div className="relative my-8 size-64 sm:size-72">
-                <svg className="size-full -rotate-90" viewBox="0 0 180 180" aria-hidden="true">
-                  <circle
-                    cx="90"
-                    cy="90"
-                    r={radius}
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="10"
-                    className="text-slate-100 dark:text-slate-700"
+        {/* 1. LOBBY VIEW */}
+        {activeTab === 'lobby' && (
+          <div className="space-y-8">
+            {/* LOBBY CONTROLS: SEARCH, CREATE CUSTOM ROOM, JOIN VIA CODE */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-center bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+              {/* Search Bar */}
+              <div className="lg:col-span-5">
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
+                  Search Study Rooms
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search by room name or topic…"
+                    className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 pl-9 text-xs text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:placeholder-slate-500"
                   />
-                  <circle
-                    cx="90"
-                    cy="90"
-                    r={radius}
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="10"
-                    strokeLinecap="round"
-                    strokeDasharray={circumference}
-                    strokeDashoffset={strokeDashoffset}
-                    className={`transition-all duration-1000 ${
-                      timerStatus === 'running'
-                        ? 'text-blue-600 dark:text-blue-400'
-                        : timerStatus === 'completed'
-                          ? 'text-emerald-500'
-                          : 'text-slate-300 dark:text-slate-600'
-                    }`}
-                  />
-                </svg>
-
-                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <span className="font-mono text-5xl font-black tracking-tight text-slate-900 dark:text-white sm:text-6xl">
-                    {formattedTime}
-                  </span>
-                  <span
-                    className={`mt-2 inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider ${
-                      timerStatus === 'running'
-                        ? 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300'
-                        : timerStatus === 'completed'
-                          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
-                          : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'
-                    }`}
-                  >
-                    {timerStatus === 'running' ? 'Focus Session Active' : timerStatus === 'completed' ? 'Completed!' : 'Ready to Start'}
-                  </span>
+                  <span className="absolute left-3 top-2.5 text-slate-400 text-xs">🔍</span>
                 </div>
               </div>
 
-              {/* CONTROLS */}
-              <div className="flex flex-wrap items-center justify-center gap-4">
-                {timerStatus !== 'running' ? (
+              {/* Join via Code */}
+              <div className="lg:col-span-4">
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
+                  Join with Invite Code
+                </label>
+                <form onSubmit={handleJoinByCode} className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={inviteCodeInput}
+                    onChange={(e) => setInviteCodeInput(e.target.value.toUpperCase())}
+                    placeholder="e.g. 6-CHAR CODE"
+                    maxLength={10}
+                    className="h-10 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-mono uppercase text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:placeholder-slate-500"
+                  />
                   <button
-                    type="button"
-                    onClick={handleStartTimer}
-                    disabled={!isConnected}
-                    className="button button--primary button--large disabled:opacity-50"
+                    type="submit"
+                    disabled={!inviteCodeInput.trim()}
+                    className="button button--primary h-10 px-4 text-xs font-bold disabled:opacity-50"
                   >
-                    <span aria-hidden="true">▶</span> Start Group Pomodoro
+                    Join
                   </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={handleResetTimer}
-                    disabled={!isConnected}
-                    className="button button--ghost button--large"
-                  >
-                    Reset Timer
-                  </button>
-                )}
+                </form>
               </div>
 
-              <p className="mt-6 text-xs text-slate-400 dark:text-slate-500">
-                All connected participants in room <strong>#{roomId}</strong> share this clock.
-              </p>
-            </section>
+              {/* Create Custom Room */}
+              <div className="lg:col-span-3 flex flex-col justify-end">
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
+                  Custom Sprint
+                </label>
+                <button
+                  type="button"
+                  onClick={handleCreateCustomRoom}
+                  className="h-10 w-full rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold shadow-sm transition-all flex items-center justify-center gap-1.5"
+                >
+                  <span>✨</span> Create Custom Room
+                </button>
+              </div>
+            </div>
 
-            {/* ROOM PARTICIPANTS CARD */}
-            <section
-              className="flex flex-col rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-800"
-              aria-labelledby="participants-heading"
-            >
-              <div className="flex items-center justify-between border-b border-slate-100 pb-4 dark:border-slate-700">
-                <div>
-                  <h2 className="text-base font-bold text-slate-900 dark:text-slate-100" id="participants-heading">
-                    Active Study Buddies ({participants.length})
-                  </h2>
-                  <p className="text-xs text-slate-400">Currently in this room</p>
-                </div>
-                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
-                  <i className="size-1.5 rounded-full bg-emerald-500" /> SYNCED
+            {/* ROOMS GRID */}
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">
+                  Featured Study Sprints
+                </h2>
+                <span className="text-xs text-slate-400 font-medium">
+                  {filteredRooms.length} {filteredRooms.length === 1 ? 'room' : 'rooms'} available
                 </span>
               </div>
 
-              <div className="mt-4 flex-1 overflow-y-auto">
-                {participants.length > 0 ? (
-                  <ul className="divide-y divide-slate-100 dark:divide-slate-700/60" role="list">
-                    {participants.map((participant) => {
-                      const isFriend = friendIdSet.has(participant.userId)
-                      const isSelf = participant.userId === user?.id
-
-                      return (
-                        <li key={participant.userId} className="flex items-center justify-between py-3">
-                          <div className="flex items-center gap-3 min-w-0">
-                            <div className="relative">
-                              {participant.photoUrl ? (
-                                <img
-                                  src={participant.photoUrl}
-                                  alt=""
-                                  className="size-10 rounded-full object-cover border border-slate-200 dark:border-slate-700"
-                                />
-                              ) : (
-                                <div className="grid size-10 place-items-center rounded-full bg-blue-100 font-bold text-blue-700 dark:bg-blue-900/60 dark:text-blue-300">
-                                  {participant.name.slice(0, 2).toUpperCase()}
-                                </div>
-                              )}
-                              <span
-                                className="absolute bottom-0 right-0 size-2.5 rounded-full border-2 border-white bg-emerald-500 dark:border-slate-800"
-                                aria-label="Online"
-                              />
-                            </div>
-
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-2">
-                                <span className="font-semibold text-sm text-slate-900 dark:text-slate-100 truncate block">
-                                  {participant.name}
-                                </span>
-                                {isSelf && (
-                                  <span className="rounded bg-slate-100 px-1.5 py-0.2 text-[9px] font-bold text-slate-600 dark:bg-slate-700 dark:text-slate-300">
-                                    YOU
-                                  </span>
-                                )}
-                              </div>
-                              <span className="text-xs text-slate-400">
-                                {isFriend ? '⭐ Friend' : 'Study Participant'}
-                              </span>
-                            </div>
+              {filteredRooms.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  {filteredRooms.map((room) => {
+                    const isCurrent = currentRoom === room.id
+                    return (
+                      <div
+                        key={room.id}
+                        className={`flex flex-col justify-between rounded-2xl border bg-white p-6 shadow-sm dark:bg-slate-800 transition-all hover:shadow-md ${room.accentColor} ${
+                          isCurrent ? 'ring-2 ring-blue-500 dark:ring-blue-400' : ''
+                        }`}
+                      >
+                        <div>
+                          <div className="flex items-center justify-between mb-4">
+                            <span className="text-3xl" role="img" aria-label={room.title}>
+                              {room.icon}
+                            </span>
+                            <span
+                              className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${room.badgeColor}`}
+                            >
+                              {room.category}
+                            </span>
                           </div>
 
-                          <span className="text-[11px] font-mono text-emerald-600 dark:text-emerald-400 font-bold">
-                            +25 🪙 on finish
-                          </span>
-                        </li>
-                      )
-                    })}
-                  </ul>
-                ) : (
-                  <div className="py-12 text-center text-xs text-slate-400">
-                    Waiting for participants to connect…
+                          <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                            {room.title}
+                          </h3>
+                          <p className="mt-2 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                            {room.description}
+                          </p>
+                        </div>
+
+                        <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-700/60">
+                          <div className="flex items-center justify-between text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-3">
+                            <span className="flex items-center gap-1">
+                              <i className="size-1.5 rounded-full bg-emerald-500" /> 25m Synchronized
+                            </span>
+                            <span className="font-mono font-bold text-amber-600 dark:text-amber-400">
+                              +25 🪙
+                            </span>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => handleJoinRoom(room.id)}
+                            className={`w-full rounded-xl py-2.5 px-4 text-xs font-bold transition-all ${
+                              isCurrent
+                                ? 'bg-blue-600 text-white shadow-sm hover:bg-blue-500'
+                                : 'bg-slate-100 text-slate-700 hover:bg-blue-600 hover:text-white dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-blue-600 dark:hover:text-white'
+                            }`}
+                          >
+                            {isCurrent ? 'Enter Active Room →' : 'Join Room →'}
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-12 text-center dark:border-slate-700 dark:bg-slate-800">
+                  <span className="text-3xl">🔍</span>
+                  <h3 className="mt-3 text-sm font-bold text-slate-900 dark:text-white">No study rooms found</h3>
+                  <p className="mt-1 text-xs text-slate-400">No rooms matched "{searchQuery}". Try creating a custom room!</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* 2. ACTIVE ROOM VIEW */}
+        {activeTab === 'room' && currentRoom && currentRoomInfo && (
+          <div className="space-y-4">
+            {/* ROOM HEADER WITH LEAVE ROOM & INVITE CODE */}
+            <div className="flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-slate-800 rounded-2xl px-5 py-3.5 border border-slate-200 dark:border-slate-700 shadow-sm">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">{currentRoomInfo.icon}</span>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-base font-bold text-slate-900 dark:text-white">
+                      {currentRoomInfo.title}
+                    </h2>
+                    <span className="rounded-full bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300 px-2 py-0.5 text-[10px] font-bold uppercase">
+                      {currentRoomInfo.category}
+                    </span>
                   </div>
-                )}
+                  <p className="text-xs text-slate-400">Synchronized study sprint</p>
+                </div>
               </div>
 
-              <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50 p-3.5 dark:border-slate-700/60 dark:bg-slate-900/40">
-                <div className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-200">
-                  <span>🪙</span> Group Study Reward
+              <div className="flex items-center gap-3">
+                {/* Invite Code Share Pill */}
+                <div className="flex items-center gap-2 rounded-xl bg-blue-50 dark:bg-blue-950/50 px-3 py-1.5 border border-blue-200 dark:border-blue-900">
+                  <span className="text-[11px] font-bold text-blue-700 dark:text-blue-300">Invite Code:</span>
+                  <span className="font-mono font-black text-xs text-blue-900 dark:text-blue-200 uppercase tracking-widest">
+                    {currentRoom}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(currentRoom.toUpperCase())
+                      showToast(`📋 Room code "${currentRoom.toUpperCase()}" copied to clipboard!`)
+                    }}
+                    className="text-[11px] text-blue-600 hover:text-blue-800 dark:text-blue-400 font-bold ml-1 transition-colors"
+                    title="Copy invite code"
+                  >
+                    Copy
+                  </button>
                 </div>
-                <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
-                  When the 25-minute timer completes, every active user receives 25 study coins automatically.
-                </p>
+
+                {/* Exit Room Button */}
+                <button
+                  type="button"
+                  onClick={handleLeaveRoom}
+                  className="rounded-xl border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300 dark:hover:bg-red-900/60 px-4 py-2 text-xs font-bold transition-colors flex items-center gap-1.5 shadow-sm"
+                >
+                  <span>🚪</span> Leave Room
+                </button>
               </div>
-            </section>
+            </div>
+
+            <div className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(340px,0.8fr)]">
+              {/* SYNCHRONIZED TIMER CARD */}
+              <section
+                className="flex flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm dark:border-slate-700 dark:bg-slate-800 sm:p-12"
+                aria-labelledby="timer-heading"
+              >
+                <span className="eyebrow" id="timer-heading">room/{currentRoom} · synchronized</span>
+
+                {/* CIRCULAR PROGRESS */}
+                <div className="relative my-8 size-64 sm:size-72">
+                  <svg className="size-full -rotate-90" viewBox="0 0 180 180" aria-hidden="true">
+                    <circle
+                      cx="90"
+                      cy="90"
+                      r={radius}
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="10"
+                      className="text-slate-100 dark:text-slate-700"
+                    />
+                    <circle
+                      cx="90"
+                      cy="90"
+                      r={radius}
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="10"
+                      strokeLinecap="round"
+                      strokeDasharray={circumference}
+                      strokeDashoffset={strokeDashoffset}
+                      className={`transition-all duration-1000 ${
+                        timerStatus === 'running'
+                          ? 'text-blue-600 dark:text-blue-400'
+                          : timerStatus === 'completed'
+                            ? 'text-emerald-500'
+                            : 'text-slate-300 dark:text-slate-600'
+                      }`}
+                    />
+                  </svg>
+
+                  <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <span className="font-mono text-5xl font-black tracking-tight text-slate-900 dark:text-white sm:text-6xl">
+                      {formattedTime}
+                    </span>
+                    <span
+                      className={`mt-2 inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider ${
+                        timerStatus === 'running'
+                          ? 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300'
+                          : timerStatus === 'completed'
+                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
+                            : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'
+                      }`}
+                    >
+                      {timerStatus === 'running' ? 'Focus Session Active' : timerStatus === 'completed' ? 'Completed!' : 'Ready to Start'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* CONTROLS */}
+                <div className="flex flex-wrap items-center justify-center gap-4">
+                  {timerStatus !== 'running' ? (
+                    <button
+                      type="button"
+                      onClick={handleStartTimer}
+                      disabled={!isConnected}
+                      className="button button--primary button--large disabled:opacity-50"
+                    >
+                      <span aria-hidden="true">▶</span> Start Group Pomodoro
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleResetTimer}
+                      disabled={!isConnected}
+                      className="button button--ghost button--large"
+                    >
+                      Reset Timer
+                    </button>
+                  )}
+                </div>
+
+                <p className="mt-6 text-xs text-slate-400 dark:text-slate-500">
+                  All connected participants in room <strong>#{currentRoom}</strong> share this clock.
+                </p>
+              </section>
+
+              {/* RIGHT PANEL: PARTICIPANTS & LIVE ROOM CHAT */}
+              <section
+                className="flex flex-col rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-800 h-[560px]"
+                aria-labelledby="room-panel-heading"
+              >
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-700">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setRoomSubTab('buddies')}
+                      className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
+                        roomSubTab === 'buddies'
+                          ? 'bg-slate-100 text-slate-900 dark:bg-slate-700 dark:text-white'
+                          : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
+                      }`}
+                    >
+                      Buddies ({participants.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRoomSubTab('chat')}
+                      className={`relative rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
+                        roomSubTab === 'chat'
+                          ? 'bg-slate-100 text-slate-900 dark:bg-slate-700 dark:text-white'
+                          : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
+                      }`}
+                    >
+                      💬 Live Chat ({messages.length})
+                    </button>
+                  </div>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
+                    <i className="size-1.5 rounded-full bg-emerald-500" /> WSS
+                  </span>
+                </div>
+
+                {roomSubTab === 'buddies' ? (
+                  /* BUDDIES LIST */
+                  <div className="flex-1 flex flex-col min-h-0 pt-2">
+                    <div className="flex-1 overflow-y-auto pr-1">
+                      {participants.length > 0 ? (
+                        <ul className="divide-y divide-slate-100 dark:divide-slate-700/60" role="list">
+                          {participants.map((participant) => {
+                            const isFriend = friendIdSet.has(participant.userId)
+                            const isSelf = participant.userId === user?.id
+
+                            return (
+                              <li key={participant.userId} className="flex items-center justify-between py-3">
+                                <div className="flex items-center gap-3 min-w-0">
+                                  <div className="relative">
+                                    {participant.photoUrl ? (
+                                      <img
+                                        src={participant.photoUrl}
+                                        alt=""
+                                        className="size-10 rounded-full object-cover border border-slate-200 dark:border-slate-700"
+                                      />
+                                    ) : (
+                                      <div className="grid size-10 place-items-center rounded-full bg-blue-100 font-bold text-blue-700 dark:bg-blue-900/60 dark:text-blue-300">
+                                        {participant.name.slice(0, 2).toUpperCase()}
+                                      </div>
+                                    )}
+                                    <span
+                                      className="absolute bottom-0 right-0 size-2.5 rounded-full border-2 border-white bg-emerald-500 dark:border-slate-800"
+                                      aria-label="Online"
+                                    />
+                                  </div>
+
+                                  <div className="min-w-0">
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-semibold text-sm text-slate-900 dark:text-slate-100 truncate block">
+                                        {participant.name}
+                                      </span>
+                                      {isSelf && (
+                                        <span className="rounded bg-slate-100 px-1.5 py-0.2 text-[9px] font-bold text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+                                          YOU
+                                        </span>
+                                      )}
+                                    </div>
+                                    <span className="text-xs text-slate-400">
+                                      {isFriend ? '⭐ Friend' : 'Study Participant'}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <span className="text-[11px] font-mono text-emerald-600 dark:text-emerald-400 font-bold">
+                                  +25 🪙 on finish
+                                </span>
+                              </li>
+                            )
+                          })}
+                        </ul>
+                      ) : (
+                        <div className="py-12 text-center text-xs text-slate-400">
+                          Waiting for participants to connect…
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50 p-3.5 dark:border-slate-700/60 dark:bg-slate-900/40">
+                      <div className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-200">
+                        <span>🪙</span> Group Study Reward
+                      </div>
+                      <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
+                        When the 25-minute timer completes, every active user receives 25 study coins automatically.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  /* LIVE ROOM CHAT */
+                  <div className="flex-1 flex flex-col min-h-0 pt-2">
+                    <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+                      {messages.length > 0 ? (
+                        messages.map((msg) => {
+                          const isSelf = msg.userId === user?.id
+                          const timeStr = new Date(msg.timestamp).toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })
+
+                          return (
+                            <div
+                              key={msg.id}
+                              className={`flex flex-col ${isSelf ? 'items-end' : 'items-start'}`}
+                            >
+                              <div className="flex items-center gap-1.5 mb-0.5">
+                                <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">
+                                  {isSelf ? 'You' : msg.userName}
+                                </span>
+                                <span className="text-[10px] text-slate-400">
+                                  {timeStr}
+                                </span>
+                              </div>
+                              <div
+                                className={`max-w-[85%] rounded-xl px-3.5 py-2 text-xs break-words shadow-sm ${
+                                  isSelf
+                                    ? 'bg-blue-600 text-white rounded-br-none'
+                                    : 'bg-slate-100 text-slate-900 dark:bg-slate-700 dark:text-slate-100 rounded-bl-none'
+                                }`}
+                              >
+                                {msg.message}
+                              </div>
+                            </div>
+                          )
+                        })
+                      ) : (
+                        <div className="h-full flex flex-col items-center justify-center text-center p-6 text-slate-400">
+                          <span className="text-3xl mb-2">💬</span>
+                          <p className="text-xs font-semibold">No messages in #{currentRoom} yet.</p>
+                          <p className="text-[11px] mt-0.5">Send a quick encouragement to your group!</p>
+                        </div>
+                      )}
+                      <div ref={chatBottomRef} />
+                    </div>
+
+                    <form onSubmit={handleSendMessage} className="mt-3 flex items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-700">
+                      <input
+                        type="text"
+                        value={inputMessage}
+                        onChange={(e) => setInputMessage(e.target.value)}
+                        placeholder={`Type a message to #${currentRoom}...`}
+                        maxLength={500}
+                        className="h-10 flex-1 rounded-lg border border-slate-300 bg-white px-3 text-xs text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:placeholder-slate-500"
+                      />
+                      <button
+                        type="submit"
+                        disabled={!inputMessage.trim() || !isConnected}
+                        className="button button--primary h-10 px-4 text-xs font-bold disabled:opacity-50"
+                      >
+                        Send
+                      </button>
+                    </form>
+                  </div>
+                )}
+              </section>
+            </div>
           </div>
-        ) : (
-          /* FRIENDS NETWORK TAB */
+        )}
+
+        {/* 3. FRIENDS NETWORK TAB WITH LIVE PRESENCE */}
+        {activeTab === 'friends' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8 items-stretch">
             {/* ACCEPTED FRIENDS LIST */}
             <section
@@ -465,7 +934,7 @@ export function StudyRoom() {
                     <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100" id="friends-heading">
                       Your Friend Network ({friends.length})
                     </h2>
-                    <p className="text-xs text-slate-400">Connect and study together</p>
+                    <p className="text-xs text-slate-400">Live presence and quick room join</p>
                   </div>
                 </div>
 
@@ -478,38 +947,84 @@ export function StudyRoom() {
                     </div>
                   ) : friends.length > 0 ? (
                     <ul className="divide-y divide-slate-100 dark:divide-slate-700/60" role="list">
-                      {friends.map((item) => (
-                        <li key={item.id} className="flex items-center justify-between py-3">
-                          <div className="flex items-center gap-3 min-w-0">
-                            {item.friend.photoUrl ? (
-                              <img
-                                src={item.friend.photoUrl}
-                                alt=""
-                                className="size-10 rounded-full object-cover border border-slate-200 dark:border-slate-700"
-                              />
-                            ) : (
-                              <div className="grid size-10 place-items-center rounded-full bg-blue-100 font-bold text-blue-700 dark:bg-blue-900/60 dark:text-blue-300">
-                                {item.friend.name.slice(0, 2).toUpperCase()}
-                              </div>
-                            )}
-                            <div className="min-w-0">
-                              <strong className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate block">
-                                {item.friend.name}
-                              </strong>
-                              <small className="text-xs text-slate-400">{item.friend.email || 'Telegram user'}</small>
-                            </div>
-                          </div>
+                      {friends.map((item) => {
+                        const friendPresence = presenceMap[item.friend.id]
+                        const isOnline = friendPresence?.status === 'online'
+                        const activeRoomId = friendPresence?.roomId
 
-                          <button
-                            type="button"
-                            onClick={() => void handleRemoveFriend(item.id, item.friend.name)}
-                            className="rounded px-2 py-1 text-xs text-slate-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40 dark:hover:text-red-300"
-                            title="Remove friend"
-                          >
-                            Remove
-                          </button>
-                        </li>
-                      ))}
+                        return (
+                          <li key={item.id} className="flex items-center justify-between py-3">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className="relative">
+                                {item.friend.photoUrl ? (
+                                  <img
+                                    src={item.friend.photoUrl}
+                                    alt=""
+                                    className="size-10 rounded-full object-cover border border-slate-200 dark:border-slate-700"
+                                  />
+                                ) : (
+                                  <div className="grid size-10 place-items-center rounded-full bg-blue-100 font-bold text-blue-700 dark:bg-blue-900/60 dark:text-blue-300">
+                                    {item.friend.name.slice(0, 2).toUpperCase()}
+                                  </div>
+                                )}
+                                <span
+                                  className={`absolute bottom-0 right-0 size-2.5 rounded-full ring-2 ring-white dark:ring-slate-800 ${
+                                    isOnline ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600'
+                                  }`}
+                                  title={isOnline ? 'Online' : 'Offline'}
+                                />
+                              </div>
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <strong className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate block">
+                                    {item.friend.name}
+                                  </strong>
+                                  <span
+                                    className={`text-[10px] font-bold ${
+                                      isOnline
+                                        ? 'text-emerald-600 dark:text-emerald-400'
+                                        : 'text-slate-400'
+                                    }`}
+                                  >
+                                    {isOnline ? 'Online' : 'Offline'}
+                                  </span>
+                                </div>
+                                <small className="text-xs text-slate-400 truncate block">
+                                  {activeRoomId ? (
+                                    <span className="text-blue-600 dark:text-blue-400 font-medium">
+                                      Studying in #{activeRoomId}
+                                    </span>
+                                  ) : (
+                                    item.friend.email || 'Telegram user'
+                                  )}
+                                </small>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              {/* Quick Join Friend Button if friend is in an active room */}
+                              {isOnline && activeRoomId && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleJoinRoom(activeRoomId)}
+                                  className="rounded-lg bg-emerald-600 hover:bg-emerald-500 px-3 py-1 text-xs font-bold text-white shadow-sm transition-colors flex items-center gap-1"
+                                >
+                                  <span>🚀</span> Join Friend
+                                </button>
+                              )}
+
+                              <button
+                                type="button"
+                                onClick={() => void handleRemoveFriend(item.id, item.friend.name)}
+                                className="rounded px-2 py-1 text-xs text-slate-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40 dark:hover:text-red-300"
+                                title="Remove friend"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          </li>
+                        )
+                      })}
                     </ul>
                   ) : (
                     <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/50 py-10 text-center dark:border-slate-700 dark:bg-slate-900/30">
@@ -606,7 +1121,6 @@ export function StudyRoom() {
               )}
             </div>
           </div>
-
         )}
       </main>
 

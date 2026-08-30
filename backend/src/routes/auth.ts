@@ -35,6 +35,7 @@ interface UserRow extends RowDataPacket {
   password_hash?: string | null
   name: string
   photo_url: string | null
+  session_version?: number
 }
 
 interface AuthUser {
@@ -76,13 +77,13 @@ function requireEnvironmentVariable(name: string): string {
   return value
 }
 
-function generateSessionToken(userId: string): string {
+function generateSessionToken(userId: string, sessionVersion: number = 1): string {
   return jwt.sign(
-    { sub: userId },
+    { sub: userId, session_version: sessionVersion },
     requireEnvironmentVariable('JWT_SECRET'),
     {
       algorithm: 'HS256',
-      expiresIn: '30d',
+      expiresIn: '1h',
       issuer: 'kiasucode',
       audience: 'kiasucode-frontend',
     },
@@ -161,8 +162,9 @@ function sendAuthenticatedUser(
   response: Response,
   status: number,
   user: AuthUser,
+  sessionVersion: number = 1,
 ): void {
-  setSessionCookie(request, response, generateSessionToken(user.id))
+  setSessionCookie(request, response, generateSessionToken(user.id, sessionVersion))
   response.set('Cache-Control', 'no-store')
   response.status(status).json({ user })
 }
@@ -192,16 +194,16 @@ async function upsertTelegramUser(
   if (existingUser) {
     await db.execute<ResultSetHeader>(
       `UPDATE users
-          SET name = ?, photo_url = ?
+          SET name = ?, photo_url = ?, session_version = session_version + 1
         WHERE id = ?`,
       [name, photoUrl, existingUser.id],
     )
   } else {
     await db.execute<ResultSetHeader>(
       `INSERT INTO users
-        (id, provider, provider_id, email, password_hash, name, photo_url)
-       VALUES (?, 'telegram', ?, NULL, NULL, ?, ?)
-       ON DUPLICATE KEY UPDATE name = ?, photo_url = ?`,
+        (id, provider, provider_id, email, password_hash, name, photo_url, session_version)
+       VALUES (?, 'telegram', ?, NULL, NULL, ?, ?, 1)
+       ON DUPLICATE KEY UPDATE name = ?, photo_url = ?, session_version = session_version + 1`,
       [
         uuidv4(),
         canonicalProviderId,
@@ -236,10 +238,11 @@ router.post('/register', async (request: Request, response: Response) => {
       throw new InvalidAuthRequestError('A JSON request body is required.')
     }
 
-    const { name, email, password } = body
+    const { name, username, email, password } = body
+    const rawUsername = username ?? name
 
-    if (typeof name !== 'string' || !name.trim()) {
-      throw new InvalidAuthRequestError('A valid full name is required.')
+    if (typeof rawUsername !== 'string' || !rawUsername.trim()) {
+      throw new InvalidAuthRequestError('A valid username is required.')
     }
 
     if (typeof email !== 'string' || !email.trim() || !email.includes('@')) {
@@ -251,7 +254,18 @@ router.post('/register', async (request: Request, response: Response) => {
     }
 
     const normalizedEmail = email.trim().toLowerCase()
-    const trimmedName = name.trim()
+    const trimmedName = rawUsername.trim()
+
+    // Check if username is already taken
+    const [existingUsernames] = await db.execute<UserRow[]>(
+      'SELECT id FROM users WHERE LOWER(name) = LOWER(?) LIMIT 1',
+      [trimmedName],
+    )
+
+    if (existingUsernames.length > 0) {
+      response.status(400).json({ error: 'Username is already taken. Please choose another.' })
+      return
+    }
 
     // Check if user already exists with this email
     const [existingRows] = await db.execute<UserRow[]>(
@@ -270,8 +284,8 @@ router.post('/register', async (request: Request, response: Response) => {
 
     await db.execute<ResultSetHeader>(
       `INSERT INTO users
-        (id, provider, provider_id, email, password_hash, name, photo_url)
-       VALUES (?, 'local', ?, ?, ?, ?, NULL)`,
+        (id, provider, provider_id, email, password_hash, name, photo_url, session_version)
+       VALUES (?, 'local', ?, ?, ?, ?, NULL, 1)`,
       [id, providerId, normalizedEmail, passwordHash, trimmedName],
     )
 
@@ -285,14 +299,14 @@ router.post('/register', async (request: Request, response: Response) => {
       throw new Error('Unable to create the user account.')
     }
 
-    sendAuthenticatedUser(request, response, 201, serializeUser(userRow))
+    sendAuthenticatedUser(request, response, 201, serializeUser(userRow), userRow.session_version ?? 1)
   } catch (error) {
     if (error instanceof InvalidAuthRequestError) {
       response.status(400).json({ error: error.message })
       return
     }
 
-    console.error('Unable to register user.', error)
+    console.error('Unable to register user: %o', error)
     response.status(500).json({ error: 'Unable to register user account.' })
   }
 })
@@ -335,14 +349,21 @@ router.post('/login', async (request: Request, response: Response) => {
       return
     }
 
-    sendAuthenticatedUser(request, response, 200, serializeUser(userRow))
+    // Increment session_version for single active device constraint
+    await db.execute<ResultSetHeader>(
+      'UPDATE users SET session_version = session_version + 1 WHERE id = ?',
+      [userRow.id],
+    )
+    const newSessionVersion = (userRow.session_version ?? 1) + 1
+
+    sendAuthenticatedUser(request, response, 200, serializeUser(userRow), newSessionVersion)
   } catch (error) {
     if (error instanceof InvalidAuthRequestError) {
       response.status(400).json({ error: error.message })
       return
     }
 
-    console.error('Unable to sign in user.', error)
+    console.error('Unable to sign in user: %o', error)
     response.status(500).json({ error: 'Unable to sign in.' })
   }
 })
@@ -352,7 +373,7 @@ router.get('/telegram/config', (_request: Request, response: Response) => {
     response.set('Cache-Control', 'no-store')
     response.status(200).json({ clientId: requireTelegramClientId() })
   } catch (error) {
-    console.error('Unable to load Telegram login configuration.', error)
+    console.error('Unable to load Telegram login configuration: %o', error)
     response.status(503).json({ error: 'Telegram login is not configured.' })
   }
 })
@@ -364,7 +385,7 @@ router.post(
       const telegramUser = verifyTelegramAuth(request.body)
       const user = await upsertTelegramUser(telegramUser)
 
-      sendAuthenticatedUser(request, response, 200, serializeUser(user))
+      sendAuthenticatedUser(request, response, 200, serializeUser(user), user.session_version ?? 1)
     } catch (error) {
       if (error instanceof AuthVerificationError) {
         next(new AppError(401, error.message, 'TELEGRAM_AUTH_INVALID'))
@@ -377,8 +398,6 @@ router.post(
 )
 
 router.post('/session', async (request: Request, response: Response) => {
-  console.log('Login Payload:', request.body)
-
   try {
     const body: unknown = request.body
 
@@ -414,14 +433,15 @@ router.post('/session', async (request: Request, response: Response) => {
       [identity.providerId],
     )
     let userRow = rows[0]
+    let newSessionVersion = 1
 
     if (!userRow) {
       const id = uuidv4()
 
       await db.execute<ResultSetHeader>(
         `INSERT INTO users
-          (id, provider, provider_id, email, name, photo_url)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+          (id, provider, provider_id, email, name, photo_url, session_version)
+         VALUES (?, ?, ?, ?, ?, ?, 1)`,
         [
           id,
           identity.provider,
@@ -437,6 +457,14 @@ router.post('/session', async (request: Request, response: Response) => {
         [identity.providerId],
       )
       userRow = createdRows[0]
+      newSessionVersion = 1
+    } else {
+      // Increment session_version for concurrent login prevention
+      await db.execute<ResultSetHeader>(
+        'UPDATE users SET session_version = session_version + 1 WHERE id = ?',
+        [userRow.id],
+      )
+      newSessionVersion = (userRow.session_version ?? 1) + 1
     }
 
     if (!userRow) {
@@ -447,7 +475,7 @@ router.post('/session', async (request: Request, response: Response) => {
       throw new Error('Provider ID collision detected.')
     }
 
-    sendAuthenticatedUser(request, response, 200, serializeUser(userRow))
+    sendAuthenticatedUser(request, response, 200, serializeUser(userRow), newSessionVersion)
   } catch (error) {
     if (error instanceof InvalidAuthRequestError) {
       response.status(400).json({ error: error.message, receivedBody: request.body })
@@ -459,7 +487,7 @@ router.post('/session', async (request: Request, response: Response) => {
       return
     }
 
-    console.error('Unable to create authentication session.', error)
+    console.error('Unable to create authentication session: %o', error)
     response.status(500).json({ error: 'Unable to create authentication session.' })
   }
 })
@@ -484,7 +512,7 @@ router.get(
       response.set('Cache-Control', 'no-store')
       response.status(200).json({ user: serializeUser(userRow) })
     } catch (error) {
-      console.error('Unable to restore authentication session.', error)
+      console.error('Unable to restore authentication session: %o', error)
       response.status(500).json({ error: 'Unable to restore authentication session.' })
     }
   },

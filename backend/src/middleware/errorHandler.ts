@@ -68,9 +68,13 @@ export const errorHandler: ErrorRequestHandler = (
   }
 
   if (normalizedError.statusCode >= 500) {
+    const errMessage = error instanceof Error ? error.message : String(error)
     console.error(
-      `[${request.method} ${request.originalUrl}] ${normalizedError.code ?? 'SERVER_ERROR'}`,
-      error,
+      '[%s %s] %s: %s',
+      request.method,
+      request.originalUrl,
+      normalizedError.code ?? 'SERVER_ERROR',
+      errMessage,
     )
   }
 
