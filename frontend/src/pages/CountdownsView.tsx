@@ -6,7 +6,7 @@ import { Logo } from '../components/Logo'
 import { Navbar } from '../components/Navbar'
 import { TelegramConnectModal } from '../components/TelegramConnectModal'
 import { apiRequest, isAbortError } from '../utils/api'
-import { getCategoryColor } from '../utils/colors'
+import { defaultCountdownColor, resolveCountdownColor } from '../utils/colors'
 
 interface CountdownsResponse {
   countdowns: AcademicCountdown[]
@@ -141,12 +141,22 @@ export function CountdownsView() {
     if (!selectedDate) return []
     return countdowns.filter((c) => isSameCalendarDay(new Date(c.targetDate), selectedDate))
   }, [selectedDate, countdowns])
-  const categories = useMemo(
-    () => [...new Set(countdowns.map((countdown) => countdown.category))].sort(
-      (left, right) => left.localeCompare(right),
-    ),
-    [countdowns],
-  )
+  const categoryLegend = useMemo(() => {
+    const colorsByCategory = new Map<string, string>()
+
+    for (const countdown of countdowns) {
+      if (!colorsByCategory.has(countdown.category)) {
+        colorsByCategory.set(
+          countdown.category,
+          resolveCountdownColor(countdown.color || defaultCountdownColor),
+        )
+      }
+    }
+
+    return [...colorsByCategory.entries()]
+      .map(([category, color]) => ({ category, color }))
+      .sort((left, right) => left.category.localeCompare(right.category))
+  }, [countdowns])
 
   const handleCountdownSaved = (savedCountdown: AcademicCountdown) => {
     setCountdowns((current) =>
@@ -265,7 +275,8 @@ export function CountdownsView() {
                       {cell.countdowns.slice(0, 3).map((countdown) => (
                         <span
                           key={countdown.id}
-                          className={`size-1.5 sm:size-2 rounded-full ${getCategoryColor(countdown.category)}`}
+                          className="size-1.5 rounded-full sm:size-2"
+                          style={{ backgroundColor: resolveCountdownColor(countdown.color || defaultCountdownColor) }}
                           title={`${countdown.category}: ${countdown.title}`}
                         />
                       ))}
@@ -298,7 +309,10 @@ export function CountdownsView() {
                   {selectedDateCountdowns.map((item) => (
                     <li key={item.id} className="flex items-center justify-between py-2 text-xs">
                       <div className="flex items-center gap-2">
-                        <span className={`size-2 rounded-full ${getCategoryColor(item.category)}`} />
+                        <span
+                          className="size-2 rounded-full"
+                          style={{ backgroundColor: resolveCountdownColor(item.color || defaultCountdownColor) }}
+                        />
                         <strong className="text-slate-900 dark:text-slate-100">{item.title}</strong>
                         <span className="text-slate-400 uppercase text-[10px]">({item.category})</span>
                       </div>
@@ -317,13 +331,16 @@ export function CountdownsView() {
           {/* CALENDAR CATEGORY LEGEND */}
           <div className="mt-6 flex flex-wrap items-center gap-4 border-t border-slate-100 pt-4 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">
             <span className="font-semibold text-slate-700 dark:text-slate-300">Legend:</span>
-            {categories.map((category) => (
-              <div className="flex items-center gap-1.5" key={category}>
-                <span className={`size-2 rounded-full ${getCategoryColor(category)}`} />
-                <span>{category}</span>
+            {categoryLegend.map((item) => (
+              <div className="flex items-center gap-1.5" key={item.category}>
+                <span
+                  className="size-2 rounded-full"
+                  style={{ backgroundColor: item.color }}
+                />
+                <span>{item.category}</span>
               </div>
             ))}
-            {categories.length === 0 ? <span>No categories yet</span> : null}
+            {categoryLegend.length === 0 ? <span>No categories yet</span> : null}
           </div>
         </section>
 

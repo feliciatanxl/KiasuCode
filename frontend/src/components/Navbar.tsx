@@ -85,6 +85,19 @@ export function Navbar({ onConnectTelegram }: NavbarProps) {
               }`
             }
             end
+            to="/files"
+          >
+            Module Files
+          </NavLink>
+          <NavLink
+            className={({ isActive }) =>
+              `!border-b-2 !px-1.5 !py-2 !text-[11px] font-semibold transition-colors sm:!px-3 sm:!text-sm ${
+                isActive
+                  ? '!border-blue-600 !text-slate-950 dark:!border-blue-400 dark:!text-white'
+                  : '!border-transparent !text-slate-500 hover:!text-slate-900 dark:!text-slate-400 dark:hover:!text-slate-100'
+              }`
+            }
+            end
             to="/countdowns"
           >
             Countdowns

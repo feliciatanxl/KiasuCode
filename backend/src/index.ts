@@ -19,9 +19,17 @@ import { setupStudyRoomSocket } from './sockets/studyRoom.js'
 
 
 const app = express()
-const port = Number(process.env.PORT ?? 3001)
-const allowedOrigins = (process.env.FRONTEND_URL ?? '')
-  .split(',')
+const isProduction = process.env.NODE_ENV === 'production'
+const port = Number(process.env.PORT ?? 3000)
+const configuredFrontendUrls = isProduction
+  ? [process.env.FRONTEND_URL]
+  : [
+      process.env.LOCAL_FRONTEND_URL || 'http://localhost:5173',
+      process.env.FRONTEND_URL,
+    ]
+const allowedOrigins = configuredFrontendUrls
+  .filter((value): value is string => Boolean(value))
+  .flatMap((value) => value.split(','))
   .map((origin) => origin.trim().replace(/\/+$/, ''))
   .filter(Boolean)
 const globalRateLimiter = rateLimit({

@@ -1,4 +1,4 @@
-import { GoogleOAuthProvider, useGoogleLogin } from '@react-oauth/google'
+﻿import { GoogleOAuthProvider, useGoogleLogin } from '@react-oauth/google'
 import { useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 
@@ -19,18 +19,39 @@ function formatError(error: unknown): string {
   return error instanceof Error ? error.message : 'Unable to sign in. Please try again.'
 }
 
+function EyeIcon({ className = 'size-4' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  )
+}
+
+function EyeOffIcon({ className = 'size-4' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" />
+      <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" />
+      <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" />
+      <line x1="2" y1="2" x2="22" y2="22" />
+    </svg>
+  )
+}
+
 function LoginPageContent() {
   const { isAuthenticated, login } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const [authError, setAuthError] = useState<string | null>(() =>
     (location.state as { reason?: string } | null)?.reason === 'session-expired'
-      ? 'Your one-hour session expired. Please sign in again.'
+      ? 'Your session expired. Please sign in again.'
       : null,
   )
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false)
 
@@ -88,11 +109,9 @@ function LoginPageContent() {
           'Content-Type': 'application/json',
           Accept: 'application/json',
         },
-        body: JSON.stringify({
-          provider: 'google',
-          credential: accessToken,
-        }),
+        body: JSON.stringify({ access_token: accessToken }),
       })
+
       const body = (await response.json().catch(() => null)) as
         | (Partial<AuthSessionResponse> & { error?: string })
         | null
@@ -101,10 +120,7 @@ function LoginPageContent() {
         throw new Error(body?.error || `Google sign-in failed (${response.status}).`)
       }
 
-      if (
-        !body ||
-        !isAuthUser(body.user)
-      ) {
+      if (!body || !isAuthUser(body.user)) {
         throw new Error('The authentication server returned an invalid session.')
       }
 
@@ -118,26 +134,16 @@ function LoginPageContent() {
   }
 
   const startGoogleLogin = useGoogleLogin({
-    flow: 'implicit',
-    prompt: 'select_account',
-    scope: 'openid profile email',
-    onSuccess: (response) => {
-      void completeGoogleLogin(response.access_token)
+    onSuccess: (tokenResponse) => {
+      void completeGoogleLogin(tokenResponse.access_token)
     },
     onError: () => {
       setAuthError('Google sign-in was cancelled or failed.')
     },
-    onNonOAuthError: (error) => {
-      setAuthError(
-        error.type === 'popup_failed_to_open'
-          ? 'The Google sign-in popup was blocked. Allow popups and try again.'
-          : 'Google sign-in was cancelled.',
-      )
-    },
   })
 
   if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />
+    return <Navigate to={fromPath} replace />
   }
 
   return (
@@ -146,63 +152,78 @@ function LoginPageContent() {
         <Logo className="text-[20px]" />
       </Link>
 
-      <section className="login-card mx-auto w-full max-w-md border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800" aria-labelledby="login-title">
+      <section
+        className="login-card mx-auto w-full max-w-md border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800"
+        aria-labelledby="login-title"
+      >
         <div className="login-card__terminal-bar">
-          <div className="terminal-dots" aria-hidden="true"><span /><span /><span /></div>
-          <code>auth/session.init</code>
+          <div className="terminal-dots" aria-hidden="true">
+            <span />
+            <span />
+            <span />
+          </div>
+          <code>auth/login.init</code>
         </div>
-        <div className="login-card__body !p-8 sm:!p-10">
-          <span className="eyebrow">Welcome to the repository</span>
-          <h1 className="text-slate-900 dark:text-slate-100" id="login-title">Sign in. Ship steady.</h1>
-          <p className="text-slate-500 dark:text-slate-400">Choose your authentication method to continue your academic build.</p>
+        <div className="login-card__body">
+          <span className="eyebrow">Welcome Back</span>
+          <h1 className="text-slate-900 dark:text-slate-100" id="login-title">
+            Sign in to KiasuCode
+          </h1>
 
-          <form onSubmit={handleLocalSubmit} className="mt-6 flex flex-col gap-6 text-left">
+          <form onSubmit={handleLocalSubmit} className="mt-6 space-y-4">
             <div>
               <label
-                htmlFor="login-email"
+                htmlFor="email"
                 className="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300"
               >
-                Email
+                Email Address
               </label>
               <input
-                id="login-email"
-                name="email"
+                id="email"
                 type="email"
-                autoComplete="email"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@u.nus.edu"
+                placeholder="student@u.nus.edu"
                 className="mt-1.5 block w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder-slate-500"
               />
             </div>
 
             <div>
-              <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center justify-between">
                 <label
-                  htmlFor="login-password"
+                  htmlFor="password"
                   className="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300"
                 >
                   Password
                 </label>
                 <Link
                   to="/forgot-password"
-                  className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                  className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
                 >
                   Forgot password?
                 </Link>
               </div>
-              <input
-                id="login-password"
-                name="password"
-                type="password"
-                autoComplete="current-password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="block w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder-slate-500"
-              />
+              <div className="relative mt-1.5">
+                <input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="block w-full rounded-lg border border-slate-300 bg-white pl-3.5 pr-11 py-2.5 text-sm text-slate-900 placeholder-slate-400 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder-slate-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 transition hover:text-slate-600 focus:outline-none dark:hover:text-slate-200"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  title={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOffIcon className="size-4" /> : <EyeIcon className="size-4" />}
+                </button>
+              </div>
             </div>
 
             <button

@@ -72,6 +72,7 @@ export interface AcademicCountdown {
   title: string
   targetDate: string
   category: CountdownCategory
+  color?: string
   createdAt: string
 }
 
@@ -80,6 +81,7 @@ export interface CreateCountdownInput {
   title: string
   targetDate: string
   category: CountdownCategory
+  color?: string
 }
 
 export interface ModuleFile {
@@ -136,4 +138,3 @@ export interface TimerCompletePayload {
   coinsEarned: number
   completedAt: string
 }
-

@@ -29,8 +29,23 @@ type TimerStatus =
   | 'completed'
   | 'error'
 
-const durationOptions = [15, 25, 45, 60] as const
+type TimerMode = 'focus' | 'shortBreak' | 'longBreak'
+
 const defaultDurationMinutes = 25
+const minimumFocusMinutes = 5
+const maximumFocusMinutes = 120
+const focusDurationStepMinutes = 5
+const timerRingRadius = 118
+const timerRingCircumference = 2 * Math.PI * timerRingRadius
+const breakDurationMinutes: Record<Exclude<TimerMode, 'focus'>, number> = {
+  shortBreak: 5,
+  longBreak: 15,
+}
+const timerModes: Array<{ label: string; value: TimerMode }> = [
+  { label: 'Focus', value: 'focus' },
+  { label: 'Short Break', value: 'shortBreak' },
+  { label: 'Long Break', value: 'longBreak' },
+]
 
 function formatTime(totalSeconds: number): string {
   const minutes = Math.floor(totalSeconds / 60)
@@ -46,10 +61,14 @@ export function PomodoroTimer({
   moduleId,
   onSessionCompleted,
 }: PomodoroTimerProps) {
+  const [mode, setMode] = useState<TimerMode>('focus')
   const [selectedDurationMinutes, setSelectedDurationMinutes] = useState(
     defaultDurationMinutes,
   )
-  const selectedDurationSeconds = selectedDurationMinutes * 60
+  const activeDurationMinutes = mode === 'focus'
+    ? selectedDurationMinutes
+    : breakDurationMinutes[mode]
+  const activeDurationSeconds = activeDurationMinutes * 60
   const [remainingSeconds, setRemainingSeconds] = useState(
     defaultDurationMinutes * 60,
   )
@@ -62,10 +81,10 @@ export function PomodoroTimer({
   const resetTimer = useCallback(() => {
     endAtRef.current = null
     completionSentRef.current = false
-    setRemainingSeconds(selectedDurationSeconds)
+    setRemainingSeconds(activeDurationSeconds)
     setStatus('idle')
     setMessage(null)
-  }, [selectedDurationSeconds])
+  }, [activeDurationSeconds])
 
   useEffect(() => {
     if (status !== 'running') return
@@ -85,6 +104,8 @@ export function PomodoroTimer({
   }, [status])
 
   const recordCompletedSession = useCallback(async () => {
+    if (mode !== 'focus') return
+
     setStatus('saving')
     setMessage('Focus complete. Recording your coins…')
 
@@ -113,7 +134,7 @@ export function PomodoroTimer({
       setMessage(`${formatApiError(error)} Your completed timer can be retried.`)
       setStatus('error')
     }
-  }, [moduleId, onSessionCompleted, selectedDurationMinutes])
+  }, [mode, moduleId, onSessionCompleted, selectedDurationMinutes])
 
   useEffect(() => {
     if (
@@ -125,8 +146,24 @@ export function PomodoroTimer({
     }
 
     completionSentRef.current = true
-    void recordCompletedSession()
-  }, [recordCompletedSession, remainingSeconds, status])
+    endAtRef.current = null
+
+    const completionTimeoutId = window.setTimeout(() => {
+      if (mode === 'focus') {
+        void recordCompletedSession()
+        return
+      }
+
+      setStatus('completed')
+      setMessage(
+        mode === 'shortBreak'
+          ? 'Short break complete. Ready to focus again?'
+          : 'Long break complete. You are refreshed and ready.',
+      )
+    }, 0)
+
+    return () => window.clearTimeout(completionTimeoutId)
+  }, [mode, recordCompletedSession, remainingSeconds, status])
 
   const startTimer = () => {
     if (remainingSeconds <= 0) return
@@ -151,16 +188,50 @@ export function PomodoroTimer({
     void recordCompletedSession()
   }
 
-  const selectDuration = (durationMinutes: number) => {
-    if (status !== 'idle') return
+  const adjustFocusDuration = (adjustmentMinutes: number) => {
+    if (mode !== 'focus' || status !== 'idle') return
+
+    const durationMinutes = Math.min(
+      maximumFocusMinutes,
+      Math.max(
+        minimumFocusMinutes,
+        selectedDurationMinutes + adjustmentMinutes,
+      ),
+    )
+
+    if (durationMinutes === selectedDurationMinutes) return
 
     setSelectedDurationMinutes(durationMinutes)
     setRemainingSeconds(durationMinutes * 60)
     setMessage(null)
   }
 
-  const progress =
-    ((selectedDurationSeconds - remainingSeconds) / selectedDurationSeconds) * 100
+  const selectMode = (nextMode: TimerMode) => {
+    if (nextMode === mode || status === 'saving') return
+
+    endAtRef.current = null
+    completionSentRef.current = false
+    setMode(nextMode)
+    setRemainingSeconds(
+      (nextMode === 'focus'
+        ? selectedDurationMinutes
+        : breakDurationMinutes[nextMode]) * 60,
+    )
+    setStatus('idle')
+    setMessage(null)
+  }
+
+  const remainingProgress = Math.min(
+    100,
+    Math.max(0, (remainingSeconds / activeDurationSeconds) * 100),
+  )
+  const timerRingOffset = timerRingCircumference
+    * (1 - remainingProgress / 100)
+  const timerRingColor = mode === 'focus'
+    ? 'text-blue-500'
+    : mode === 'shortBreak'
+      ? 'text-emerald-500'
+      : 'text-violet-500'
 
   return (
     <section
@@ -184,55 +255,123 @@ export function PomodoroTimer({
         ) : null}
       </div>
 
-      {status === 'idle' ? (
-        <fieldset className="mt-5">
-          <legend className="mb-2 w-full text-center text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">
-            Focus duration
-          </legend>
-          <div className="mx-auto grid max-w-sm grid-cols-4 gap-2 rounded-xl bg-slate-100 p-1.5 dark:bg-slate-900/70">
-            {durationOptions.map((durationMinutes) => {
-              const isSelected = durationMinutes === selectedDurationMinutes
+      <div
+        className="mx-auto mt-5 grid max-w-md grid-cols-3 gap-1 rounded-full bg-slate-950 p-1.5 shadow-inner"
+        aria-label="Timer mode"
+        role="group"
+      >
+        {timerModes.map((timerMode) => {
+          const isSelected = timerMode.value === mode
 
-              return (
-                <button
-                  className={`rounded-lg px-2 py-2 text-xs font-bold transition ${
-                    isSelected
-                      ? 'bg-blue-600 text-white shadow-sm'
-                      : 'text-slate-500 hover:bg-white hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white'
-                  }`}
-                  type="button"
-                  key={durationMinutes}
-                  onClick={() => selectDuration(durationMinutes)}
-                  aria-pressed={isSelected}
-                >
-                  {durationMinutes}m
-                </button>
-              )
-            })}
-          </div>
-        </fieldset>
-      ) : null}
+          return (
+            <button
+              className={`rounded-full px-3 py-2 text-xs font-bold transition sm:text-sm ${
+                isSelected
+                  ? 'bg-blue-600 text-white shadow-md'
+                  : 'text-slate-400 hover:bg-white/10 hover:text-white'
+              }`}
+              type="button"
+              key={timerMode.value}
+              onClick={() => selectMode(timerMode.value)}
+              aria-pressed={isSelected}
+              disabled={status === 'saving'}
+            >
+              {timerMode.label}
+            </button>
+          )
+        })}
+      </div>
 
-      <div className="mt-5 text-center">
-        <output
-          className="font-mono text-5xl font-black tabular-nums tracking-tight text-slate-900 dark:text-white"
-          aria-live="off"
-        >
-          {formatTime(remainingSeconds)}
-        </output>
+      <div className="mt-6 text-center">
         <div
-          className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700"
+          className="relative mx-auto size-64 sm:size-72"
           role="progressbar"
           aria-label="Pomodoro progress"
           aria-valuemin={0}
           aria-valuemax={100}
-          aria-valuenow={Math.round(progress)}
+          aria-valuenow={Math.round(remainingProgress)}
         >
-          <div
-            className="h-full rounded-full bg-blue-600 transition-[width] duration-300"
-            style={{ width: `${progress}%` }}
-          />
+          <svg
+            className="size-full -rotate-90 drop-shadow-sm"
+            viewBox="0 0 280 280"
+            aria-hidden="true"
+          >
+            <circle
+              cx="140"
+              cy="140"
+              r={timerRingRadius}
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="12"
+              className="text-slate-100 dark:text-slate-700"
+            />
+            <circle
+              cx="140"
+              cy="140"
+              r={timerRingRadius}
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="12"
+              strokeLinecap="round"
+              strokeDasharray={timerRingCircumference}
+              strokeDashoffset={timerRingOffset}
+              className={`${timerRingColor} transition-[stroke-dashoffset] duration-300`}
+            />
+          </svg>
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-slate-400 dark:text-slate-500">
+              {mode === 'focus'
+                ? 'Focus time'
+                : mode === 'shortBreak'
+                  ? 'Short break'
+                  : 'Long break'}
+            </span>
+            <output
+              className="mt-2 font-mono text-5xl font-black tabular-nums tracking-tight text-slate-900 dark:text-white sm:text-6xl"
+              aria-live="off"
+            >
+              {formatTime(remainingSeconds)}
+            </output>
+            <span className="mt-2 text-xs font-medium text-slate-400 dark:text-slate-500">
+              {activeDurationMinutes} minute target
+            </span>
+          </div>
         </div>
+
+        {mode === 'focus' ? (
+          <div
+            className="mx-auto mt-4 flex w-fit items-center gap-4 rounded-full border border-slate-200 bg-slate-50 px-2 py-2 shadow-sm dark:border-slate-700 dark:bg-slate-900/70"
+            aria-label="Focus duration"
+            role="group"
+          >
+            <button
+              className="grid size-9 place-items-center rounded-full bg-white text-xl font-medium text-slate-600 shadow-sm transition hover:bg-slate-100 hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-35 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
+              type="button"
+              onClick={() => adjustFocusDuration(-focusDurationStepMinutes)}
+              disabled={status !== 'idle' || selectedDurationMinutes <= minimumFocusMinutes}
+              aria-label="Decrease focus duration by 5 minutes"
+            >
+              −
+            </button>
+            <div className="min-w-20 text-center">
+              <strong className="font-mono text-lg font-black tabular-nums text-slate-900 dark:text-white">
+                {selectedDurationMinutes}
+              </strong>
+              <span className="ml-1 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                min
+              </span>
+            </div>
+            <button
+              className="grid size-9 place-items-center rounded-full bg-white text-xl font-medium text-slate-600 shadow-sm transition hover:bg-slate-100 hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-35 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
+              type="button"
+              onClick={() => adjustFocusDuration(focusDurationStepMinutes)}
+              disabled={status !== 'idle' || selectedDurationMinutes >= maximumFocusMinutes}
+              aria-label="Increase focus duration by 5 minutes"
+            >
+              +
+            </button>
+          </div>
+        ) : null}
       </div>
 
       <div className="mt-5 flex flex-wrap justify-center gap-2">
@@ -251,7 +390,11 @@ export function PomodoroTimer({
             onClick={startTimer}
             disabled={status === 'saving' || status === 'completed'}
           >
-            {status === 'paused' ? 'Resume' : 'Start'}
+            {status === 'paused'
+              ? 'Resume'
+              : mode === 'focus'
+                ? 'Start Focus'
+                : 'Start Break'}
           </button>
         )}
         <button

@@ -47,7 +47,7 @@ export function authenticateRequest(
     response.locals.userId = payload.sub
     next()
   } catch {
-    clearSessionCookie(response)
+    clearSessionCookie(request, response)
     response.status(401).json({
       success: false,
       message: 'The session is invalid or expired.',

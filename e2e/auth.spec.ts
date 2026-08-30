@@ -15,8 +15,28 @@ test.describe('Telegram OAuth Authentication Flow', () => {
     const mockSessionCookieValue = 'mock.jwt.kiasucode_session_payload.signature'
     let isAuthenticated = false
 
-    // Mock Telegram OAuth API verification endpoint
-    await page.route('**/auth/telegram', async (route) => {
+    await page.route('https://telegram.org/js/telegram-login.js', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/javascript',
+        body: `window.Telegram = {
+          Login: {
+            auth: (_options, callback) => callback({ id_token: 'mock.telegram.id-token' })
+          }
+        };`,
+      })
+    })
+
+    await page.route('**/auth/telegram/config', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ clientId: '123456789' }),
+      })
+    })
+
+    // Mock session restore endpoint
+    await page.route('**/auth/session', async (route) => {
       if (route.request().method() === 'POST') {
         isAuthenticated = true
         await context.addCookies([
@@ -25,7 +45,7 @@ test.describe('Telegram OAuth Authentication Flow', () => {
             value: mockSessionCookieValue,
             url: 'http://localhost:5173',
             httpOnly: true,
-            sameSite: 'Strict',
+            sameSite: 'Lax',
           },
         ])
         await route.fulfill({
@@ -35,18 +55,9 @@ test.describe('Telegram OAuth Authentication Flow', () => {
             'access-control-allow-origin': 'http://localhost:5173',
             'access-control-allow-credentials': 'true',
           },
-          body: JSON.stringify({
-            user: mockUser,
-          }),
+          body: JSON.stringify({ user: mockUser }),
         })
-      } else {
-        await route.fallback()
-      }
-    })
-
-    // Mock session restore endpoint
-    await page.route('**/auth/session', async (route) => {
-      if (isAuthenticated) {
+      } else if (isAuthenticated) {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -104,37 +115,14 @@ test.describe('Telegram OAuth Authentication Flow', () => {
     // Verify login page loaded cleanly
     await expect(page.locator('#login-title')).toContainText('Sign in. Ship steady.')
 
-    // 2. Wait for Telegram widget hook to mount on window
-    await page.waitForFunction(() => {
-      return typeof (window as unknown as { onKiasuCodeTelegramAuth?: unknown }).onKiasuCodeTelegramAuth === 'function'
-    })
+    // 2. Start the custom Telegram popup flow.
+    await page.getByRole('button', { name: 'Continue with Telegram' }).click()
 
-    // 3. Simulate Telegram authorization callback dispatch
-    await page.evaluate(() => {
-      const callback = (window as unknown as {
-        onKiasuCodeTelegramAuth: (data: {
-          id: number
-          first_name: string
-          username: string
-          auth_date: number
-          hash: string
-        }) => void
-      }).onKiasuCodeTelegramAuth
-
-      callback({
-        id: 987654321,
-        first_name: 'Kiasu',
-        username: 'kiasuhacker',
-        auth_date: Math.floor(Date.now() / 1000),
-        hash: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
-      })
-    })
-
-    // 4. Assert client-side redirect to dashboard
+    // 3. Assert client-side redirect to dashboard
     await expect(page).toHaveURL(/\/dashboard/)
     await expect(page.locator('h1')).toContainText('Academic Institutions')
 
-    // 5. Assert browser context captured the secure httpOnly cookie
+    // 4. Assert browser context captured the httpOnly cookie
     const cookies = await context.cookies()
     const sessionCookie = cookies.find((c) => c.name === 'kiasucode_session')
 

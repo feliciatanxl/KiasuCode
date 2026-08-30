@@ -3,6 +3,10 @@ import type { AcademicCountdown } from '@kiasucode/shared'
 
 import { useToast } from '../context/ToastContext'
 import { apiRequest, formatApiError, isAbortError } from '../utils/api'
+import {
+  defaultCountdownColor,
+  resolveCountdownColor,
+} from '../utils/colors'
 import { CountdownCard } from './CountdownCard'
 
 interface CountdownsResponse {
@@ -45,6 +49,7 @@ export function CountdownSection({
   const [title, setTitle] = useState('')
   const [targetDate, setTargetDate] = useState('')
   const [category, setCategory] = useState('Exam')
+  const [color, setColor] = useState(defaultCountdownColor)
   const [error, setError] = useState<string | null>(null)
   const { showToast } = useToast()
   const categoryOptions = useMemo(
@@ -77,6 +82,7 @@ export function CountdownSection({
     setTitle('')
     setTargetDate('')
     setCategory('Exam')
+    setColor(defaultCountdownColor)
     setEditingId(null)
     setError(null)
   }
@@ -88,6 +94,7 @@ export function CountdownSection({
     setTitle('')
     setTargetDate('')
     setCategory('Exam')
+    setColor(defaultCountdownColor)
     setError(null)
     setIsFormOpen(true)
   }
@@ -99,6 +106,7 @@ export function CountdownSection({
     setTitle(countdown.title)
     setTargetDate(formatDateTimeLocal(countdown.targetDate))
     setCategory(countdown.category)
+    setColor(resolveCountdownColor(countdown.color || defaultCountdownColor))
     setError(null)
     setIsFormOpen(true)
   }
@@ -124,6 +132,7 @@ export function CountdownSection({
             title: title.trim(),
             targetDate: new Date(targetDate).toISOString(),
             category: category.trim(),
+            color,
             moduleId: existingCountdown?.moduleId ?? null,
           }),
         },
@@ -141,6 +150,7 @@ export function CountdownSection({
       setTitle('')
       setTargetDate('')
       setCategory('Exam')
+      setColor(defaultCountdownColor)
       setEditingId(null)
       showToast(
         currentEditingId
@@ -195,51 +205,97 @@ export function CountdownSection({
       </div>
 
       {isFormOpen ? (
-        <form className="mt-5 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_220px_160px_auto]" onSubmit={createCountdown}>
-          <label className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
-            Title
-            <input
-              className="mt-2 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal normal-case tracking-normal text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-              maxLength={255}
-              placeholder="CS2103 final exam"
-              autoFocus
-              required
-            />
-          </label>
-          <label className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
-            Target date
-            <input
-              className="mt-2 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal normal-case tracking-normal text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
-              type="datetime-local"
-              value={targetDate}
-              onChange={(event) => setTargetDate(event.target.value)}
-              required
-            />
-          </label>
-          <label className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
-            Category
-            <input
-              className="mt-2 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal normal-case tracking-normal text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
-              type="text"
-              list="category-options"
-              value={category}
-              onChange={(event) => setCategory(event.target.value)}
-              maxLength={50}
-              placeholder="Exam, Assignment, CCA…"
-              required
-            />
-            <datalist id="category-options">
-              {categoryOptions.map((item) => <option key={item} value={item} />)}
-            </datalist>
-          </label>
-          <div className="flex items-end gap-2 sm:col-span-2 lg:col-span-1">
-            <button className="button button--primary flex-1" type="submit" disabled={isSubmitting || !title.trim() || !targetDate || !category.trim()}>
-              {isSubmitting ? 'Saving…' : editingId ? 'Save Changes' : 'Create'}
-            </button>
-            <button className="button button--ghost" type="button" onClick={closeForm} disabled={isSubmitting}>
+        <form
+          className="mt-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800 sm:p-5"
+          onSubmit={createCountdown}
+        >
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+            <div className="md:col-span-4">
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                Title
+                <input
+                  className="mt-2 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal normal-case tracking-normal text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
+                  value={title}
+                  onChange={(event) => setTitle(event.target.value)}
+                  maxLength={255}
+                  placeholder="CS2103 final exam"
+                  autoFocus
+                  required
+                />
+              </label>
+            </div>
+
+            <div className="md:col-span-3">
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                Target date
+                <input
+                  className="mt-2 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal normal-case tracking-normal text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
+                  type="datetime-local"
+                  value={targetDate}
+                  onChange={(event) => setTargetDate(event.target.value)}
+                  required
+                />
+              </label>
+            </div>
+
+            <div className="md:col-span-3">
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                Category
+                <input
+                  className="mt-2 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal normal-case tracking-normal text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
+                  type="text"
+                  list="category-options"
+                  value={category}
+                  onChange={(event) => setCategory(event.target.value)}
+                  maxLength={50}
+                  placeholder="Exam, Assignment, CCA…"
+                  required
+                />
+              </label>
+              <datalist id="category-options">
+                {categoryOptions.map((item) => <option key={item} value={item} />)}
+              </datalist>
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                Color
+                <div className="mt-2 flex h-11 items-center gap-2">
+                  <input
+                    type="color"
+                    value={resolveCountdownColor(color)}
+                    onChange={(event) => setColor(event.target.value)}
+                    className="h-10 w-10 cursor-pointer rounded border-0 p-0"
+                    title="Pick a color"
+                  />
+                  <input
+                    type="text"
+                    value={color}
+                    onChange={(event) => setColor(event.target.value)}
+                    className="h-11 w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2.5 font-mono text-xs font-normal normal-case tracking-normal text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
+                    placeholder="#3b82f6"
+                    maxLength={7}
+                  />
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <div className="mt-4 flex justify-end gap-2">
+            <button
+              className="button button--ghost"
+              type="button"
+              onClick={closeForm}
+              disabled={isSubmitting}
+            >
               Cancel
+            </button>
+            <button
+              className="button button--primary"
+              type="submit"
+              disabled={isSubmitting || !title.trim() || !targetDate || !category.trim()}
+            >
+              {isSubmitting ? 'Saving…' : editingId ? 'Save Changes' : 'Create'}
             </button>
           </div>
         </form>

@@ -19,7 +19,9 @@ import {
 } from '../utils/auth.js'
 import { clearSessionCookie, setSessionCookie } from '../utils/session.js'
 import {
+  requireTelegramClientId,
   verifyTelegramAuth,
+  verifyTelegramIdToken,
   type VerifiedTelegramUser,
 } from '../utils/telegramAuth.js'
 
@@ -80,7 +82,7 @@ function generateSessionToken(userId: string): string {
     requireEnvironmentVariable('JWT_SECRET'),
     {
       algorithm: 'HS256',
-      expiresIn: '1h',
+      expiresIn: '30d',
       issuer: 'kiasucode',
       audience: 'kiasucode-frontend',
     },
@@ -117,14 +119,16 @@ async function verifyIdentity(
     }
   }
 
-  const telegramUser = verifyTelegramAuth(payload)
+  const telegramUser = typeof payload === 'string'
+    ? await verifyTelegramIdToken(payload)
+    : verifyTelegramAuth(payload)
   const name = [telegramUser.firstName, telegramUser.lastName]
     .filter(Boolean)
     .join(' ') || telegramUser.username || 'Telegram user'
 
   return {
     provider,
-    providerId: telegramUser.providerId,
+    providerId: `telegram:${telegramUser.providerId}`,
     email: null,
     name,
     photoUrl: telegramUser.photoUrl ?? null,
@@ -142,11 +146,12 @@ function serializeUser(row: UserRow): AuthUser {
 }
 
 function sendAuthenticatedUser(
+  request: Request,
   response: Response,
   status: number,
   user: AuthUser,
 ): void {
-  setSessionCookie(response, generateSessionToken(user.id))
+  setSessionCookie(request, response, generateSessionToken(user.id))
   response.set('Cache-Control', 'no-store')
   response.status(status).json({ user })
 }
@@ -269,7 +274,7 @@ router.post('/register', async (request: Request, response: Response) => {
       throw new Error('Unable to create the user account.')
     }
 
-    sendAuthenticatedUser(response, 201, serializeUser(userRow))
+    sendAuthenticatedUser(request, response, 201, serializeUser(userRow))
   } catch (error) {
     if (error instanceof InvalidAuthRequestError) {
       response.status(400).json({ error: error.message })
@@ -319,7 +324,7 @@ router.post('/login', async (request: Request, response: Response) => {
       return
     }
 
-    sendAuthenticatedUser(response, 200, serializeUser(userRow))
+    sendAuthenticatedUser(request, response, 200, serializeUser(userRow))
   } catch (error) {
     if (error instanceof InvalidAuthRequestError) {
       response.status(400).json({ error: error.message })
@@ -331,6 +336,16 @@ router.post('/login', async (request: Request, response: Response) => {
   }
 })
 
+router.get('/telegram/config', (_request: Request, response: Response) => {
+  try {
+    response.set('Cache-Control', 'no-store')
+    response.status(200).json({ clientId: requireTelegramClientId() })
+  } catch (error) {
+    console.error('Unable to load Telegram login configuration.', error)
+    response.status(503).json({ error: 'Telegram login is not configured.' })
+  }
+})
+
 router.post(
   '/telegram',
   async (request: Request, response: Response, next: NextFunction) => {
@@ -338,7 +353,7 @@ router.post(
       const telegramUser = verifyTelegramAuth(request.body)
       const user = await upsertTelegramUser(telegramUser)
 
-      sendAuthenticatedUser(response, 200, serializeUser(user))
+      sendAuthenticatedUser(request, response, 200, serializeUser(user))
     } catch (error) {
       if (error instanceof AuthVerificationError) {
         next(new AppError(401, error.message, 'TELEGRAM_AUTH_INVALID'))
@@ -413,7 +428,7 @@ router.post('/session', async (request: Request, response: Response) => {
       throw new Error('Provider ID collision detected.')
     }
 
-    sendAuthenticatedUser(response, 200, serializeUser(userRow))
+    sendAuthenticatedUser(request, response, 200, serializeUser(userRow))
   } catch (error) {
     if (error instanceof InvalidAuthRequestError) {
       response.status(400).json({ error: error.message })
@@ -433,7 +448,7 @@ router.post('/session', async (request: Request, response: Response) => {
 router.get(
   '/session',
   authenticateRequest,
-  async (_request: Request, response: Response) => {
+  async (request: Request, response: Response) => {
     try {
       const [rows] = await db.execute<UserRow[]>(
         'SELECT * FROM users WHERE id = ? LIMIT 1',
@@ -442,7 +457,7 @@ router.get(
       const userRow = rows[0]
 
       if (!userRow) {
-        clearSessionCookie(response)
+        clearSessionCookie(request, response)
         response.status(401).json({ error: 'The session user no longer exists.' })
         return
       }
@@ -456,8 +471,8 @@ router.get(
   },
 )
 
-router.delete('/session', (_request: Request, response: Response) => {
-  clearSessionCookie(response)
+router.delete('/session', (request: Request, response: Response) => {
+  clearSessionCookie(request, response)
   response.status(204).send()
 })
 

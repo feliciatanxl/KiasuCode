@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { AcademicCountdown } from '@kiasucode/shared'
 
-import { getCategoryColor } from '../utils/colors'
+import { defaultCountdownColor, resolveCountdownColor } from '../utils/colors'
 
 interface CountdownCardProps {
   countdown: AcademicCountdown
@@ -51,25 +51,30 @@ export function CountdownCard({
   const ringRadius = 25
   const ringCircumference = 2 * Math.PI * ringRadius
   const ringOffset = ringCircumference * (1 - timing.remainingPercent / 100)
-  const categoryColor = getCategoryColor(countdown.category)
+  const categoryColor = resolveCountdownColor(countdown.color || defaultCountdownColor)
 
   return (
     <article className="min-w-[280px] snap-start rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800 sm:min-w-[320px]">
       <div className="flex items-start justify-between gap-3">
-        <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-950 shadow-sm ${categoryColor}`}>
+        <span
+          className="rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white shadow-sm"
+          style={{ backgroundColor: categoryColor }}
+        >
           {countdown.category}
         </span>
         <div className="flex items-center gap-1">
           {onEdit ? (
             <button
-              className="rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-400 transition hover:bg-blue-50 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-blue-950/40 dark:hover:text-blue-300"
+              className="grid size-8 place-items-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-slate-700 dark:hover:text-slate-100"
               type="button"
               onClick={() => onEdit(countdown)}
               disabled={isDeleting}
               aria-label={`Edit ${countdown.title}`}
               title="Edit countdown"
             >
-              Edit
+              <svg className="size-4" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                <path d="m13.8 3.8 2.4 2.4M4 16l3.1-.6 8.6-8.6a1.7 1.7 0 0 0 0-2.5 1.7 1.7 0 0 0-2.5 0l-8.6 8.6L4 16Z" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
             </button>
           ) : null}
           <button

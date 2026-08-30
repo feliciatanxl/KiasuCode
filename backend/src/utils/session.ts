@@ -1,24 +1,48 @@
 import type { CookieOptions, Request, Response } from 'express'
 
 export const sessionCookieName = 'kiasucode_session'
-export const sessionMaxAgeMs = 60 * 60 * 1000
+export const sessionMaxAgeMs = 30 * 24 * 60 * 60 * 1000
 
-function sessionCookieOptions(): CookieOptions {
+const isProduction = process.env.NODE_ENV === 'production'
+
+function requestRequiresSecureCookie(request: Request): boolean {
+  const requestHosts = [
+    request.headers.origin,
+    request.headers.host,
+    request.headers['x-forwarded-host'],
+  ]
+    .flatMap((value) => typeof value === 'string' ? [value] : value ?? [])
+    .map((value) => value.toLowerCase())
+  const forwardedProtocol = request.headers['x-forwarded-proto']
+  const isForwardedHttps = typeof forwardedProtocol === 'string'
+    && forwardedProtocol.split(',')[0]?.trim().toLowerCase() === 'https'
+  const isNgrok = requestHosts.some((value) => value.includes('ngrok'))
+
+  return isProduction || request.secure || isForwardedHttps || isNgrok
+}
+
+function sessionCookieOptions(request: Request): CookieOptions {
+  const requireSecure = requestRequiresSecureCookie(request)
+
   return {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
+    secure: requireSecure,
+    sameSite: requireSecure ? 'none' : 'lax',
     maxAge: sessionMaxAgeMs,
     path: '/',
   }
 }
 
-export function setSessionCookie(response: Response, token: string): void {
-  response.cookie(sessionCookieName, token, sessionCookieOptions())
+export function setSessionCookie(
+  request: Request,
+  response: Response,
+  token: string,
+): void {
+  response.cookie(sessionCookieName, token, sessionCookieOptions(request))
 }
 
-export function clearSessionCookie(response: Response): void {
-  const { maxAge: _maxAge, ...options } = sessionCookieOptions()
+export function clearSessionCookie(request: Request, response: Response): void {
+  const { maxAge: _maxAge, ...options } = sessionCookieOptions(request)
   response.clearCookie(sessionCookieName, options)
 }
 

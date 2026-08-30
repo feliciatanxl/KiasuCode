@@ -22,10 +22,16 @@ interface CountdownRow extends RowDataPacket {
   title: string
   target_date: Date | string
   category: CountdownCategory
+  color: string | null
   created_at: Date | string
 }
 
+type ParsedCountdownInput = Omit<CreateCountdownInput, 'color'> & {
+  color: string
+}
+
 const router = Router()
+const defaultCountdownColor = '#3b82f6'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
@@ -62,11 +68,12 @@ function serializeCountdown(row: CountdownRow): AcademicCountdown {
     title: row.title,
     targetDate: toIsoString(row.target_date),
     category: row.category,
+    color: row.color || defaultCountdownColor,
     createdAt: toIsoString(row.created_at),
   }
 }
 
-function parseCreateCountdownInput(body: unknown): CreateCountdownInput {
+function parseCreateCountdownInput(body: unknown): ParsedCountdownInput {
   if (!isRecord(body)) {
     throw new AppError(400, 'A JSON request body is required.', 'INVALID_REQUEST_BODY')
   }
@@ -77,6 +84,9 @@ function parseCreateCountdownInput(body: unknown): CreateCountdownInput {
     ? new Date(rawTargetDate)
     : new Date(Number.NaN)
   const category = typeof body.category === 'string' ? body.category.trim() : ''
+  const color = typeof body.color === 'string' && body.color.trim()
+    ? body.color.trim()
+    : defaultCountdownColor
   const rawModuleId = body.moduleId ?? body.module_id ?? null
   const moduleId = typeof rawModuleId === 'string' && rawModuleId.trim()
     ? rawModuleId.trim()
@@ -102,6 +112,17 @@ function parseCreateCountdownInput(body: unknown): CreateCountdownInput {
     )
   }
 
+  if (
+    color.length > 30
+    || (!/^bg-[a-z]+-\d{2,3}$/.test(color) && !/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(color))
+  ) {
+    throw new AppError(
+      400,
+      'Countdown color must be a valid hex color or background color class.',
+      'INVALID_COUNTDOWN_COLOR',
+    )
+  }
+
   if (moduleId && moduleId.length !== 36) {
     throw new AppError(400, 'Module ID is invalid.', 'INVALID_MODULE_ID')
   }
@@ -110,6 +131,7 @@ function parseCreateCountdownInput(body: unknown): CreateCountdownInput {
     title,
     targetDate: targetDate.toISOString(),
     category,
+    color,
     moduleId,
   }
 }
@@ -120,7 +142,7 @@ router.get(
   async (_request: Request, response: Response, next: NextFunction) => {
     try {
       const [rows] = await db.execute<CountdownRow[]>(
-        `SELECT id, module_id, title, target_date, category, created_at
+        `SELECT id, module_id, title, target_date, category, color, created_at
            FROM academic_countdowns
           WHERE user_id = ?
           ORDER BY target_date ASC, created_at ASC`,
@@ -161,8 +183,8 @@ router.post(
       const countdownId = uuidv4()
       await db.execute<ResultSetHeader>(
         `INSERT INTO academic_countdowns
-          (id, user_id, module_id, title, target_date, category)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+          (id, user_id, module_id, title, target_date, category, color)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [
           countdownId,
           userId,
@@ -170,11 +192,12 @@ router.post(
           input.title,
           new Date(input.targetDate),
           input.category,
+          input.color,
         ],
       )
 
       const [rows] = await db.execute<CountdownRow[]>(
-        `SELECT id, module_id, title, target_date, category, created_at
+        `SELECT id, module_id, title, target_date, category, color, created_at
            FROM academic_countdowns
           WHERE id = ? AND user_id = ?
           LIMIT 1`,
@@ -200,7 +223,7 @@ router.put(
       const countdownId = getCountdownId(request)
       const userId = getUserId(response)
       const [existingRows] = await db.execute<CountdownRow[]>(
-        `SELECT id, module_id, title, target_date, category, created_at
+        `SELECT id, module_id, title, target_date, category, color, created_at
            FROM academic_countdowns
           WHERE id = ? AND user_id = ?
           LIMIT 1`,
@@ -229,12 +252,13 @@ router.put(
 
       await db.execute<ResultSetHeader>(
         `UPDATE academic_countdowns
-            SET title = ?, target_date = ?, category = ?, module_id = ?
+            SET title = ?, target_date = ?, category = ?, color = ?, module_id = ?
           WHERE id = ? AND user_id = ?`,
         [
           input.title,
           new Date(input.targetDate),
           input.category,
+          input.color,
           input.moduleId,
           countdownId,
           userId,
@@ -242,7 +266,7 @@ router.put(
       )
 
       const [rows] = await db.execute<CountdownRow[]>(
-        `SELECT id, module_id, title, target_date, category, created_at
+        `SELECT id, module_id, title, target_date, category, color, created_at
            FROM academic_countdowns
           WHERE id = ? AND user_id = ?
           LIMIT 1`,

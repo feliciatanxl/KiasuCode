@@ -11,12 +11,10 @@ export interface ServerErrorInfo {
 
 const configuredApiBaseUrl =
   import.meta.env.VITE_AUTH_API_URL?.trim().replace(/\/$/, '') ?? ''
+const localApiBaseUrl = 'http://localhost:3000'
 let unauthorizedHandler: (() => void) | null = null
 let serverErrorHandler: ((error: ServerErrorInfo) => void) | null = null
 let lastServerErrorNotificationAt = 0
-
-const isLoopbackHost = (hostname: string) =>
-  hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
@@ -65,31 +63,10 @@ export class ApiError extends Error {
 }
 
 export function getApiBaseUrl(): string {
-  if (!configuredApiBaseUrl) return window.location.origin
+  if (configuredApiBaseUrl) return configuredApiBaseUrl
+  if (import.meta.env.DEV) return localApiBaseUrl
 
-  try {
-    const configuredUrl = new URL(configuredApiBaseUrl)
-
-    if (
-      isLoopbackHost(configuredUrl.hostname)
-      && isLoopbackHost(window.location.hostname)
-      && configuredUrl.hostname !== window.location.hostname
-    ) {
-      configuredUrl.hostname = window.location.hostname
-      return configuredUrl.toString().replace(/\/$/, '')
-    }
-
-    if (
-      isLoopbackHost(configuredUrl.hostname)
-      && !isLoopbackHost(window.location.hostname)
-    ) {
-      return window.location.origin
-    }
-  } catch {
-    // Relative URLs intentionally remain relative to the current origin.
-  }
-
-  return configuredApiBaseUrl
+  throw new Error('VITE_AUTH_API_URL must be configured in production.')
 }
 
 export function setUnauthorizedHandler(handler: () => void): () => void {

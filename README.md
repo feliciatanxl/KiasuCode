@@ -17,7 +17,7 @@ npm run dev
 ```
 
 The frontend runs on Vite's default development port. The backend defaults to
-`http://localhost:3001`; its smoke-test endpoint is `GET /health`.
+`http://localhost:3000`; its smoke-test endpoint is `GET /health`.
 
 Run the repository checks with:
 

@@ -16,6 +16,7 @@ import { Dashboard } from './pages/Dashboard'
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
 import { LandingPage } from './pages/LandingPage'
 import { LoginPage } from './pages/LoginPage'
+import { ModuleFilesView } from './pages/ModuleFilesView'
 import { NotFoundPage } from './pages/NotFoundPage'
 import { PetView } from './pages/PetView'
 import { ProfilePage } from './pages/ProfilePage'
@@ -55,6 +56,22 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/files"
+        element={
+          <ProtectedRoute>
+            <ModuleFilesView />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/assets"
+        element={
+          <ProtectedRoute>
+            <ModuleFilesView />
           </ProtectedRoute>
         }
       />

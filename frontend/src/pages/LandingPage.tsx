@@ -23,7 +23,7 @@ export function LandingPage() {
           <a className="!text-slate-600 hover:!text-slate-900 dark:!text-slate-300 dark:hover:!text-white" href="#file-pipeline">
             Module Files
           </a>
-          <a className="!text-slate-600 hover:!text-slate-900 dark:!text-slate-300 dark:hover:!text-white" href="#simulator">
+          <a className="!text-slate-600 hover:!text-slate-900 dark:!text-slate-300 dark:hover:!text-white" href="#gpa-sandbox">
             GPA Sandbox
           </a>
         </nav>
@@ -122,7 +122,7 @@ export function LandingPage() {
           <div className="marketing-heading">
             <span className="eyebrow">Production-Ready Architecture</span>
             <h2 className="text-slate-900 dark:text-slate-100">
-              Three essential loops.<br />One high-performance cockpit.
+              Four essential loops.<br />One high-performance cockpit.
             </h2>
             <p className="text-slate-500 dark:text-slate-400">
               Designed around how technical students actually study, organize files, and manage exam pressure.
@@ -309,6 +309,62 @@ export function LandingPage() {
               <div className="mt-4 rounded border border-dashed border-slate-300 bg-white p-3 text-center dark:border-slate-700 dark:bg-slate-800">
                 <span className="text-xs font-bold text-blue-600 dark:text-blue-400">+ Attach new document</span>
               </div>
+            </div>
+          </article>
+
+          {/* CORE LOOP 4: GPA SANDBOX */}
+          <article className="feature-showcase feature-showcase--reverse" id="gpa-sandbox">
+            <div className="feature-showcase__copy text-slate-500 dark:text-slate-400">
+              <span className="feature-number">04 / STAGING</span>
+              <h3 className="text-slate-900 dark:text-slate-100">
+                GPA Staging & Sandbox.
+              </h3>
+              <p>
+                Stage hypothetical grades in a safe sandbox. See how every exam
+                result could affect your cumulative GPA without changing your
+                real module records.
+              </p>
+              <ul>
+                <li><span>✓</span> Instant what-if recalculation</li>
+                <li><span>✓</span> Live GPA delta feedback</li>
+                <li><span>✓</span> Zero changes to production data</li>
+              </ul>
+            </div>
+            <div className="feature-visual simulator-preview border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 p-6 rounded-2xl shadow-sm">
+              <div className="visual-topline border-slate-200 text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                <span>staging.simulator</span>
+                <code>safe sandbox</code>
+              </div>
+              <div className="simulator-preview__score mt-4">
+                <div>
+                  <small className="text-slate-500 dark:text-slate-400">CURRENT</small>
+                  <strong className="text-slate-900 dark:text-slate-100">3.55</strong>
+                </div>
+                <span className="text-slate-400 dark:text-slate-500">→</span>
+                <div>
+                  <small className="text-slate-500 dark:text-slate-400">STAGED</small>
+                  <strong>3.73</strong>
+                </div>
+                <em>+0.18 GPA</em>
+              </div>
+              <div className="grade-sliders mt-4 space-y-2">
+                {[
+                  ['CS2103T', 'A-'],
+                  ['ST2334', 'B+'],
+                  ['IS3107', 'A'],
+                ].map(([code, grade], index) => (
+                  <div key={code} className="flex items-center justify-between">
+                    <code className="text-slate-700 dark:text-slate-300">{code}</code>
+                    <span className="bg-slate-200 dark:bg-slate-600 mx-2 h-2 flex-1 rounded-full overflow-hidden">
+                      <i className="block h-full bg-blue-500 rounded-full" style={{ width: `${82 - index * 12}%` }} />
+                    </span>
+                    <strong className="text-slate-900 dark:text-slate-100 font-mono text-sm">{grade}</strong>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-4 rounded border border-slate-200 bg-slate-100 p-2.5 text-xs text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+                <span>i</span> Scenario staged only. Live GPA untouched.
+              </p>
             </div>
           </article>
         </section>
