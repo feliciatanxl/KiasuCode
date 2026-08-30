@@ -333,8 +333,14 @@ router.post('/session', async (request: Request, response: Response) => {
       return
     }
 
-    console.error('Unable to create authentication session.', error)
-    response.status(500).json({ error: 'Unable to create authentication session.' })
+    const authError = error instanceof Error ? error : new Error(String(error))
+
+    console.error('Auth Crash Details:', error)
+    response.status(500).json({
+      error: 'Unable to create authentication session.',
+      details: authError.message,
+      stack: authError.stack,
+    })
   }
 })
 
