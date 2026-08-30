@@ -64,10 +64,10 @@ export function TimerView() {
         </div>
 
         {/* 2-COLUMN RESPONSIVE GRID MATCHING STUDY ROOM */}
-        <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8 items-start">
+        <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8 items-stretch">
           {/* LEFT COLUMN: POMODORO TIMER PANEL */}
           <section
-            className="flex flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-800 sm:p-10 w-full"
+            className="h-full flex flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-800 sm:p-10 w-full"
             aria-label="Pomodoro Timer"
           >
             {selectedModule ? (
@@ -122,19 +122,29 @@ export function TimerView() {
                   <label htmlFor="module-picker" className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                     Target Module
                   </label>
-                  <select
-                    id="module-picker"
-                    value={selectedModuleId}
-                    onChange={(e) => setSelectedModuleId(e.target.value)}
-                    className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold text-slate-900 shadow-sm transition-colors focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-                  >
-                    <option value="">-- Choose Module --</option>
-                    {modules.map((module) => (
-                      <option key={module.id} value={module.id}>
-                        {module.moduleCode} · {module.moduleName}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="relative">
+                    <select
+                      id="module-picker"
+                      value={selectedModuleId}
+                      onChange={(e) => setSelectedModuleId(e.target.value)}
+                      className="h-12 w-full appearance-none truncate rounded-xl border border-slate-200 bg-slate-50 pl-4 pr-12 text-sm font-bold text-slate-900 shadow-sm transition-colors focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                    >
+                      <option value="">-- Choose Module --</option>
+                      {modules.map((module) => (
+                        <option key={module.id} value={module.id}>
+                          {module.moduleCode} · {module.moduleName}
+                        </option>
+                      ))}
+                    </select>
+                    <svg
+                      aria-hidden="true"
+                      viewBox="0 0 20 20"
+                      fill="none"
+                      className="pointer-events-none absolute right-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-500 dark:text-slate-300"
+                    >
+                      <path d="m6 8 4 4 4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </div>
 
                   {selectedModule && (
                     <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50/50 p-4 dark:border-blue-900/40 dark:bg-blue-950/20">
