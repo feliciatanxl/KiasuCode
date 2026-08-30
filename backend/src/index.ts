@@ -19,14 +19,15 @@ import { setupStudyRoomSocket } from './sockets/studyRoom.js'
 
 
 const app = express()
-const isProduction = process.env.NODE_ENV === 'production'
 const port = Number(process.env.PORT ?? 3000)
-const configuredFrontendUrls = isProduction
-  ? [process.env.FRONTEND_URL]
-  : [
-      process.env.LOCAL_FRONTEND_URL || 'http://localhost:5173',
-      process.env.FRONTEND_URL,
-    ]
+const configuredFrontendUrls = [
+  process.env.FRONTEND_URL,
+  process.env.LOCAL_FRONTEND_URL || 'http://localhost:5173',
+  'https://kiasucode.up.railway.app',
+  'https://kiasucode-frontend.up.railway.app',
+  'http://localhost:3000',
+  'http://localhost:5173',
+]
 const allowedOrigins = configuredFrontendUrls
   .filter((value): value is string => Boolean(value))
   .flatMap((value) => value.split(','))
@@ -49,7 +50,7 @@ if (!Number.isInteger(port) || port <= 0 || port > 65_535) {
 }
 
 app.disable('x-powered-by')
-// ngrok is the single reverse-proxy hop in front of this Express process.
+// ngrok and Railway are reverse-proxy hops in front of this Express process.
 app.set('trust proxy', 1)
 
 app.use((_req, res, next) => {
@@ -60,12 +61,23 @@ app.use((_req, res, next) => {
 
 app.use(cors({
   origin(origin, callback) {
-    if (!origin || allowedOrigins.includes(origin.replace(/\/+$/, ''))) {
+    if (!origin) {
       callback(null, true)
       return
     }
 
-    // Reject the CORS request without raising an application error.
+    const cleanOrigin = origin.replace(/\/+$/, '')
+    if (
+      allowedOrigins.includes(cleanOrigin) ||
+      cleanOrigin.includes('railway.app') ||
+      cleanOrigin.includes('ngrok') ||
+      cleanOrigin.includes('localhost') ||
+      cleanOrigin.includes('127.0.0.1')
+    ) {
+      callback(null, cleanOrigin)
+      return
+    }
+
     callback(null, false)
   },
   credentials: true,

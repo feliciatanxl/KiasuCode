@@ -1,40 +1,13 @@
 import type { CookieOptions, Request, Response } from 'express'
 
 export const sessionCookieName = 'kiasucode_session'
-export const sessionMaxAgeMs = 60 * 60 * 1000 // 1 hour (3600000 milliseconds)
+export const sessionMaxAgeMs = 3600000 // Exactly 1 hour (3600000 milliseconds)
 
-const isProduction = process.env.NODE_ENV === 'production'
-
-function requestRequiresSecureCookie(request: Request): boolean {
-  const requestHosts = [
-    request.headers.origin,
-    request.headers.host,
-    request.headers['x-forwarded-host'],
-  ]
-    .flatMap((value) => typeof value === 'string' ? [value] : value ?? [])
-    .map((value) => value.toLowerCase())
-  const forwardedProtocol = request.headers['x-forwarded-proto']
-  const isForwardedHttps = typeof forwardedProtocol === 'string'
-    && forwardedProtocol.split(',')[0]?.trim().toLowerCase() === 'https'
-  const isNgrok = requestHosts.some((value) => value.includes('ngrok'))
-
-  return isProduction || request.secure || isForwardedHttps || isNgrok
-}
-
-function sessionCookieOptions(request: Request): CookieOptions {
-  const requireSecure = requestRequiresSecureCookie(request)
-  const isNgrok = [
-    request.headers.origin,
-    request.headers.host,
-    request.headers['x-forwarded-host'],
-  ]
-    .flatMap((value) => typeof value === 'string' ? [value] : value ?? [])
-    .some((value) => value.toLowerCase().includes('ngrok'))
-
+function sessionCookieOptions(_request?: Request): CookieOptions {
   return {
     httpOnly: true,
-    secure: isProduction || requireSecure,
-    sameSite: isNgrok ? 'none' : 'lax',
+    secure: true,
+    sameSite: 'none',
     maxAge: sessionMaxAgeMs,
     path: '/',
   }

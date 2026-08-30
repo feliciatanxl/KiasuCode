@@ -161,8 +161,19 @@ export function setupStudyRoomSocket(httpServer: HttpServer, allowedOrigins: str
   const io = new Server(httpServer, {
     cors: {
       origin(origin, callback) {
-        if (!origin || allowedOrigins.includes(origin.replace(/\/+$/, ''))) {
+        if (!origin) {
           callback(null, true)
+          return
+        }
+        const cleanOrigin = origin.replace(/\/+$/, '')
+        if (
+          allowedOrigins.includes(cleanOrigin) ||
+          cleanOrigin.includes('railway.app') ||
+          cleanOrigin.includes('ngrok') ||
+          cleanOrigin.includes('localhost') ||
+          cleanOrigin.includes('127.0.0.1')
+        ) {
+          callback(null, cleanOrigin)
           return
         }
         callback(null, false)
