@@ -17,13 +17,29 @@ interface ModulesResponse {
 const moduleTargetPrefix = 'module:'
 const customTargetPrefix = 'custom:'
 const customTargetValue = 'custom'
+const STORAGE_KEY_CUSTOM_CATEGORIES = 'kiasu_custom_categories'
+
+function loadSavedCustomCategories(): string[] {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY_CUSTOM_CATEGORIES)
+    if (saved) {
+      const parsed = JSON.parse(saved)
+      if (Array.isArray(parsed)) {
+        return parsed.filter((c): c is string => typeof c === 'string' && Boolean(c.trim()))
+      }
+    }
+  } catch {
+    // fallback
+  }
+  return []
+}
 
 export function TimerView() {
   const [isTelegramOpen, setIsTelegramOpen] = useState(false)
   const [modules, setModules] = useState<Module[]>([])
-  const [customCategories, setCustomCategories] = useState<string[]>([])
-  const [selectedTarget, setSelectedTarget] = useState(customTargetValue)
-  const [isCustom, setIsCustom] = useState(true)
+  const [customCategories, setCustomCategories] = useState<string[]>(loadSavedCustomCategories)
+  const [selectedTarget, setSelectedTarget] = useState<string>('')
+  const [isCreatingCustom, setIsCreatingCustom] = useState(false)
   const [customName, setCustomName] = useState('')
   const [heatmapRefreshKey, setHeatmapRefreshKey] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
@@ -36,12 +52,18 @@ export function TimerView() {
     void apiRequest<ModulesResponse>('/api/modules', { signal: controller.signal })
       .then(({ data }) => {
         setModules(data.modules)
+        const savedCats = loadSavedCustomCategories()
+        setCustomCategories(savedCats)
+
         if (data.modules.length > 0) {
           setSelectedTarget(`${moduleTargetPrefix}${data.modules[0].id}`)
-          setIsCustom(false)
+          setIsCreatingCustom(false)
+        } else if (savedCats.length > 0) {
+          setSelectedTarget(`${customTargetPrefix}${savedCats[0]}`)
+          setIsCreatingCustom(false)
         } else {
           setSelectedTarget(customTargetValue)
-          setIsCustom(true)
+          setIsCreatingCustom(true)
         }
       })
       .catch((err: unknown) => {
@@ -63,21 +85,20 @@ export function TimerView() {
     : null
   const selectedCustomCategory = selectedTarget.startsWith(customTargetPrefix)
     ? selectedTarget.slice(customTargetPrefix.length)
-    : isCustom
-      ? customName.trim() || null
-      : null
+    : null
   const selectedModule = modules.find((module) => module.id === selectedModuleId)
   const selectedTargetLabel = selectedModule?.moduleCode ?? selectedCustomCategory
+
+  const isCustomCategorySelected = selectedTarget.startsWith(customTargetPrefix)
 
   const handleTargetChange = (value: string) => {
     setSelectedTarget(value)
     if (value === customTargetValue) {
-      setIsCustom(true)
-    } else if (value.startsWith(customTargetPrefix)) {
-      setIsCustom(true)
-      setCustomName(value.slice(customTargetPrefix.length))
+      setIsCreatingCustom(true)
+      setCustomName('')
     } else {
-      setIsCustom(false)
+      setIsCreatingCustom(false)
+      setCustomName('')
     }
   }
 
@@ -85,12 +106,47 @@ export function TimerView() {
     const trimmed = customName.trim()
     if (!trimmed) return
 
-    if (!customCategories.includes(trimmed)) {
-      setCustomCategories((prev) => [...prev, trimmed])
+    const nextList = customCategories.includes(trimmed)
+      ? customCategories
+      : [...customCategories, trimmed]
+
+    setCustomCategories(nextList)
+    try {
+      localStorage.setItem(STORAGE_KEY_CUSTOM_CATEGORIES, JSON.stringify(nextList))
+    } catch {
+      // ignore
     }
+
     setSelectedTarget(`${customTargetPrefix}${trimmed}`)
-    setIsCustom(true)
+    setIsCreatingCustom(false)
+    setCustomName('')
     showToast(`🎯 Locked target: "${trimmed}"`)
+  }
+
+  const handleDeleteCustomCategory = () => {
+    if (!selectedTarget.startsWith(customTargetPrefix)) return
+    const categoryToDelete = selectedTarget.slice(customTargetPrefix.length)
+    const nextList = customCategories.filter((cat) => cat !== categoryToDelete)
+
+    setCustomCategories(nextList)
+    try {
+      localStorage.setItem(STORAGE_KEY_CUSTOM_CATEGORIES, JSON.stringify(nextList))
+    } catch {
+      // ignore
+    }
+
+    // Reset active target to first module, or first remaining custom category, or empty
+    if (modules.length > 0) {
+      setSelectedTarget(`${moduleTargetPrefix}${modules[0].id}`)
+      setIsCreatingCustom(false)
+    } else if (nextList.length > 0) {
+      setSelectedTarget(`${customTargetPrefix}${nextList[0]}`)
+      setIsCreatingCustom(false)
+    } else {
+      setSelectedTarget('')
+      setIsCreatingCustom(false)
+    }
+    showToast(`Deleted category "${categoryToDelete}".`)
   }
 
   return (
@@ -115,7 +171,7 @@ export function TimerView() {
           <div className="h-full w-full flex flex-col">
             {selectedTargetLabel ? (
               <PomodoroTimer
-                key={isCustom ? `${customTargetValue}:${selectedCustomCategory}` : selectedTarget}
+                key={selectedTarget}
                 moduleId={selectedModule?.id ?? null}
                 customCategory={selectedCustomCategory}
                 targetLabel={selectedTargetLabel}
@@ -155,62 +211,77 @@ export function TimerView() {
                 <div className="h-12 w-full animate-pulse rounded-xl bg-slate-100 dark:bg-slate-700/50" />
               ) : (
                 <div className="space-y-4">
-                  {/* TOP BOX: CLEAN DROPDOWN */}
+                  {/* TOP BOX: CLEAN DROPDOWN WITH DELETE BUTTON */}
                   <div>
                     <label htmlFor="module-picker" className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                       TARGET MODULE OR CATEGORY
                     </label>
-                    <div className="relative mt-1.5">
-                      <select
-                        id="module-picker"
-                        value={selectedTarget}
-                        onChange={(e) => handleTargetChange(e.target.value)}
-                        className="h-12 w-full appearance-none truncate rounded-xl border border-slate-200 bg-slate-50 pl-4 pr-12 text-sm font-bold text-gray-900 shadow-sm transition-colors focus:border-blue-500 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:focus:bg-slate-900"
-                      >
-                        {modules.length > 0 && (
-                          <optgroup label="Academic Modules">
-                            {modules.map((module) => (
-                              <option
-                                key={module.id}
-                                value={`${moduleTargetPrefix}${module.id}`}
-                              >
-                                {module.moduleCode} · {module.moduleName}
-                              </option>
-                            ))}
+                    <div className="mt-1.5 flex items-center gap-2">
+                      <div className="relative flex-1">
+                        <select
+                          id="module-picker"
+                          value={selectedTarget}
+                          onChange={(e) => handleTargetChange(e.target.value)}
+                          className="h-12 w-full appearance-none truncate rounded-xl border border-slate-200 bg-slate-50 pl-4 pr-12 text-sm font-bold text-gray-900 shadow-sm transition-colors focus:border-blue-500 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:focus:bg-slate-900"
+                        >
+                          {modules.length > 0 && (
+                            <optgroup label="Academic Modules">
+                              {modules.map((module) => (
+                                <option
+                                  key={module.id}
+                                  value={`${moduleTargetPrefix}${module.id}`}
+                                >
+                                  {module.moduleCode} · {module.moduleName}
+                                </option>
+                              ))}
+                            </optgroup>
+                          )}
+                          {customCategories.length > 0 && (
+                            <optgroup label="Custom Categories">
+                              {customCategories.map((category) => (
+                                <option
+                                  key={category}
+                                  value={`${customTargetPrefix}${category}`}
+                                >
+                                  {category}
+                                </option>
+                              ))}
+                            </optgroup>
+                          )}
+                          <optgroup label="New Custom Category">
+                            <option value={customTargetValue}>
+                              + Create Custom Category
+                            </option>
                           </optgroup>
-                        )}
-                        {customCategories.length > 0 && (
-                          <optgroup label="Custom Categories">
-                            {customCategories.map((category) => (
-                              <option
-                                key={category}
-                                value={`${customTargetPrefix}${category}`}
-                              >
-                                🏷️ {category}
-                              </option>
-                            ))}
-                          </optgroup>
-                        )}
-                        <optgroup label="New Custom Category">
-                          <option value={customTargetValue}>
-                            + Create Custom Category
-                          </option>
-                        </optgroup>
-                      </select>
-                      <svg
-                        aria-hidden="true"
-                        viewBox="0 0 20 20"
-                        fill="none"
-                        className="pointer-events-none absolute right-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-500 dark:text-slate-300"
-                      >
-                        <path d="m6 8 4 4 4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
+                        </select>
+                        <svg
+                          aria-hidden="true"
+                          viewBox="0 0 20 20"
+                          fill="none"
+                          className="pointer-events-none absolute right-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-500 dark:text-slate-300"
+                        >
+                          <path d="m6 8 4 4 4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </div>
+
+                      {/* Delete Custom Category Button */}
+                      {isCustomCategorySelected && (
+                        <button
+                          type="button"
+                          onClick={handleDeleteCustomCategory}
+                          className="grid size-12 place-items-center rounded-xl border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 hover:border-red-300 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300 dark:hover:bg-red-900/60 transition-colors shrink-0 shadow-xs"
+                          title={`Delete category "${selectedCustomCategory}"`}
+                          aria-label="Delete custom category"
+                        >
+                          <span className="text-base" role="img" aria-label="Delete">🗑️</span>
+                        </button>
+                      )}
                     </div>
                   </div>
 
-                  {/* BOTTOM BOX: CLEAN CUSTOM CATEGORY INPUT WITH BLUE TICK CONFIRM BUTTON */}
-                  {isCustom && (
-                    <div>
+                  {/* BOTTOM BOX: CLEAN CUSTOM CATEGORY INPUT (ONLY RENDERS WHEN CREATING) */}
+                  {isCreatingCustom && (
+                    <div className="animate-in fade-in duration-150">
                       <label
                         htmlFor="custom-category-name"
                         className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400"
@@ -221,6 +292,7 @@ export function TimerView() {
                         <input
                           id="custom-category-name"
                           type="text"
+                          autoFocus
                           value={customName}
                           onChange={(event) => setCustomName(event.target.value)}
                           onKeyDown={(event) => {
@@ -266,15 +338,17 @@ export function TimerView() {
 
                   {selectedCustomCategory && (
                     <div className="mt-4 rounded-xl border border-purple-100 bg-purple-50/50 p-4 dark:border-purple-900/40 dark:bg-purple-950/20">
-                      <span className="font-mono text-xs font-bold text-purple-600 dark:text-purple-400">
-                        CUSTOM CATEGORY
-                      </span>
+                      <div className="flex items-center justify-between">
+                        <span className="font-mono text-xs font-bold text-purple-600 dark:text-purple-400">
+                          CUSTOM CATEGORY
+                        </span>
+                        <span className="text-xs text-slate-500 dark:text-slate-400">
+                          Personal Target
+                        </span>
+                      </div>
                       <strong className="mt-1 block text-sm font-bold text-gray-900 dark:text-white">
                         {selectedCustomCategory}
                       </strong>
-                      <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
-                        This session tracked separately—no module linked, but still can earn coins and chiong your personal tasks!
-                      </p>
                     </div>
                   )}
 
