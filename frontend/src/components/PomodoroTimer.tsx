@@ -110,7 +110,7 @@ export function PomodoroTimer({
     if (mode !== 'focus') return
 
     setStatus('saving')
-    setMessage('Focus complete. Recording your coins…')
+    setMessage('Focus sprint completed! Committing your coins to the ledger…')
 
     try {
       const { data, status: responseStatus } =
@@ -128,14 +128,14 @@ export function PomodoroTimer({
       }
 
       setCoinsBalance(data.wallet.coinsBalance)
-      setMessage(`Session logged. You earned ${data.session.coinsEarned} coins.`)
+      setMessage(`Build passed! Session logged, you earned ${data.session.coinsEarned} coins. Steady lah!`)
       setStatus('completed')
       onSessionCompleted?.(
         data.session.coinsEarned,
         data.wallet.coinsBalance,
       )
     } catch (error) {
-      setMessage(`${formatApiError(error)} Your completed timer can be retried.`)
+      setMessage(`Alamak! ${formatApiError(error)} Don't panic, retry submitting your reward.`)
       setStatus('error')
     }
   }, [customCategory, mode, moduleId, onSessionCompleted, selectedDurationMinutes])
@@ -161,8 +161,8 @@ export function PomodoroTimer({
       setStatus('completed')
       setMessage(
         mode === 'shortBreak'
-          ? 'Short break complete. Ready to focus again?'
-          : 'Long break complete. You are refreshed and ready.',
+          ? 'Short break over liao! Ready to checkout to focus branch and chiong again?'
+          : 'Long break done. Kopi recharged, time to deploy high productivity lah!',
       )
     }, 0)
 
@@ -251,6 +251,9 @@ export function PomodoroTimer({
           >
             {targetLabel} Pomodoro
           </h2>
+          <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+            Ready to commit? Deploy a focus sprint and earn coins.
+          </p>
         </div>
         {coinsBalance !== null ? (
           <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">

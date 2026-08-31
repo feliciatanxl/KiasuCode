@@ -1,496 +1,451 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-  type FormEvent,
-} from 'react'
-import type {
-  AcademicSemester,
-  Institution,
-  Module,
-} from '@kiasucode/shared'
+import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
+import type { AcademicCountdown } from '@kiasucode/shared'
 
-import {
-  Breadcrumbs,
-  type BreadcrumbItem,
-} from '../components/Breadcrumbs'
 import { Logo } from '../components/Logo'
 import { Navbar } from '../components/Navbar'
 import { TelegramConnectModal } from '../components/TelegramConnectModal'
+import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { apiRequest, formatApiError, isAbortError } from '../utils/api'
-import { InstitutionsView } from './InstitutionsView'
-import { ModulesView } from './ModulesView'
-import { SemestersView } from './SemestersView'
+import { defaultCountdownColor, resolveCountdownColor } from '../utils/colors'
+import { getPetConfig } from '../utils/petRoster'
 
-interface InstitutionDirectory {
-  kind: 'institution'
-  value: Institution
+interface CountdownsResponse {
+  countdowns: AcademicCountdown[]
 }
 
-interface SemesterDirectory {
-  kind: 'semester'
-  value: AcademicSemester
+interface Pet {
+  id: string
+  name: string
+  firstName?: string
+  petType?: string
+  hungerLevel: number
+  happinessLevel: number
+  lastInteractedAt: string
 }
 
-type DirectoryEntry = InstitutionDirectory | SemesterDirectory
-
-interface InstitutionsResponse {
-  institutions: Institution[]
+interface PetStatusResponse {
+  pet: Pet
+  wallet: {
+    coinsBalance: number
+  }
 }
 
-interface InstitutionResponse {
-  institution: Institution
+interface FeedPetResponse extends PetStatusResponse {
+  purchase: {
+    cost: number
+  }
 }
 
-interface SemestersResponse {
-  semesters: AcademicSemester[]
+const foodCost = 20
+
+function clampLevel(value: number): number {
+  return Math.min(100, Math.max(0, value))
 }
 
-interface ModulesResponse {
-  modules: Module[]
+function getDaysRemaining(targetDate: string): number {
+  const target = new Date(targetDate).getTime()
+  const now = new Date().getTime()
+  const diffMs = target - now
+  return Math.ceil(diffMs / (1000 * 60 * 60 * 24))
 }
 
-interface ModuleResponse {
-  module: Module
+function getUrgencyBadge(daysRemaining: number) {
+  if (daysRemaining < 0) {
+    return { label: 'Overdue', color: 'bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300 border-red-200 dark:border-red-800' }
+  }
+  if (daysRemaining === 0) {
+    return { label: 'Due Today', color: 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border-rose-200 dark:border-rose-800 animate-pulse' }
+  }
+  if (daysRemaining === 1) {
+    return { label: 'Tomorrow', color: 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border-amber-200 dark:border-amber-800' }
+  }
+  if (daysRemaining <= 7) {
+    return { label: `In ${daysRemaining} days`, color: 'bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border-blue-200 dark:border-blue-800' }
+  }
+  return { label: `In ${daysRemaining} days`, color: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-slate-200 dark:border-slate-700' }
 }
-
-const INSTITUTION_OPTIONS = [
-  { value: 'NYP', label: 'Nanyang Polytechnic (NYP)' },
-  { value: 'ITE', label: 'Institute of Technical Education (ITE)' },
-  { value: 'NP', label: 'Ngee Ann Polytechnic (NP)' },
-  { value: 'SP', label: 'Singapore Polytechnic (SP)' },
-  { value: 'TP', label: 'Temasek Polytechnic (TP)' },
-  { value: 'RP', label: 'Republic Polytechnic (RP)' },
-  { value: 'NUS', label: 'National University of Singapore (NUS)' },
-  { value: 'NTU', label: 'Nanyang Technological University (NTU)' },
-  { value: 'SMU', label: 'Singapore Management University (SMU)' },
-  { value: 'SIT', label: 'Singapore Institute of Technology (SIT)' },
-  { value: 'SUTD', label: 'Singapore University of Technology and Design (SUTD)' },
-]
 
 export function Dashboard() {
-  const [directoryStack, setDirectoryStack] = useState<DirectoryEntry[]>([])
-  const [institutions, setInstitutions] = useState<Institution[]>([])
-  const [semesters, setSemesters] = useState<AcademicSemester[]>([])
-  const [modules, setModules] = useState<Module[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [apiError, setApiError] = useState<string | null>(null)
-  const [isTelegramOpen, setIsTelegramOpen] = useState(false)
-  const [isInstitutionFormOpen, setIsInstitutionFormOpen] = useState(false)
-  const [isCreatingInstitution, setIsCreatingInstitution] = useState(false)
-  const [institutionName, setInstitutionName] = useState('')
-  const [institutionError, setInstitutionError] = useState<string | null>(null)
+  const { user } = useAuth()
   const { showToast } = useToast()
+  const [isTelegramOpen, setIsTelegramOpen] = useState(false)
 
-  const depth = directoryStack.length
-  const institutionEntry = directoryStack[0]
-  const semesterEntry = directoryStack[1]
-  const selectedInstitution = institutionEntry?.kind === 'institution'
-    ? institutionEntry.value
-    : null
-  const selectedSemester = semesterEntry?.kind === 'semester'
-    ? semesterEntry.value
-    : null
-  const semesterLabel = selectedSemester
-    ? `${selectedSemester.academicYear} · ${selectedSemester.term}`
-    : ''
+  // Countdowns State (Today's Agenda)
+  const [countdowns, setCountdowns] = useState<AcademicCountdown[]>([])
+  const [isLoadingCountdowns, setIsLoadingCountdowns] = useState(true)
+  const [countdownsError, setCountdownsError] = useState<string | null>(null)
+
+  // Pet State (Pet Overview Widget)
+  const [petStatus, setPetStatus] = useState<PetStatusResponse | null>(null)
+  const [isLoadingPet, setIsLoadingPet] = useState(true)
+  const [isFeeding, setIsFeeding] = useState(false)
+  const [petError, setPetError] = useState<string | null>(null)
 
   useEffect(() => {
     const controller = new AbortController()
 
-    void apiRequest<InstitutionsResponse>('/api/institutions', {
+    void apiRequest<CountdownsResponse>('/api/countdowns', {
       signal: controller.signal,
     })
-      .then(({ data }) => setInstitutions(data.institutions))
-      .catch((error: unknown) => {
-        if (!isAbortError(error)) setApiError(formatApiError(error))
+      .then(({ data }) => setCountdowns(data.countdowns))
+      .catch((err: unknown) => {
+        if (!isAbortError(err)) setCountdownsError(formatApiError(err))
       })
       .finally(() => {
-        if (!controller.signal.aborted) setIsLoading(false)
+        if (!controller.signal.aborted) setIsLoadingCountdowns(false)
+      })
+
+    void apiRequest<PetStatusResponse>('/api/pet', {
+      signal: controller.signal,
+    })
+      .then(({ data }) => setPetStatus(data))
+      .catch((err: unknown) => {
+        if (!isAbortError(err)) setPetError(formatApiError(err))
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setIsLoadingPet(false)
       })
 
     return () => controller.abort()
   }, [])
 
-  useEffect(() => {
-    if (!selectedInstitution) return
-
-    const controller = new AbortController()
-
-    void apiRequest<SemestersResponse>(
-      `/api/institutions/${selectedInstitution.id}/semesters`,
-      { signal: controller.signal },
+  // Filter countdowns relevant today/soon (upcoming within next 14 days or closest deadlines)
+  const todaysAgenda = useMemo(() => {
+    const sorted = [...countdowns].sort(
+      (a, b) => new Date(a.targetDate).getTime() - new Date(b.targetDate).getTime(),
     )
-      .then(({ data }) => setSemesters(data.semesters))
-      .catch((error: unknown) => {
-        if (!isAbortError(error)) setApiError(formatApiError(error))
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setIsLoading(false)
-      })
+    // Filter items due today or upcoming within next 14 days
+    const relevant = sorted.filter((c) => {
+      const days = getDaysRemaining(c.targetDate)
+      return days >= 0 && days <= 14
+    })
 
-    return () => controller.abort()
-  }, [selectedInstitution])
+    // If no events in next 14 days, show up to 5 closest upcoming events
+    return relevant.length > 0 ? relevant : sorted.slice(0, 5)
+  }, [countdowns])
 
-  useEffect(() => {
-    if (!selectedSemester) return
+  const feedPet = async () => {
+    if (!petStatus || isFeeding) return
 
-    const controller = new AbortController()
-
-    void apiRequest<ModulesResponse>(
-      `/api/semesters/${selectedSemester.id}/modules`,
-      { signal: controller.signal },
-    )
-      .then(({ data }) => setModules(data.modules))
-      .catch((error: unknown) => {
-        if (!isAbortError(error)) setApiError(formatApiError(error))
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setIsLoading(false)
-      })
-
-    return () => controller.abort()
-  }, [selectedSemester])
-
-  const popToDepth = useCallback((targetDepth: number) => {
-    setDirectoryStack((stack) => stack.slice(0, targetDepth))
-    if (targetDepth < 2) setModules([])
-    if (targetDepth < 1) setSemesters([])
-    setIsLoading(false)
-    setApiError(null)
-  }, [])
-
-  const openInstitution = (institution: Institution) => {
-    setSemesters([])
-    setModules([])
-    setIsLoading(true)
-    setApiError(null)
-    setDirectoryStack([{ kind: 'institution', value: institution }])
-  }
-
-  const openSemester = (semester: AcademicSemester) => {
-    if (!selectedInstitution) return
-
-    setModules([])
-    setIsLoading(true)
-    setApiError(null)
-    setDirectoryStack([
-      { kind: 'institution', value: selectedInstitution },
-      { kind: 'semester', value: semester },
-    ])
-  }
-
-  const breadcrumbAncestors = useMemo<BreadcrumbItem[]>(() => {
-    if (depth === 0) return []
-
-    const ancestors: BreadcrumbItem[] = [
-      { label: 'Institutions', onClick: () => popToDepth(0) },
-    ]
-
-    if (depth === 2 && selectedInstitution && selectedSemester) {
-      ancestors.push({
-        label: selectedInstitution.name,
-        onClick: () => popToDepth(1),
-      })
-      ancestors.push({
-        label: `${selectedSemester.academicYear} · ${selectedSemester.term}`,
-        onClick: () => popToDepth(1),
-      })
-    }
-
-    return ancestors
-  }, [depth, popToDepth, selectedInstitution, selectedSemester])
-
-  const currentDirectoryLabel = depth === 0
-    ? 'Institutions'
-    : depth === 1
-      ? 'Semesters'
-      : 'Modules & Grades'
-
-  const openInstitutionForm = () => {
-    setInstitutionName('')
-    setInstitutionError(null)
-    setIsInstitutionFormOpen(true)
-  }
-
-  const closeInstitutionForm = () => {
-    if (isCreatingInstitution) return
-
-    setInstitutionName('')
-    setInstitutionError(null)
-    setIsInstitutionFormOpen(false)
-  }
-
-  const createInstitution = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    const name = institutionName.trim()
-
-    if (!name) return
-
-    setIsCreatingInstitution(true)
-    setInstitutionError(null)
-    setApiError(null)
+    setIsFeeding(true)
+    setPetError(null)
 
     try {
-      const { data, status } = await apiRequest<InstitutionResponse>(
-        '/api/institutions',
-        { method: 'POST', body: JSON.stringify({ name }) },
-      )
+      const { data } = await apiRequest<FeedPetResponse>('/api/pet/buy-food', {
+        method: 'POST',
+      })
 
-      if (status !== 200) {
-        throw new Error(`Unexpected institution create status (${status}).`)
-      }
-
-      setInstitutions((current) =>
-        [...current, data.institution].sort((left, right) =>
-          left.name.localeCompare(right.name),
-        ),
-      )
-      setInstitutionName('')
-      setIsInstitutionFormOpen(false)
-      showToast('Institution initialized.')
-    } catch (error) {
-      setInstitutionError(formatApiError(error))
+      setPetStatus({ pet: data.pet, wallet: data.wallet })
+      showToast(`${data.pet.name} loved the food! -${data.purchase.cost} coins.`)
+    } catch (feedError) {
+      setPetError(formatApiError(feedError))
     } finally {
-      setIsCreatingInstitution(false)
+      setIsFeeding(false)
     }
   }
 
-  const updateModule = async (id: string, patch: Partial<Module>) => {
-    setApiError(null)
-    try {
-      const { data, status } = await apiRequest<ModuleResponse>(
-        `/api/modules/${id}`,
-        { method: 'PATCH', body: JSON.stringify(patch) },
-      )
-
-      if (status !== 200) throw new Error(`Unexpected update status (${status}).`)
-      setModules((current) =>
-        current.map((module) => module.id === id ? data.module : module),
-      )
-      showToast('Module updated cleanly. Shiok—keep shipping!')
-    } catch (error) {
-      setApiError(formatApiError(error))
-      throw error
-    }
-  }
-
-  const deleteModule = async (id: string) => {
-    setApiError(null)
-    try {
-      const { status } = await apiRequest<{ success: boolean }>(
-        `/api/modules/${id}`,
-        { method: 'DELETE' },
-      )
-
-      if (status !== 200) throw new Error(`Unexpected delete status (${status}).`)
-      setModules((current) => current.filter((module) => module.id !== id))
-      showToast('Module deleted cleanly. Shiok—keep shipping!')
-    } catch (error) {
-      setApiError(formatApiError(error))
-      throw error
-    }
-  }
+  const canAffordFood =
+    petStatus !== null && petStatus.wallet.coinsBalance >= foodCost
 
   return (
-    <div className="app-shell bg-slate-50 text-slate-900 transition-colors duration-300 dark:bg-slate-900 dark:text-slate-100">
+    <div className="app-shell min-h-screen bg-slate-50 text-slate-900 transition-colors duration-300 dark:bg-slate-900 dark:text-slate-100 flex flex-col justify-between">
       <Navbar onConnectTelegram={() => setIsTelegramOpen(true)} />
 
-      <main id="top" className="min-h-[calc(100vh-72px)] flex-1">
-        <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
-          <header className="flex flex-row justify-between items-end w-full mb-6">
-            <div className="flex flex-col gap-2 justify-start">
-              <Breadcrumbs
-                ancestors={breadcrumbAncestors}
-                current={currentDirectoryLabel}
-              />
-              <h1 className="m-0 text-3xl leading-tight font-bold tracking-tight text-slate-900 dark:text-slate-100">
-                {depth === 0
-                  ? 'Academic Institutions'
-                  : depth === 1
-                    ? `${selectedInstitution?.name ?? ''} Semesters`
-                    : 'Build Overview'}
-              </h1>
+      <main className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-8 flex-1">
+        {/* DAILY HUB HEADER */}
+        <header className="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-slate-200/80 pb-6 dark:border-slate-800">
+          <div>
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">
+              <span className="inline-block size-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>daily.hub / active-session</span>
             </div>
-            {depth === 0 && institutions.length > 0 && !isLoading ? (
-              <button
-                className="inline-flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-blue-700 bg-blue-600 px-3.5 text-xs font-bold text-white shadow-[3px_3px_0_#a9c7ff] transition-colors hover:bg-blue-700 dark:border-blue-500 dark:bg-blue-600 dark:hover:bg-blue-500"
-                type="button"
-                onClick={openInstitutionForm}
+            <h1 className="mt-1 text-3xl font-black tracking-tight text-slate-900 dark:text-white">
+              Welcome back, {user?.name?.split(' ')[0] || 'Student'}! 👋
+            </h1>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              Your Daily Academic Command Center. Keep deadlines in check, feed your pet, and push straight to production.
+            </p>
+          </div>
+
+          {/* QUICK SHORTCUTS */}
+          <div className="flex flex-wrap items-center gap-2.5">
+            <Link
+              to="/timer"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-blue-500 transition-colors"
+            >
+              <span>⏱️</span> Solo Sprint
+            </Link>
+            <Link
+              to="/study-room"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 transition-colors"
+            >
+              <span>👥</span> Study Room
+            </Link>
+            <Link
+              to="/campus"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 transition-colors"
+            >
+              <span>🏫</span> Campus Repo
+            </Link>
+          </div>
+        </header>
+
+        {/* 2 MAIN SECTIONS: TODAY'S AGENDA & PET OVERVIEW WIDGET */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8 items-stretch">
+          {/* SECTION 1: TODAY'S AGENDA (SPAN 2 COLUMNS) */}
+          <section
+            className="lg:col-span-2 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-800 sm:p-8 flex flex-col h-full"
+            aria-labelledby="agenda-title"
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4 dark:border-slate-700/80">
+              <div>
+                <span className="eyebrow">radar/upcoming</span>
+                <h2
+                  className="mt-1 text-xl font-bold text-slate-900 dark:text-white"
+                  id="agenda-title"
+                >
+                  Today's Agenda & Urgent Milestones
+                </h2>
+              </div>
+              <Link
+                to="/countdowns"
+                className="text-xs font-bold text-blue-600 hover:underline dark:text-blue-400 inline-flex items-center gap-1"
               >
-                <span aria-hidden="true">+</span> New
-              </button>
-            ) : depth === 2 && selectedSemester ? (
-              <div className="branch-badge">
-                <span aria-hidden="true">⑂</span>
-                <div>
-                  <small>CURRENT TERM</small>
-                  <strong>{semesterLabel}</strong>
+                Full Calendar Radar <span>→</span>
+              </Link>
+            </div>
+
+            {countdownsError ? (
+              <p className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+                {countdownsError}
+              </p>
+            ) : null}
+
+            {isLoadingCountdowns ? (
+              <div className="mt-6 space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <div
+                    key={i}
+                    className="h-16 w-full animate-pulse rounded-xl bg-slate-100 dark:bg-slate-700/50"
+                  />
+                ))}
+              </div>
+            ) : todaysAgenda.length > 0 ? (
+              <div className="mt-6 space-y-3">
+                {todaysAgenda.map((item) => {
+                  const days = getDaysRemaining(item.targetDate)
+                  const badge = getUrgencyBadge(days)
+                  const targetTime = new Date(item.targetDate)
+
+                  return (
+                    <div
+                      key={item.id}
+                      className="group flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50/70 p-4 transition-all hover:border-blue-200 hover:bg-blue-50/30 dark:border-slate-700/60 dark:bg-slate-900/40 dark:hover:border-blue-900/60 dark:hover:bg-blue-950/20"
+                    >
+                      <div className="flex items-center gap-3.5 min-w-0">
+                        <span
+                          className="size-3.5 shrink-0 rounded-full shadow-xs"
+                          style={{
+                            backgroundColor: resolveCountdownColor(
+                              item.color || defaultCountdownColor,
+                            ),
+                          }}
+                          title={`Category: ${item.category}`}
+                        />
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <strong className="text-sm font-bold text-slate-900 dark:text-white truncate block">
+                              {item.title}
+                            </strong>
+                            <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 bg-white dark:bg-slate-800 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700">
+                              {item.category}
+                            </span>
+                          </div>
+                          <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                            {targetTime.toLocaleDateString([], {
+                              weekday: 'short',
+                              month: 'short',
+                              day: 'numeric',
+                            })}{' '}
+                            ·{' '}
+                            {targetTime.toLocaleTimeString([], {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3 shrink-0 self-end sm:self-auto">
+                        <span
+                          className={`rounded-full border px-2.5 py-1 text-xs font-bold ${badge.color}`}
+                        >
+                          {badge.label}
+                        </span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <div className="mt-6 flex-1 flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/50 py-10 text-center dark:border-slate-700 dark:bg-slate-900/20">
+                <span className="text-4xl" role="img" aria-label="Celebration">🎉</span>
+                <p className="mt-3 text-sm font-bold text-slate-800 dark:text-slate-200">
+                  No urgent deadlines in sight!
+                </p>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  No deadlines yet. Checkout to a new branch and chiong your assignments!
+                </p>
+                <Link
+                  to="/countdowns"
+                  className="button button--primary mt-4 inline-flex text-xs"
+                >
+                  + Add Deadline on Calendar
+                </Link>
+              </div>
+            )}
+          </section>
+
+          {/* SECTION 2: PET OVERVIEW WIDGET (1 COLUMN) */}
+          <section
+            className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-800 sm:p-8 flex flex-col h-full justify-between"
+            aria-labelledby="pet-widget-title"
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4 dark:border-slate-700/80">
+              <div>
+                <span className="eyebrow">companion/live</span>
+                <h2
+                  className="mt-1 text-lg font-bold text-slate-900 dark:text-white"
+                  id="pet-widget-title"
+                >
+                  Pet Overview
+                </h2>
+              </div>
+              <Link
+                to="/pet"
+                className="text-xs font-bold text-blue-600 hover:underline dark:text-blue-400"
+              >
+                Care Room →
+              </Link>
+            </div>
+
+            {isLoadingPet ? (
+              <div className="mt-6 flex flex-col items-center justify-center py-8">
+                <div className="size-16 animate-pulse rounded-full bg-blue-100 dark:bg-blue-950/60" />
+                <p className="mt-3 text-xs text-slate-400">Loading companion status…</p>
+              </div>
+            ) : petStatus?.pet ? (
+              <div className="mt-6 flex flex-col justify-between">
+                <div className="flex items-center gap-4">
+                  <div
+                    className="grid size-20 shrink-0 place-items-center rounded-2xl border-2 border-blue-100 bg-blue-50 text-4xl shadow-inner dark:border-blue-900/60 dark:bg-blue-950/40"
+                    aria-hidden="true"
+                  >
+                    {getPetConfig(petStatus.pet.petType).avatar}
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">
+                      {getPetConfig(petStatus.pet.petType).title}
+                    </span>
+                    <h3 className="text-xl font-extrabold text-slate-900 dark:text-white">
+                      {petStatus.pet.name}
+                    </h3>
+                    <div className="mt-1 flex items-center gap-1.5">
+                      <span className="rounded-full bg-amber-100 px-2 py-0.5 font-mono text-xs font-bold text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
+                        🪙 {petStatus.wallet.coinsBalance} coins
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* STAT METERS */}
+                <div className="mt-6 space-y-4">
+                  <div>
+                    <div className="mb-1.5 flex items-center justify-between text-xs">
+                      <span className="font-semibold text-slate-600 dark:text-slate-300">
+                        Hunger
+                      </span>
+                      <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+                        {clampLevel(petStatus.pet.hungerLevel)}/100
+                      </span>
+                    </div>
+                    <div
+                      className="h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700"
+                      role="progressbar"
+                      aria-label="Hunger level"
+                      aria-valuenow={clampLevel(petStatus.pet.hungerLevel)}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                    >
+                      <div
+                        className="h-full rounded-full bg-emerald-500 transition-all duration-500"
+                        style={{ width: `${clampLevel(petStatus.pet.hungerLevel)}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="mb-1.5 flex items-center justify-between text-xs">
+                      <span className="font-semibold text-slate-600 dark:text-slate-300">
+                        Happiness
+                      </span>
+                      <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+                        {clampLevel(petStatus.pet.happinessLevel)}/100
+                      </span>
+                    </div>
+                    <div
+                      className="h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700"
+                      role="progressbar"
+                      aria-label="Happiness level"
+                      aria-valuenow={clampLevel(petStatus.pet.happinessLevel)}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                    >
+                      <div
+                        className="h-full rounded-full bg-pink-500 transition-all duration-500"
+                        style={{ width: `${clampLevel(petStatus.pet.happinessLevel)}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* FEED ACTION */}
+                <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-700/60">
+                  <button
+                    type="button"
+                    onClick={() => void feedPet()}
+                    disabled={isFeeding || !canAffordFood}
+                    className="w-full rounded-xl bg-blue-600 px-3.5 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-blue-500 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isFeeding
+                      ? 'Feeding…'
+                      : canAffordFood
+                        ? `Feed Pet (20 coins)`
+                        : `Need 20 coins to feed`}
+                  </button>
+                  <p className="mt-2 text-center text-[11px] text-slate-400">
+                    Earn coins with solo or group Pomodoro focus sprints.
+                  </p>
                 </div>
               </div>
-            ) : null}
-          </header>
-
-          {apiError ? (
-            <p
-              className="mt-6 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
-              role="alert"
-            >
-              {apiError}
-            </p>
-          ) : null}
-
-          {depth === 0 ? (
-            <InstitutionsView
-              institutions={institutions}
-              isLoading={isLoading}
-              onOpenInstitution={openInstitution}
-              onOpenInstitutionForm={openInstitutionForm}
-              onInstitutionDeleted={(deletedId) =>
-                setInstitutions((current) =>
-                  current.filter((institution) => institution.id !== deletedId),
-                )
-              }
-            />
-          ) : null}
-
-          {depth === 1 ? (
-            selectedInstitution ? (
-              <SemestersView
-                institution={selectedInstitution}
-                isLoading={isLoading}
-                onOpenSemester={openSemester}
-                onSemesterCreated={(semester) =>
-                  setSemesters((current) =>
-                    [...current, semester].sort((left, right) =>
-                      `${right.academicYear}${right.term}`.localeCompare(
-                        `${left.academicYear}${left.term}`,
-                      ),
-                    ),
-                  )
-                }
-                semesters={semesters}
-              />
-            ) : null
-          ) : null}
-
-          {depth === 2 && selectedSemester ? (
-            <ModulesView
-              institution={selectedInstitution ?? undefined}
-              isLoading={isLoading}
-              modules={modules}
-              onDeleteModule={deleteModule}
-              onModuleCreated={(module) =>
-                setModules((current) =>
-                  [...current, module].sort((left, right) =>
-                    left.moduleCode.localeCompare(right.moduleCode),
-                  ),
-                )
-              }
-              onUpdateModule={updateModule}
-              semester={selectedSemester}
-            />
-          ) : null}
+            ) : (
+              <div className="mt-6 text-center py-6">
+                <p className="text-xs text-red-500">{petError ?? 'Pet status unavailable.'}</p>
+              </div>
+            )}
+          </section>
         </div>
       </main>
-
 
       <footer>
         <div className="brand brand--footer">
           <Logo className="text-[18px] text-white" />
         </div>
         <p>Built with <span>⌨</span> and kopi. Ship steady, score steady.</p>
-        <code>build: passing · latency: 0ms</code>
+        <code>hub: daily · latency: 0ms</code>
       </footer>
-
-      {isInstitutionFormOpen ? (
-        <div
-          className="modal-backdrop"
-          role="presentation"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) closeInstitutionForm()
-          }}
-        >
-          <form
-            className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 text-slate-900 shadow-2xl dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-            onSubmit={createInstitution}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="institution-form-title"
-          >
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <span className="eyebrow">academic.directory.init</span>
-                <h2
-                  className="mt-2 text-2xl font-bold text-slate-900 dark:text-slate-100"
-                  id="institution-form-title"
-                >
-                  Add Institution
-                </h2>
-              </div>
-              <button
-                className="inline-grid size-9 place-items-center rounded-lg border border-slate-200 bg-white text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-white"
-                type="button"
-                onClick={closeInstitutionForm}
-                aria-label="Close add institution form"
-                disabled={isCreatingInstitution}
-              >
-                ×
-              </button>
-            </div>
-
-            <label className="mt-6 block text-sm font-medium text-slate-700 dark:text-slate-200">
-              Institution name
-              <select
-                className="mt-2 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/15 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                autoFocus
-                value={institutionName}
-                onChange={(event) => setInstitutionName(event.target.value)}
-                disabled={isCreatingInstitution}
-                required
-              >
-                <option value="" disabled>
-                  Select your institution...
-                </option>
-                {INSTITUTION_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            {institutionError ? (
-              <p
-                className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
-                role="alert"
-              >
-                {institutionError}
-              </p>
-            ) : null}
-
-            <div className="mt-6 flex justify-end gap-2">
-              <button
-                className="button button--ghost"
-                type="button"
-                onClick={closeInstitutionForm}
-                disabled={isCreatingInstitution}
-              >
-                Cancel
-              </button>
-              <button
-                className="button button--primary disabled:cursor-not-allowed disabled:opacity-60"
-                type="submit"
-                disabled={isCreatingInstitution || !institutionName.trim()}
-              >
-                {isCreatingInstitution ? 'Initializing…' : 'Initialize Institution'}
-              </button>
-            </div>
-          </form>
-        </div>
-      ) : null}
 
       <TelegramConnectModal
         isOpen={isTelegramOpen}

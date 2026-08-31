@@ -9,6 +9,10 @@ import { v4 as uuidv4 } from 'uuid'
 
 import { db } from '../config/db.js'
 import { authenticateRequest } from '../middleware/authenticate.js'
+import {
+  findTelegramChatIdForUser,
+  sendTelegramNotification,
+} from '../utils/telegramBot.js'
 
 interface UserLookupRow extends RowDataPacket {
   id: string
@@ -67,7 +71,7 @@ function serializeFriendship(row: FriendshipDbRow, currentUserId: string): Frien
     friend: {
       id: row.friend_id,
       name: row.friend_name,
-      email: row.friend_email,
+      email: null,
       photoUrl: row.friend_photo_url,
     },
   }
@@ -250,6 +254,23 @@ router.post(
         [friendshipId, currentUserId, addressee.id],
       )
 
+      // Telegram Notification Hook: Check if addressee has linked Telegram chat_id
+      try {
+        const [requesterRows] = await db.execute<UserLookupRow[]>(
+          'SELECT name FROM users WHERE id = ? LIMIT 1',
+          [currentUserId],
+        )
+        const requesterName = requesterRows[0]?.name || 'A classmate'
+        const addresseeTelegramChatId = await findTelegramChatIdForUser(addressee.id)
+
+        if (addresseeTelegramChatId) {
+          const telegramMessage = `👋 Hey! You have a new friend request from ${requesterName} on KiasuCode.`
+          void sendTelegramNotification(addresseeTelegramChatId, telegramMessage)
+        }
+      } catch (notifyErr) {
+        console.warn('Failed to send Telegram friend request notification:', notifyErr)
+      }
+
       response.status(201).json({
         success: true,
         message: `Friend request sent to ${addressee.name}.`,
@@ -319,4 +340,101 @@ router.delete(
   },
 )
 
+// PUT or POST /api/user/public-key - Register user's E2EE public key
+const handleSavePublicKey = async (request: Request, response: Response) => {
+  try {
+    const currentUserId = getUserId(response)
+    if (!isRecord(request.body)) {
+      response.status(400).json({ error: 'A JSON request body is required.' })
+      return
+    }
+
+    const rawPublicKey = request.body.publicKey ?? request.body.public_key
+    const publicKey = typeof rawPublicKey === 'string' ? rawPublicKey.trim() : ''
+
+    if (!publicKey) {
+      response.status(400).json({ error: 'Public key is required.' })
+      return
+    }
+
+    await db.execute<ResultSetHeader>(
+      'UPDATE users SET public_key = ? WHERE id = ?',
+      [publicKey, currentUserId],
+    )
+
+    response.status(200).json({ success: true, message: 'Public key registered successfully.' })
+  } catch (error) {
+    console.error('Unable to save public key: %o', error)
+    response.status(500).json({ error: 'Unable to register public key.' })
+  }
+}
+
+router.put('/user/public-key', authenticateRequest, handleSavePublicKey)
+router.post('/user/public-key', authenticateRequest, handleSavePublicKey)
+
+// GET /api/user/:id/public-key - Get a friend's public key
+router.get(
+  '/user/:id/public-key',
+  authenticateRequest,
+  async (request: Request, response: Response) => {
+    try {
+      const targetUserId = getParam(request, 'id')
+
+      const [rows] = await db.execute<RowDataPacket[]>(
+        'SELECT id, name, public_key FROM users WHERE id = ? LIMIT 1',
+        [targetUserId],
+      )
+      const targetUser = rows[0]
+
+      if (!targetUser) {
+        response.status(404).json({ error: 'User not found.' })
+        return
+      }
+
+      response.status(200).json({
+        userId: targetUser.id,
+        name: targetUser.name,
+        publicKey: targetUser.public_key || null,
+      })
+    } catch (error) {
+      console.error('Unable to get user public key: %o', error)
+      response.status(500).json({ error: 'Unable to retrieve public key.' })
+    }
+  },
+)
+
+// GET /api/messages/:friendId - Get encrypted message history
+const handleGetMessageHistory = async (request: Request, response: Response) => {
+  try {
+    const friendId = getParam(request, 'friendId')
+    const currentUserId = getUserId(response)
+
+    const [rows] = await db.execute<RowDataPacket[]>(
+      `SELECT id, sender_id, receiver_id, encrypted_content, created_at
+         FROM private_messages
+        WHERE (sender_id = ? AND receiver_id = ?)
+           OR (sender_id = ? AND receiver_id = ?)
+        ORDER BY created_at ASC`,
+      [currentUserId, friendId, friendId, currentUserId],
+    )
+
+    const messages = rows.map((row) => ({
+      id: row.id,
+      senderId: row.sender_id,
+      receiverId: row.receiver_id,
+      encryptedContent: row.encrypted_content,
+      createdAt: toIsoString(row.created_at),
+    }))
+
+    response.status(200).json({ messages })
+  } catch (error) {
+    console.error('Unable to retrieve message history: %o', error)
+    response.status(500).json({ error: 'Unable to retrieve message history.' })
+  }
+}
+
+router.get('/messages/:friendId', authenticateRequest, handleGetMessageHistory)
+router.get('/private-messages/:friendId', authenticateRequest, handleGetMessageHistory)
+
 export default router
+

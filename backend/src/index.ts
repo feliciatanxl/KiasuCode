@@ -16,6 +16,7 @@ import friendsRouter from './routes/friends.js'
 import gamificationRouter from './routes/gamification.js'
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js'
 import { setupStudyRoomSocket } from './sockets/studyRoom.js'
+import { initCountdownRemindersCron } from './cron/reminders.js'
 
 
 const app = express()
@@ -109,6 +110,7 @@ app.use(errorHandler)
 
 const httpServer = http.createServer(app)
 setupStudyRoomSocket(httpServer, allowedOrigins)
+initCountdownRemindersCron()
 
 httpServer.listen(port, () => {
   console.log(`Backend listening on http://localhost:${port}`)

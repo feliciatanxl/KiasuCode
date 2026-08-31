@@ -1,4 +1,5 @@
 import {
+  useEffect,
   useRef,
   useState,
   type ChangeEvent,
@@ -6,21 +7,21 @@ import {
 } from 'react'
 import { Link } from 'react-router-dom'
 
+import { ActivityCalendar } from '../components/ActivityCalendar'
 import { Navbar } from '../components/Navbar'
-import { PasswordStrengthMeter } from '../components/PasswordStrengthMeter'
 import { TelegramConnectModal } from '../components/TelegramConnectModal'
 import { useAuth, type AuthUser } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
-import { apiRequest, formatApiError } from '../utils/api'
+import { apiRequest, formatApiError, isAbortError } from '../utils/api'
 
 interface ProfileUpdateResponse {
   success?: boolean
   user: AuthUser
 }
 
-interface SetPasswordResponse {
-  success?: boolean
-  message?: string
+interface UserPresenceResponse {
+  status: 'online' | 'offline'
+  roomId: string | null
 }
 
 const maxProfileImageBytes = 2 * 1024 * 1024
@@ -47,33 +48,17 @@ function fileToDataUrl(file: File): Promise<string> {
   })
 }
 
-function EyeIcon({ className = 'size-4' }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
-      <circle cx="12" cy="12" r="3" />
-    </svg>
-  )
-}
-
-function EyeOffIcon({ className = 'size-4' }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" />
-      <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" />
-      <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" />
-      <line x1="2" y1="2" x2="22" y2="22" />
-    </svg>
-  )
-}
-
 export function ProfilePage() {
   const { user, updateUser } = useAuth()
   const { showToast } = useToast()
 
   const [isTelegramOpen, setIsTelegramOpen] = useState(false)
-  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false)
-  const [hasLocalPassword, setHasLocalPassword] = useState(false)
+
+  // Live Presence Status
+  const [presence, setPresence] = useState<UserPresenceResponse>({
+    status: 'offline',
+    roomId: null,
+  })
 
   // Profile Edit State
   const [isEditing, setIsEditing] = useState(false)
@@ -84,17 +69,8 @@ export function ProfilePage() {
   const [isSavingProfile, setIsSavingProfile] = useState(false)
   const [profileError, setProfileError] = useState<string | null>(null)
 
-  // Set Password State
-  const [newPassword, setNewPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
-  const [showNewPassword, setShowNewPassword] = useState(false)
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-  const [isSettingPassword, setIsSettingPassword] = useState(false)
-  const [passwordError, setPasswordError] = useState<string | null>(null)
-
   const displayName = user?.name || editName || 'Felicia Tan'
   const displayEmail = user?.email || 'felicia@u.nus.edu'
-  const provider = user?.provider || 'local'
 
   const userInitials = displayName
     .split(/\s+/)
@@ -102,6 +78,22 @@ export function ProfilePage() {
     .join('')
     .slice(0, 2)
     .toUpperCase()
+
+  useEffect(() => {
+    const controller = new AbortController()
+
+    void apiRequest<UserPresenceResponse>('/api/user/presence', {
+      signal: controller.signal,
+    })
+      .then(({ data }) => setPresence(data))
+      .catch((err: unknown) => {
+        if (!isAbortError(err)) {
+          console.error('Failed to load user presence:', err)
+        }
+      })
+
+    return () => controller.abort()
+  }, [])
 
   const handleStartEdit = () => {
     setEditName(user?.name || 'Felicia Tan')
@@ -185,69 +177,39 @@ export function ProfilePage() {
     }
   }
 
-  const handleSetPassword = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    setPasswordError(null)
-
-    if (newPassword.length < 6) {
-      setPasswordError('Password must be at least 6 characters long.')
-      return
-    }
-
-    if (newPassword !== confirmPassword) {
-      setPasswordError('Passwords do not match.')
-      return
-    }
-
-    setIsSettingPassword(true)
-
-    try {
-      await apiRequest<SetPasswordResponse>(
-        '/api/auth/set-password',
-        {
-          method: 'POST',
-          body: JSON.stringify({ password: newPassword }),
-        },
-      )
-
-      setHasLocalPassword(true)
-      setIsPasswordModalOpen(false)
-      setNewPassword('')
-      setConfirmPassword('')
-      showToast('Local password configured successfully.')
-    } catch (error) {
-      setPasswordError(formatApiError(error))
-    } finally {
-      setIsSettingPassword(false)
-    }
-  }
-
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 transition-colors dark:bg-slate-900 dark:text-slate-100">
+    <div className="min-h-screen bg-slate-50 text-slate-900 transition-colors dark:bg-slate-900 dark:text-slate-100 flex flex-col justify-between">
       <Navbar onConnectTelegram={() => setIsTelegramOpen(true)} />
 
-      <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
-        <div className="mb-6">
+      <main className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6 lg:px-8 flex-1">
+        {/* HEADER WITH WELL-STYLED BACK TO DASHBOARD BUTTON */}
+        <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+              <span>Profile</span>
+              <span>/</span>
+              <span>Account</span>
+            </div>
+            <h1 className="mt-1 text-3xl font-black tracking-tight text-slate-900 dark:text-slate-100">
+              User Profile
+            </h1>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              Manage your personal student details and view your 30-day focus activity.
+            </p>
+          </div>
+
           <Link
             to="/dashboard"
-            className="mb-4 inline-flex items-center gap-2 text-sm text-slate-500 transition-colors hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+            className="inline-flex items-center gap-2 self-start sm:self-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 shadow-sm transition-all hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:border-slate-600 dark:hover:bg-slate-700/80"
           >
             <span>←</span>
             <span>Back to Dashboard</span>
           </Link>
-          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-            <span>Profile</span>
-            <span>/</span>
-            <span>Account</span>
-          </div>
-          <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
-            User Profile
-          </h1>
         </div>
 
-        <div className="grid gap-6">
+        <div className="grid gap-8">
           {/* Personal Information Card */}
-          <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-800/80">
+          <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-800/80">
             <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50/70 px-6 py-4 dark:border-slate-700/60 dark:bg-slate-800/40">
               <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                 Personal Information
@@ -256,7 +218,7 @@ export function ProfilePage() {
                 <button
                   type="button"
                   onClick={handleStartEdit}
-                  className="rounded-lg border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                 >
                   Edit Profile
                 </button>
@@ -273,7 +235,7 @@ export function ProfilePage() {
 
                 <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
                   <div className="flex shrink-0 flex-col items-center">
-                    <div className="flex size-20 items-center justify-center overflow-hidden rounded-2xl bg-blue-600 font-bold text-2xl text-white shadow-md">
+                    <div className="flex size-24 items-center justify-center overflow-hidden rounded-2xl bg-blue-600 font-bold text-2xl text-white shadow-md">
                       {editPhotoUrl ? (
                         <img
                           src={editPhotoUrl}
@@ -321,7 +283,7 @@ export function ProfilePage() {
                         value={editName}
                         onChange={(e) => setEditName(e.target.value)}
                         placeholder="Your full name"
-                        className="mt-1.5 block w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm text-slate-900 placeholder-slate-400 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder-slate-500"
+                        className="mt-1.5 block w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder-slate-500"
                       />
                     </div>
 
@@ -347,279 +309,67 @@ export function ProfilePage() {
               </form>
             ) : (
               <div className="flex flex-col gap-6 p-6 sm:flex-row sm:items-center">
-                <div className="flex size-20 shrink-0 items-center justify-center rounded-2xl bg-blue-600 font-bold text-2xl text-white shadow-md">
-                  {user?.photoUrl ? (
-                    <img
-                      src={user.photoUrl}
-                      alt={displayName}
-                      className="size-full rounded-2xl object-cover"
-                      referrerPolicy="no-referrer"
-                    />
-                  ) : (
-                    userInitials
-                  )}
+                {/* Profile Picture with Live Status Badge Directly Underneath */}
+                <div className="flex shrink-0 flex-col items-center">
+                  <div className="flex size-24 items-center justify-center rounded-2xl bg-blue-600 font-bold text-2xl text-white shadow-md overflow-hidden">
+                    {user?.photoUrl ? (
+                      <img
+                        src={user.photoUrl}
+                        alt={displayName}
+                        className="size-full rounded-2xl object-cover"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      userInitials
+                    )}
+                  </div>
+
+                  {/* LIVE STATUS INDICATOR BADGE UNDER USER'S PROFILE PICTURE */}
+                  <div className="mt-3">
+                    {presence.roomId ? (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700 border border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800">
+                        <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
+                        <span>🟢 Studying in #{presence.roomId}</span>
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700">
+                        <span className="size-2 rounded-full bg-slate-400" />
+                        <span>⚪ Offline</span>
+                      </span>
+                    )}
+                  </div>
                 </div>
 
-                <div className="flex-1 space-y-1">
+                <div className="flex-1 space-y-1.5">
                   <div className="flex flex-wrap items-center gap-3">
-                    <h3 className="text-xl font-bold text-slate-900 dark:text-white">
+                    <h3 className="text-2xl font-black text-slate-900 dark:text-white">
                       {displayName}
                     </h3>
                     <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-semibold uppercase text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
                       Active Student
                     </span>
                   </div>
-                  <p className="text-sm text-slate-500 dark:text-slate-400">
+                  <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
                     {displayEmail}
                   </p>
-                  <div className="pt-2 text-xs font-mono text-slate-400 dark:text-slate-500">
-                    User ID: {user?.id || 'kc-local-user'}
+                  <div className="pt-2 flex items-center gap-4 text-xs font-mono text-slate-400 dark:text-slate-500">
+                    <span>User ID: {user?.id || 'kc-local-user'}</span>
+                    <span>·</span>
+                    <Link to="/settings" className="text-blue-600 dark:text-blue-400 font-sans font-semibold hover:underline">
+                      Manage Authentication in Settings →
+                    </Link>
                   </div>
                 </div>
               </div>
             )}
           </section>
 
-          {/* Connected Accounts */}
-          <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-800/80">
-            <div className="border-b border-slate-200 bg-slate-50/70 px-6 py-4 dark:border-slate-700/60 dark:bg-slate-800/40">
-              <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                Connected Authentication Providers
-              </h2>
-            </div>
-
-            <div className="divide-y divide-slate-100 p-6 dark:divide-slate-700/50">
-              {/* Local Credentials */}
-              <div className="flex items-center justify-between pb-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex size-10 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-700">
-                    🔑
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-semibold text-slate-900 dark:text-white">
-                      Local Password
-                    </h4>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      Standard email & password authentication
-                    </p>
-                  </div>
-                </div>
-                <div>
-                  {provider === 'local' || hasLocalPassword ? (
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
-                      <span className="size-1.5 rounded-full bg-emerald-500" />
-                      {provider === 'local' ? 'Primary' : 'Configured'}
-                    </span>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setPasswordError(null)
-                        setNewPassword('')
-                        setConfirmPassword('')
-                        setIsPasswordModalOpen(true)
-                      }}
-                      className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-                    >
-                      Set Password
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Telegram */}
-              <div className="flex items-center justify-between py-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex size-10 items-center justify-center rounded-lg bg-[#229ed9]/10 text-[#229ed9] dark:bg-[#229ed9]/20">
-                    ➤
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-semibold text-slate-900 dark:text-white">
-                      Telegram Bot Sync
-                    </h4>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      Sync modules and query GPA directly inside Telegram
-                    </p>
-                  </div>
-                </div>
-                <div>
-                  {provider === 'telegram' ? (
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
-                      <span className="size-1.5 rounded-full bg-emerald-500" />
-                      Connected
-                    </span>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setIsTelegramOpen(true)}
-                      className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-                    >
-                      Connect Telegram
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Google */}
-              <div className="flex items-center justify-between pt-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex size-10 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-700">
-                    <svg className="size-4" viewBox="0 0 24 24">
-                      <path
-                        fill="#4285F4"
-                        d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z"
-                      />
-                      <path
-                        fill="#34A853"
-                        d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.35 24 12 24z"
-                      />
-                      <path
-                        fill="#FBBC05"
-                        d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.99 0 12s.45 3.82 1.25 5.42l4.03-3.15z"
-                      />
-                      <path
-                        fill="#EA4335"
-                        d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.35 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
-                      />
-                    </svg>
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-semibold text-slate-900 dark:text-white">
-                      Google OAuth
-                    </h4>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      Single sign-on via Google workspace
-                    </p>
-                  </div>
-                </div>
-                <div>
-                  {provider === 'google' ? (
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
-                      <span className="size-1.5 rounded-full bg-emerald-500" />
-                      Connected
-                    </span>
-                  ) : (
-                    <span className="text-xs text-slate-400 dark:text-slate-500">
-                      Not Linked
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
+          {/* Activity Heatmap Card */}
+          <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-800/80 sm:p-8">
+            <ActivityCalendar />
           </section>
         </div>
       </main>
-
-      {/* Set Password Modal */}
-      {isPasswordModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-700 dark:bg-slate-800">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-700">
-              <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
-                Set Local Password
-              </h3>
-              <button
-                type="button"
-                onClick={() => setIsPasswordModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-              >
-                ✕
-              </button>
-            </div>
-
-            <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
-              Link a local password to enable standard email and password sign-in for your account.
-            </p>
-
-            <form onSubmit={handleSetPassword} className="mt-4 space-y-4">
-              {passwordError && (
-                <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
-                  {passwordError}
-                </div>
-              )}
-
-              <div>
-                <label
-                  htmlFor="set-new-password"
-                  className="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300"
-                >
-                  New Password
-                </label>
-                <div className="relative mt-1.5">
-                  <input
-                    id="set-new-password"
-                    type={showNewPassword ? 'text' : 'password'}
-                    required
-                    minLength={6}
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="block w-full rounded-lg border border-slate-300 bg-white pl-3.5 pr-11 py-2.5 text-sm text-slate-900 placeholder-slate-400 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder-slate-500"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowNewPassword((prev) => !prev)}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 transition hover:text-slate-600 focus:outline-none dark:hover:text-slate-200"
-                    aria-label={showNewPassword ? 'Hide password' : 'Show password'}
-                    title={showNewPassword ? 'Hide password' : 'Show password'}
-                  >
-                    {showNewPassword ? <EyeOffIcon className="size-4" /> : <EyeIcon className="size-4" />}
-                  </button>
-                </div>
-                <PasswordStrengthMeter password={newPassword} />
-              </div>
-
-              <div>
-                <label
-                  htmlFor="set-confirm-password"
-                  className="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300"
-                >
-                  Confirm Password
-                </label>
-                <div className="relative mt-1.5">
-                  <input
-                    id="set-confirm-password"
-                    type={showConfirmPassword ? 'text' : 'password'}
-                    required
-                    minLength={6}
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="block w-full rounded-lg border border-slate-300 bg-white pl-3.5 pr-11 py-2.5 text-sm text-slate-900 placeholder-slate-400 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder-slate-500"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmPassword((prev) => !prev)}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 transition hover:text-slate-600 focus:outline-none dark:hover:text-slate-200"
-                    aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
-                    title={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
-                  >
-                    {showConfirmPassword ? <EyeOffIcon className="size-4" /> : <EyeIcon className="size-4" />}
-                  </button>
-                </div>
-              </div>
-
-              <div className="mt-6 flex items-center justify-end gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setIsPasswordModalOpen(false)}
-                  disabled={isSettingPassword}
-                  className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSettingPassword}
-                  className="rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {isSettingPassword ? 'Setting Password…' : 'Set Password'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       <TelegramConnectModal
         isOpen={isTelegramOpen}

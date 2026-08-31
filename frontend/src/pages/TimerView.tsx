@@ -77,7 +77,7 @@ export function TimerView() {
             Solo Pomodoro Focus Sprint
           </h1>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Choose a focus length, lock in, and earn one study coin for every completed minute.
+            Time to chiong this sprint. Start the Pomodoro, lock in your focus branch, and earn one study coin for every completed minute lah!
           </p>
         </div>
 
@@ -105,10 +105,10 @@ export function TimerView() {
               <div className="py-16 text-center w-full">
                 <span className="text-5xl" role="img" aria-label="Timer">⏱️</span>
                 <h3 className="mt-4 text-xl font-bold text-slate-900 dark:text-slate-100">
-                  Select a Study Target
+                  Select a Study Target First Lah
                 </h3>
                 <p className="mx-auto mt-2 max-w-sm text-sm text-slate-500 dark:text-slate-400">
-                  Choose an academic module or custom category from the right panel to start tracking focus time.
+                  Choose an academic module or custom category from the right panel before you chiong your focus sprint.
                 </p>
               </div>
             )}
@@ -124,7 +124,7 @@ export function TimerView() {
               Active Study Target
             </h2>
             <p className="mt-1 text-xs text-slate-400">
-              Select an academic module or a custom category for this focus block.
+              Select an academic module or custom category for this focus block. Don't slack hor!
             </p>
 
             <div className="mt-6">
@@ -200,7 +200,6 @@ export function TimerView() {
                         <span className="text-xs text-slate-500 dark:text-slate-400">
                           {selectedModule.creditUnits} MCs / Units
                         </span>
-
                       </div>
                       <strong className="mt-1 block text-sm text-slate-900 dark:text-slate-100">
                         {selectedModule.moduleName}
@@ -216,15 +215,15 @@ export function TimerView() {
                         {selectedCustomCategory}
                       </strong>
                       <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
-                        This session will be tracked without linking it to an academic module.
+                        This session tracked separately—no module linked, but still can earn coins and chiong your personal tasks!
                       </p>
                     </div>
                   ) : null}
                   {modules.length === 0 ? (
                     <p className="text-[11px] text-slate-400">
-                      Want academic tracking too?{' '}
+                      Want academic tracking also?{' '}
                       <Link to="/dashboard" className="font-semibold text-blue-600 hover:underline dark:text-blue-400">
-                        Add a module on the Dashboard.
+                        Add a module on the Dashboard lah.
                       </Link>
                     </p>
                   ) : null}
@@ -243,7 +242,7 @@ export function TimerView() {
                 <span>🪙</span> Focus Sprint Reward
               </div>
               <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
-                Completing the selected Pomodoro duration grants one coin per minute to feed your Tamagotchi pet companion.
+                Completing your Pomodoro focus block grants one coin per minute to feed your Tamagotchi pet. Steady pom pi pi!
               </p>
             </div>
             <ActivityCalendar refreshKey={heatmapRefreshKey} />

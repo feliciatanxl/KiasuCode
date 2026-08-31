@@ -18,6 +18,7 @@ import { v4 as uuidv4 } from 'uuid'
 
 import { db } from '../config/db.js'
 import { authenticateRequest } from '../middleware/authenticate.js'
+import { getUserLivePresence } from '../sockets/studyRoom.js'
 
 interface InstitutionRow extends RowDataPacket {
   id: string
@@ -772,6 +773,17 @@ const handleUpdateUserProfile = async (request: Request, response: Response) => 
 
 router.put('/user/profile', handleUpdateUserProfile)
 router.put('/profile', handleUpdateUserProfile)
+
+router.get('/user/presence', authenticateRequest, (_request: Request, response: Response) => {
+  try {
+    const userId = getUserId(response)
+    const presence = getUserLivePresence(userId)
+    response.status(200).json(presence)
+  } catch (error) {
+    console.error('Unable to get user presence: %o', error)
+    response.status(500).json({ error: 'Unable to get user presence.' })
+  }
+})
 
 router.post('/auth/set-password', async (request: Request, response: Response) => {
   let connection: PoolConnection | undefined

@@ -1,15 +1,19 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import type { AcademicCountdown } from '@kiasucode/shared'
 
-import { CountdownSection } from '../components/CountdownSection'
 import { Logo } from '../components/Logo'
 import { Navbar } from '../components/Navbar'
 import { TelegramConnectModal } from '../components/TelegramConnectModal'
-import { apiRequest, isAbortError } from '../utils/api'
+import { useToast } from '../context/ToastContext'
+import { apiRequest, formatApiError, isAbortError } from '../utils/api'
 import { defaultCountdownColor, resolveCountdownColor } from '../utils/colors'
 
 interface CountdownsResponse {
   countdowns: AcademicCountdown[]
+}
+
+interface CountdownResponse {
+  countdown: AcademicCountdown
 }
 
 const DAYS_OF_WEEK = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -22,12 +26,29 @@ function isSameCalendarDay(d1: Date, d2: Date): boolean {
   )
 }
 
+function sortCountdowns(countdowns: AcademicCountdown[]): AcademicCountdown[] {
+  return [...countdowns].sort(
+    (left, right) =>
+      new Date(left.targetDate).getTime() - new Date(right.targetDate).getTime(),
+  )
+}
+
 export function CountdownsView() {
   const [isTelegramOpen, setIsTelegramOpen] = useState(false)
   const [currentDate, setCurrentDate] = useState(() => new Date())
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [countdowns, setCountdowns] = useState<AcademicCountdown[]>([])
   const [isLoading, setIsLoading] = useState(true)
+
+  // Create Modal State
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [title, setTitle] = useState('')
+  const [targetDate, setTargetDate] = useState('')
+  const [category, setCategory] = useState('Exam')
+  const [color, setColor] = useState(defaultCountdownColor)
+  const [modalError, setModalError] = useState<string | null>(null)
+  const { showToast } = useToast()
 
   const currentYear = currentDate.getFullYear()
   const currentMonth = currentDate.getMonth()
@@ -141,6 +162,7 @@ export function CountdownsView() {
     if (!selectedDate) return []
     return countdowns.filter((c) => isSameCalendarDay(new Date(c.targetDate), selectedDate))
   }, [selectedDate, countdowns])
+
   const categoryLegend = useMemo(() => {
     const colorsByCategory = new Map<string, string>()
 
@@ -158,20 +180,56 @@ export function CountdownsView() {
       .sort((left, right) => left.category.localeCompare(right.category))
   }, [countdowns])
 
-  const handleCountdownSaved = (savedCountdown: AcademicCountdown) => {
-    setCountdowns((current) =>
-      current.some((countdown) => countdown.id === savedCountdown.id)
-        ? current.map((countdown) =>
-            countdown.id === savedCountdown.id ? savedCountdown : countdown,
-          )
-        : [...current, savedCountdown],
-    )
+  const categoryOptions = useMemo(
+    () => [...new Set(countdowns.map((countdown) => countdown.category))].sort(
+      (left, right) => left.localeCompare(right),
+    ),
+    [countdowns],
+  )
+
+  const openCreateForm = () => {
+    if (isSubmitting) return
+
+    setTitle('')
+    setTargetDate('')
+    setCategory('Exam')
+    setColor(defaultCountdownColor)
+    setModalError(null)
+    setIsModalOpen(true)
   }
 
-  const handleCountdownDeleted = (countdownId: string) => {
-    setCountdowns((current) =>
-      current.filter((countdown) => countdown.id !== countdownId),
-    )
+  const createCountdown = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+
+    if (!title.trim() || !targetDate || !category.trim()) return
+
+    setIsSubmitting(true)
+    setModalError(null)
+
+    try {
+      const { data } = await apiRequest<CountdownResponse>('/api/countdowns', {
+        method: 'POST',
+        body: JSON.stringify({
+          title: title.trim(),
+          targetDate: new Date(targetDate).toISOString(),
+          category: category.trim(),
+          color,
+          moduleId: null,
+        }),
+      })
+
+      setCountdowns((current) => sortCountdowns([...current, data.countdown]))
+      setIsModalOpen(false)
+      setTitle('')
+      setTargetDate('')
+      setCategory('Exam')
+      setColor(defaultCountdownColor)
+      showToast('Academic countdown created.')
+    } catch (createError) {
+      setModalError(formatApiError(createError))
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -179,8 +237,8 @@ export function CountdownsView() {
       <Navbar onConnectTelegram={() => setIsTelegramOpen(true)} />
 
       <main className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8 flex-1">
-        {/* HEADER */}
-        <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
+        {/* HEADER WITH RELOCATED + NEW COUNTDOWN BUTTON */}
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
           <div>
             <span className="eyebrow">daysmatter/calendar.sync</span>
             <h1 className="mt-1 text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
@@ -189,6 +247,18 @@ export function CountdownsView() {
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
               Track upcoming exams, assignment cutoffs, and milestones with monthly visual radar.
             </p>
+          </div>
+
+          {/* + NEW COUNTDOWN BUTTON NEATLY AT TOP RIGHT DIRECTLY ABOVE CALENDAR */}
+          <div>
+            <button
+              className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-blue-500 transition-colors disabled:opacity-50"
+              type="button"
+              onClick={openCreateForm}
+              disabled={isSubmitting}
+            >
+              <span aria-hidden="true">+</span> New Countdown
+            </button>
           </div>
         </div>
 
@@ -323,7 +393,9 @@ export function CountdownsView() {
                   ))}
                 </ul>
               ) : (
-                <p className="mt-2 text-xs text-slate-400">No deadlines scheduled on this date.</p>
+                <p className="mt-2 text-xs text-slate-400">
+                  No deadlines yet. Checkout to a new branch and chiong your assignments!
+                </p>
               )}
             </div>
           )}
@@ -343,13 +415,132 @@ export function CountdownsView() {
             {categoryLegend.length === 0 ? <span>No categories yet</span> : null}
           </div>
         </section>
-
-        {/* COUNTDOWN SECTION (CAROUSEL & CREATE MODAL) */}
-        <CountdownSection
-          onCountdownDeleted={handleCountdownDeleted}
-          onCountdownSaved={handleCountdownSaved}
-        />
       </main>
+
+      {/* CREATE COUNTDOWN MODAL */}
+      {isModalOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          onClick={() => setIsModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-2xl rounded-xl border border-slate-200 bg-white p-6 shadow-2xl relative dark:border-gray-700 dark:bg-gray-900"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-gray-700">
+              <h3 className="text-base font-bold text-gray-900 dark:text-white">
+                Create New Countdown
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(false)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-white transition-colors"
+                aria-label="Close modal"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form className="mt-4" onSubmit={createCountdown}>
+              {modalError ? (
+                <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300" role="alert">
+                  {modalError}
+                </div>
+              ) : null}
+
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+                <div className="md:col-span-4">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300">
+                    Title
+                    <input
+                      className="mt-2 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal normal-case tracking-normal text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:placeholder-gray-500"
+                      value={title}
+                      onChange={(event) => setTitle(event.target.value)}
+                      maxLength={255}
+                      placeholder="CS2103 final exam"
+                      autoFocus
+                      required
+                    />
+                  </label>
+                </div>
+
+                <div className="md:col-span-3">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300">
+                    Target date
+                    <input
+                      className="mt-2 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal normal-case tracking-normal text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                      type="datetime-local"
+                      value={targetDate}
+                      onChange={(event) => setTargetDate(event.target.value)}
+                      required
+                    />
+                  </label>
+                </div>
+
+                <div className="md:col-span-3">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300">
+                    Category
+                    <input
+                      className="mt-2 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal normal-case tracking-normal text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:placeholder-gray-500"
+                      type="text"
+                      list="category-options"
+                      value={category}
+                      onChange={(event) => setCategory(event.target.value)}
+                      maxLength={50}
+                      placeholder="Exam, Assignment, CCA…"
+                      required
+                    />
+                  </label>
+                  <datalist id="category-options">
+                    {categoryOptions.map((item) => <option key={item} value={item} />)}
+                  </datalist>
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300">
+                    Color
+                    <div className="mt-2 flex h-11 items-center gap-2">
+                      <input
+                        type="color"
+                        value={resolveCountdownColor(color)}
+                        onChange={(event) => setColor(event.target.value)}
+                        className="h-10 w-10 cursor-pointer rounded border-0 p-0"
+                        title="Pick a color"
+                      />
+                      <input
+                        type="text"
+                        value={color}
+                        onChange={(event) => setColor(event.target.value)}
+                        className="h-11 w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2.5 font-mono text-xs font-normal normal-case tracking-normal text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:placeholder-gray-500"
+                        placeholder="#3b82f6"
+                        maxLength={7}
+                      />
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              <div className="mt-6 flex justify-end gap-2">
+                <button
+                  className="button button--ghost"
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  disabled={isSubmitting}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="button button--primary"
+                  type="submit"
+                  disabled={isSubmitting || !title.trim() || !targetDate || !category.trim()}
+                >
+                  {isSubmitting ? 'Saving…' : 'Create'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
 
       <footer>
         <div className="brand brand--footer">

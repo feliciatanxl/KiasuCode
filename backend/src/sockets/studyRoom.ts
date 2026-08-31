@@ -7,6 +7,7 @@ import { v4 as uuidv4 } from 'uuid'
 
 import { db } from '../config/db.js'
 import { sessionCookieName } from '../utils/session.js'
+import { registerPrivateChatHandlers } from './privateChat.js'
 
 interface UserLookupRow extends RowDataPacket {
   id: string
@@ -258,6 +259,9 @@ export function setupStudyRoomSocket(httpServer: HttpServer, allowedOrigins: str
       presence.status = 'online'
     }
 
+    // Register real-time E2EE private chat handlers and join user personal room
+    registerPrivateChatHandlers(io, socket, user)
+
     // Send initial presence map to newly connected user
     socket.emit('initial_presence', getInitialPresenceMap())
     broadcastUserPresence(io, user.userId, 'online', presence.roomId)
@@ -436,4 +440,12 @@ export function setupStudyRoomSocket(httpServer: HttpServer, allowedOrigins: str
   })
 
   return io
+}
+
+export function getUserLivePresence(userId: string): { status: 'online' | 'offline'; roomId: string | null } {
+  const presence = userPresenceMap.get(userId)
+  if (!presence || presence.status === 'offline' || presence.socketIds.size === 0) {
+    return { status: 'offline', roomId: null }
+  }
+  return { status: 'online', roomId: presence.roomId }
 }

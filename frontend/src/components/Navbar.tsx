@@ -97,6 +97,18 @@ export function Navbar({ onConnectTelegram }: NavbarProps) {
                     : 'border-transparent text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100'
                 }`
               }
+              to="/campus"
+            >
+              Campus
+            </NavLink>
+            <NavLink
+              className={({ isActive }) =>
+                `border-b-2 px-3 py-2 text-sm font-semibold transition-colors ${
+                  isActive
+                    ? 'border-blue-600 text-slate-950 dark:border-blue-400 dark:text-white'
+                    : 'border-transparent text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100'
+                }`
+              }
               end
               to="/files"
             >
@@ -293,6 +305,19 @@ export function Navbar({ onConnectTelegram }: NavbarProps) {
               }
             >
               Dashboard
+            </NavLink>
+            <NavLink
+              to="/campus"
+              onClick={() => setIsMobileMenuOpen(false)}
+              className={({ isActive }) =>
+                `flex items-center rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ${
+                  isActive
+                    ? 'bg-blue-50 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400 font-bold'
+                    : 'text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
+                }`
+              }
+            >
+              Campus
             </NavLink>
             <NavLink
               to="/files"

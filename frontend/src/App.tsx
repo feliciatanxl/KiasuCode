@@ -11,6 +11,7 @@ import {
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { ToastProvider } from './context/ToastContext'
+import { CampusPage } from './pages/CampusPage'
 import { CountdownsView } from './pages/CountdownsView'
 import { Dashboard } from './pages/Dashboard'
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
@@ -56,6 +57,22 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/campus"
+        element={
+          <ProtectedRoute>
+            <CampusPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/institutions"
+        element={
+          <ProtectedRoute>
+            <CampusPage />
           </ProtectedRoute>
         }
       />

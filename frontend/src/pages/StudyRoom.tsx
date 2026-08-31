@@ -12,6 +12,7 @@ import { io, type Socket } from 'socket.io-client'
 
 import { Logo } from '../components/Logo'
 import { Navbar } from '../components/Navbar'
+import { PrivateChat } from '../components/PrivateChat'
 import { TelegramConnectModal } from '../components/TelegramConnectModal'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
@@ -85,6 +86,7 @@ export function StudyRoom() {
   const [isConnected, setIsConnected] = useState(false)
   const [isReconnecting, setIsReconnecting] = useState(false)
   const socketRef = useRef<Socket | null>(null)
+  const [socketInstance, setSocketInstance] = useState<Socket | null>(null)
 
   // Presence State: userId -> { status, roomId }
   const [presenceMap, setPresenceMap] = useState<Record<string, { status: 'online' | 'offline'; roomId: string | null }>>({})
@@ -107,6 +109,7 @@ export function StudyRoom() {
   const [friendTarget, setFriendTarget] = useState('')
   const [isSendingRequest, setIsSendingRequest] = useState(false)
   const [friendError, setFriendError] = useState<string | null>(null)
+  const [activeChatFriend, setActiveChatFriend] = useState<{ id: string; name: string; photoUrl?: string | null } | null>(null)
 
   // Coin Reward celebration modal
   const [celebrationCoins, setCelebrationCoins] = useState<number | null>(null)
@@ -167,6 +170,7 @@ export function StudyRoom() {
     socket.on('connect', () => {
       setIsConnected(true)
       setIsReconnecting(false)
+      setSocketInstance(socket)
       if (currentRoom) {
         socket.emit('join_room', { roomId: currentRoom })
       }
@@ -179,6 +183,7 @@ export function StudyRoom() {
 
     socket.on('disconnect', () => {
       setIsConnected(false)
+      setSocketInstance(null)
     })
 
     // Presence listeners
@@ -227,6 +232,7 @@ export function StudyRoom() {
     return () => {
       socket.disconnect()
       socketRef.current = null
+      setSocketInstance(null)
     }
   }, [currentRoom, showToast])
 
@@ -994,14 +1000,26 @@ export function StudyRoom() {
                                     <span className="text-blue-600 dark:text-blue-400 font-medium">
                                       Studying in #{activeRoomId}
                                     </span>
+                                  ) : isOnline ? (
+                                    'Online in study lobby'
                                   ) : (
-                                    item.friend.email || 'Telegram user'
+                                    'Study buddy'
                                   )}
                                 </small>
                               </div>
                             </div>
 
                             <div className="flex items-center gap-2">
+                              {/* Open E2EE Private Chat Button */}
+                              <button
+                                type="button"
+                                onClick={() => setActiveChatFriend(item.friend)}
+                                className="rounded-lg bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800 px-2.5 py-1 text-xs font-bold hover:bg-blue-100 dark:hover:bg-blue-900/60 transition-colors flex items-center gap-1"
+                                title="Open End-to-End Encrypted Chat"
+                              >
+                                <span>💬</span> Chat
+                              </button>
+
                               {/* Quick Join Friend Button if friend is in an active room */}
                               {isOnline && activeRoomId && (
                                 <button
@@ -1029,7 +1047,7 @@ export function StudyRoom() {
                   ) : (
                     <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/50 py-10 text-center dark:border-slate-700 dark:bg-slate-900/30">
                       <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">No friends added yet.</p>
-                      <p className="mt-1 text-[11px] text-slate-400">Add course mates or study buddies using their email or username.</p>
+                      <p className="mt-1 text-[11px] text-slate-400">Add course mates or study buddies using their username or email.</p>
                     </div>
                   )}
                 </div>
@@ -1047,14 +1065,14 @@ export function StudyRoom() {
                   <h3 className="text-base font-bold text-slate-900 dark:text-slate-100" id="add-friend-heading">
                     Add Study Buddy
                   </h3>
-                  <p className="mt-1 text-xs text-slate-400">Search by student email, name, or account ID</p>
+                  <p className="mt-1 text-xs text-slate-400">Search by student username, email, or account ID</p>
 
                   <form onSubmit={handleSendFriendRequest} className="mt-4 flex flex-col gap-3">
                     <input
                       type="text"
                       value={friendTarget}
                       onChange={(e) => setFriendTarget(e.target.value)}
-                      placeholder="friend@u.nus.edu or Telegram username"
+                      placeholder="Username, student email, or Telegram handle"
                       className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                       required
                     />
@@ -1094,7 +1112,7 @@ export function StudyRoom() {
                             {req.friend.name}
                           </strong>
                           <small className="text-[10px] text-slate-500 dark:text-slate-400">
-                            {req.friend.email || 'Requested connection'}
+                            Requested friend connection
                           </small>
                         </div>
 
@@ -1161,6 +1179,13 @@ export function StudyRoom() {
         <p>Built with <span>⌨</span> and kopi. Ship steady, score steady.</p>
         <code>multiplayer · Singapore</code>
       </footer>
+
+      <PrivateChat
+        friend={activeChatFriend}
+        isOpen={Boolean(activeChatFriend)}
+        onClose={() => setActiveChatFriend(null)}
+        socket={socketInstance}
+      />
 
       <TelegramConnectModal isOpen={isTelegramOpen} onClose={() => setIsTelegramOpen(false)} />
     </div>

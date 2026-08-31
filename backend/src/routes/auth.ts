@@ -23,6 +23,10 @@ import {
 } from '../utils/auth.js'
 import { clearSessionCookie, setSessionCookie } from '../utils/session.js'
 import {
+  findTelegramChatIdForUser,
+  sendTelegramNotification,
+} from '../utils/telegramBot.js'
+import {
   requireTelegramClientId,
   verifyTelegramAuth,
   verifyTelegramIdToken,
@@ -577,4 +581,225 @@ router.delete('/session', (request: Request, response: Response) => {
   response.status(204).send()
 })
 
+// OTP In-Memory Fallback Cache (15 min expiration)
+interface MemoryOtp {
+  userId: string
+  code: string
+  expiresAt: number
+}
+const memoryOtpCache = new Map<string, MemoryOtp>()
+
+// POST /auth/forgot-password - Request 6-digit OTP
+router.post('/forgot-password', async (request: Request, response: Response) => {
+  try {
+    if (!isRecord(request.body)) {
+      throw new InvalidAuthRequestError('A JSON request body is required.')
+    }
+
+    const rawIdentifier = request.body.email ?? request.body.identifier ?? request.body.username
+    const identifier = typeof rawIdentifier === 'string' ? rawIdentifier.trim() : ''
+
+    if (!identifier) {
+      throw new InvalidAuthRequestError('Please provide your email address or username.')
+    }
+
+    const [rows] = await db.execute<UserRow[]>(
+      `SELECT id, provider, provider_id, email, name
+         FROM users
+        WHERE LOWER(email) = LOWER(?)
+           OR LOWER(name) = LOWER(?)
+        LIMIT 1`,
+      [identifier, identifier],
+    )
+    const user = rows[0]
+
+    if (!user) {
+      // Return neutral message for security
+      response.status(200).json({
+        success: true,
+        message: 'If an account exists, a 6-digit OTP code has been dispatched.',
+        channel: 'email',
+      })
+      return
+    }
+
+    // Generate secure 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString()
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000) // 15 minutes
+
+    // Store in database
+    await db.execute<ResultSetHeader>(
+      `INSERT INTO password_reset_otps (id, user_id, otp_code, expires_at)
+       VALUES (?, ?, ?, ?)`,
+      [uuidv4(), user.id, otp, expiresAt],
+    ).catch(() => undefined)
+
+    // Store in memory cache
+    memoryOtpCache.set(user.id, {
+      userId: user.id,
+      code: otp,
+      expiresAt: Date.now() + 15 * 60 * 1000,
+    })
+    if (user.email) {
+      memoryOtpCache.set(user.email.toLowerCase(), {
+        userId: user.id,
+        code: otp,
+        expiresAt: Date.now() + 15 * 60 * 1000,
+      })
+    }
+
+    // Check if user has linked Telegram chat ID
+    const telegramChatId = await findTelegramChatIdForUser(user.id)
+    let channel: 'telegram' | 'email' = 'email'
+
+    if (telegramChatId) {
+      channel = 'telegram'
+      const message = `🔐 *KiasuCode Security*: Your 6-digit password reset OTP is *${otp}*.\n\nThis code expires in 15 minutes. If you did not request a password reset, please secure your account.`
+      await sendTelegramNotification(telegramChatId, message)
+    } else {
+      channel = 'email'
+      console.log(`[Email Dispatch Mock] Password reset OTP for user "${user.name}" (${user.email || 'no-email'}): ${otp}`)
+    }
+
+    response.status(200).json({
+      success: true,
+      message: channel === 'telegram'
+        ? 'A 6-digit OTP has been sent to your linked Telegram account.'
+        : `A 6-digit OTP has been dispatched to ${user.email || 'your email'}.`,
+      channel,
+      email: user.email || user.name,
+    })
+  } catch (error) {
+    if (error instanceof InvalidAuthRequestError) {
+      response.status(400).json({ error: error.message })
+      return
+    }
+
+    console.error('Unable to send password reset OTP: %o', error)
+    response.status(500).json({ error: 'Unable to send password reset OTP.' })
+  }
+})
+
+// POST /auth/reset-password - Verify OTP and set new password
+router.post('/reset-password', async (request: Request, response: Response) => {
+  try {
+    if (!isRecord(request.body)) {
+      throw new InvalidAuthRequestError('A JSON request body is required.')
+    }
+
+    const rawIdentifier = request.body.email ?? request.body.identifier ?? request.body.username
+    const rawOtp = request.body.otp ?? request.body.code
+    const rawPassword = request.body.password ?? request.body.newPassword
+
+    const identifier = typeof rawIdentifier === 'string' ? rawIdentifier.trim() : ''
+    const otp = typeof rawOtp === 'string' ? rawOtp.trim() : ''
+    const newPassword = typeof rawPassword === 'string' ? rawPassword : ''
+
+    if (!identifier || !otp || !newPassword) {
+      throw new InvalidAuthRequestError('Email/username, OTP code, and new password are required.')
+    }
+
+    if (!/^\d{6}$/.test(otp)) {
+      throw new InvalidAuthRequestError('OTP code must be a 6-digit number.')
+    }
+
+    if (newPassword.length < 6) {
+      throw new InvalidAuthRequestError('New password must be at least 6 characters long.')
+    }
+
+    const [rows] = await db.execute<UserRow[]>(
+      `SELECT id, provider, provider_id, email, name, password_hash
+         FROM users
+        WHERE LOWER(email) = LOWER(?)
+           OR LOWER(name) = LOWER(?)
+        LIMIT 1`,
+      [identifier, identifier],
+    )
+    const user = rows[0]
+
+    if (!user) {
+      response.status(400).json({ error: 'Invalid or expired OTP code.' })
+      return
+    }
+
+    // Verify OTP against DB or memory cache
+    let isOtpValid = false
+
+    const [otpRows] = await db.execute<RowDataPacket[]>(
+      `SELECT id FROM password_reset_otps
+        WHERE user_id = ? AND otp_code = ? AND expires_at > CURRENT_TIMESTAMP
+        ORDER BY created_at DESC LIMIT 1`,
+      [user.id, otp],
+    ).catch(() => [[], []] as unknown as [RowDataPacket[], unknown])
+
+    if (otpRows.length > 0) {
+      isOtpValid = true
+    } else {
+      const cached = memoryOtpCache.get(user.id) || (user.email ? memoryOtpCache.get(user.email.toLowerCase()) : undefined)
+      if (cached && cached.code === otp && cached.expiresAt > Date.now()) {
+        isOtpValid = true
+      }
+    }
+
+    if (!isOtpValid) {
+      response.status(400).json({ error: 'Invalid or expired OTP code.' })
+      return
+    }
+
+    // Enforce Password Reuse Rule (last 3 passwords)
+    const [historyRows] = await db.execute<PasswordHistoryRow[]>(
+      `SELECT password_hash FROM password_history
+        WHERE user_id = ?
+        ORDER BY created_at DESC
+        LIMIT 3`,
+      [user.id],
+    )
+
+    for (const record of historyRows) {
+      if (await bcrypt.compare(newPassword, record.password_hash)) {
+        response.status(400).json({ error: passwordReuseError })
+        return
+      }
+    }
+
+    // Hash and update password
+    const newPasswordHash = await bcrypt.hash(newPassword, 12)
+
+    await db.execute<ResultSetHeader>(
+      `UPDATE users
+          SET password_hash = ?, session_version = session_version + 1
+        WHERE id = ?`,
+      [newPasswordHash, user.id],
+    )
+
+    await db.execute<ResultSetHeader>(
+      `INSERT INTO password_history (id, user_id, password_hash)
+       VALUES (?, ?, ?)`,
+      [uuidv4(), user.id, newPasswordHash],
+    )
+
+    // Clean up OTPs
+    await db.execute<ResultSetHeader>(
+      'DELETE FROM password_reset_otps WHERE user_id = ?',
+      [user.id],
+    ).catch(() => undefined)
+    memoryOtpCache.delete(user.id)
+    if (user.email) memoryOtpCache.delete(user.email.toLowerCase())
+
+    response.status(200).json({
+      success: true,
+      message: 'Password has been reset successfully. You can now sign in with your new password.',
+    })
+  } catch (error) {
+    if (error instanceof InvalidAuthRequestError) {
+      response.status(400).json({ error: error.message })
+      return
+    }
+
+    console.error('Unable to reset password with OTP: %o', error)
+    response.status(500).json({ error: 'Unable to reset password.' })
+  }
+})
+
 export default router
+

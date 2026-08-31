@@ -14,6 +14,8 @@ interface PetRow extends RowDataPacket {
   id: string
   user_id: string
   name: string
+  first_name?: string | null
+  pet_type?: string | null
   hunger_level: number
   happiness_level: number
   last_interacted_at: Date | string
@@ -39,6 +41,8 @@ interface HeatmapRow extends RowDataPacket {
 interface PetResponse {
   id: string
   name: string
+  firstName: string
+  petType: string
   hungerLevel: number
   happinessLevel: number
   lastInteractedAt: string
@@ -82,6 +86,8 @@ function serializePet(row: PetRow): PetResponse {
   return {
     id: row.id,
     name: row.name,
+    firstName: row.first_name || row.name || 'Byte',
+    petType: row.pet_type || 'hatchling',
     hungerLevel: Number(row.hunger_level),
     happinessLevel: Number(row.happiness_level),
     lastInteractedAt: toIsoString(row.last_interacted_at),
@@ -92,7 +98,7 @@ function formatUtcDate(date: Date): string {
   return date.toISOString().slice(0, 10)
 }
 
-async function ensureGamificationRows(
+async function ensureWalletRow(
   connection: PoolConnection,
   userId: string,
 ): Promise<void> {
@@ -101,13 +107,6 @@ async function ensureGamificationRows(
      VALUES (?, 0)
      ON DUPLICATE KEY UPDATE coins_balance = coins_balance`,
     [userId],
-  )
-  await connection.execute<ResultSetHeader>(
-    `INSERT INTO pets
-      (id, user_id, name, hunger_level, happiness_level, last_interacted_at)
-     VALUES (?, ?, 'Byte', 100, 100, CURRENT_TIMESTAMP)
-     ON DUPLICATE KEY UPDATE id = id`,
-    [uuidv4(), userId],
   )
 }
 
@@ -152,9 +151,9 @@ async function applyPetDecay(
 async function getLockedPet(
   connection: PoolConnection,
   userId: string,
-): Promise<PetRow> {
+): Promise<PetRow | null> {
   const [rows] = await connection.execute<PetRow[]>(
-    `SELECT id, user_id, name, hunger_level, happiness_level,
+    `SELECT id, user_id, name, first_name, pet_type, hunger_level, happiness_level,
             last_interacted_at
        FROM pets
       WHERE user_id = ?
@@ -163,7 +162,7 @@ async function getLockedPet(
   )
   const pet = rows[0]
 
-  if (!pet) throw new Error('Unable to initialize pet.')
+  if (!pet) return null
 
   return applyPetDecay(connection, pet)
 }
@@ -366,14 +365,31 @@ router.get(
       const userId = getUserId(response)
       connection = await db.getConnection()
       await connection.beginTransaction()
-      await ensureGamificationRows(connection, userId)
+      await ensureWalletRow(connection, userId)
 
-      const pet = await getLockedPet(connection, userId)
+      let pet = await getLockedPet(connection, userId)
       const coinsBalance = await getWalletBalance(connection, userId)
+
+      if (!pet) {
+        // Auto-initialize default pet if user has none
+        const petId = uuidv4()
+        await connection.execute<ResultSetHeader>(
+          `INSERT INTO pets
+            (id, user_id, name, first_name, pet_type, hunger_level, happiness_level, last_interacted_at)
+           VALUES (?, ?, 'Byte', 'Byte', 'hatchling', 100, 100, CURRENT_TIMESTAMP)`,
+          [petId, userId],
+        )
+        const [createdRows] = await connection.execute<PetRow[]>(
+          `SELECT id, user_id, name, first_name, pet_type, hunger_level, happiness_level, last_interacted_at
+             FROM pets WHERE id = ?`,
+          [petId],
+        )
+        pet = createdRows[0] ?? null
+      }
 
       await connection.commit()
       response.status(200).json({
-        pet: serializePet(pet),
+        pet: pet ? serializePet(pet) : null,
         wallet: { coinsBalance },
       })
     } catch (error) {
@@ -386,6 +402,148 @@ router.get(
   },
 )
 
+// POST or PUT /pet - Create or update pet (Immutable first_name)
+const handleSavePet = async (request: Request, response: Response) => {
+  let connection: PoolConnection | undefined
+
+  try {
+    if (!isRecord(request.body)) {
+      throw new InvalidGamificationRequestError('A JSON request body is required.')
+    }
+
+    const userId = getUserId(response)
+    const rawFirstName = request.body.first_name ?? request.body.firstName
+    const rawNickname = request.body.name ?? request.body.nickname
+    const rawPetType = request.body.pet_type ?? request.body.petType
+
+    const firstNameInput = typeof rawFirstName === 'string' ? rawFirstName.trim() : ''
+    const nicknameInput = typeof rawNickname === 'string' ? rawNickname.trim() : ''
+    const petTypeInput = typeof rawPetType === 'string' ? rawPetType.trim() : 'hatchling'
+
+    connection = await db.getConnection()
+    await connection.beginTransaction()
+    await ensureWalletRow(connection, userId)
+
+    const existingPet = await getLockedPet(connection, userId)
+
+    if (!existingPet) {
+      // Create new pet: First name is required and permanently locked
+      if (!firstNameInput) {
+        throw new InvalidGamificationRequestError('A permanent first name is required to adopt a pet.')
+      }
+
+      const finalName = nicknameInput || firstNameInput
+      const petId = uuidv4()
+
+      await connection.execute<ResultSetHeader>(
+        `INSERT INTO pets
+          (id, user_id, name, first_name, pet_type, hunger_level, happiness_level, last_interacted_at)
+         VALUES (?, ?, ?, ?, ?, 100, 100, CURRENT_TIMESTAMP)`,
+        [petId, userId, finalName, firstNameInput, petTypeInput],
+      )
+
+      const [createdRows] = await connection.execute<PetRow[]>(
+        `SELECT id, user_id, name, first_name, pet_type, hunger_level, happiness_level, last_interacted_at
+           FROM pets WHERE id = ?`,
+        [petId],
+      )
+      const newPet = createdRows[0]
+      if (!newPet) throw new Error('Unable to create pet.')
+
+      const coinsBalance = await getWalletBalance(connection, userId)
+
+      await connection.commit()
+      response.status(201).json({
+        pet: serializePet(newPet),
+        wallet: { coinsBalance },
+      })
+      return
+    }
+
+    // Existing pet update: first_name is IMMUTABLE!
+    // If the database row does not have first_name yet (legacy row), allow setting it once.
+    let permanentFirstName = existingPet.first_name
+    if (!permanentFirstName && firstNameInput) {
+      permanentFirstName = firstNameInput
+    } else if (!permanentFirstName) {
+      permanentFirstName = existingPet.name
+    }
+
+    const nextNickname = nicknameInput || existingPet.name
+    const nextPetType = petTypeInput || existingPet.pet_type || 'hatchling'
+
+    await connection.execute<ResultSetHeader>(
+      `UPDATE pets
+          SET name = ?, first_name = ?, pet_type = ?
+        WHERE id = ? AND user_id = ?`,
+      [nextNickname, permanentFirstName, nextPetType, existingPet.id, userId],
+    )
+
+    const [updatedRows] = await connection.execute<PetRow[]>(
+      `SELECT id, user_id, name, first_name, pet_type, hunger_level, happiness_level, last_interacted_at
+         FROM pets WHERE id = ?`,
+      [existingPet.id],
+    )
+    const updatedPet = updatedRows[0]
+    if (!updatedPet) throw new Error('Unable to load updated pet.')
+
+    const coinsBalance = await getWalletBalance(connection, userId)
+
+    await connection.commit()
+    response.status(200).json({
+      pet: serializePet(updatedPet),
+      wallet: { coinsBalance },
+    })
+  } catch (error) {
+    if (connection) await connection.rollback().catch(() => undefined)
+    if (error instanceof InvalidGamificationRequestError) {
+      response.status(400).json({ error: error.message })
+      return
+    }
+    console.error('Unable to save pet: %o', error)
+    response.status(500).json({ error: 'Unable to save pet details.' })
+  } finally {
+    connection?.release()
+  }
+}
+
+router.post('/pet', authenticateRequest, gamificationRateLimiter, handleSavePet)
+router.put('/pet', authenticateRequest, gamificationRateLimiter, handleSavePet)
+
+// DELETE /pet and POST /pet/reset - Reset/release pet back to level 0
+const handleResetPet = async (_request: Request, response: Response) => {
+  let connection: PoolConnection | undefined
+
+  try {
+    const userId = getUserId(response)
+    connection = await db.getConnection()
+    await connection.beginTransaction()
+
+    await connection.execute<ResultSetHeader>(
+      'DELETE FROM pets WHERE user_id = ?',
+      [userId],
+    )
+
+    const coinsBalance = await getWalletBalance(connection, userId)
+    await connection.commit()
+
+    response.status(200).json({
+      success: true,
+      message: 'Pet released and progress reset to 0.',
+      wallet: { coinsBalance },
+    })
+  } catch (error) {
+    if (connection) await connection.rollback().catch(() => undefined)
+    console.error('Unable to reset pet: %o', error)
+    response.status(500).json({ error: 'Unable to reset pet.' })
+  } finally {
+    connection?.release()
+  }
+}
+
+router.delete('/pet', authenticateRequest, gamificationRateLimiter, handleResetPet)
+router.post('/pet/reset', authenticateRequest, gamificationRateLimiter, handleResetPet)
+
 router.post(
   '/pet/buy-food',
   authenticateRequest,
@@ -397,9 +555,15 @@ router.post(
       const userId = getUserId(response)
       connection = await db.getConnection()
       await connection.beginTransaction()
-      await ensureGamificationRows(connection, userId)
+      await ensureWalletRow(connection, userId)
 
       const pet = await getLockedPet(connection, userId)
+      if (!pet) {
+        await connection.rollback()
+        response.status(404).json({ error: 'No active pet found to feed.' })
+        return
+      }
+
       const [walletRows] = await connection.execute<WalletRow[]>(
         `SELECT coins_balance
            FROM user_wallets
@@ -442,7 +606,7 @@ router.post(
       )
 
       const [updatedPetRows] = await connection.execute<PetRow[]>(
-        `SELECT id, user_id, name, hunger_level, happiness_level,
+        `SELECT id, user_id, name, first_name, pet_type, hunger_level, happiness_level,
                 last_interacted_at
            FROM pets
           WHERE id = ? AND user_id = ?`,
