@@ -174,19 +174,19 @@ export function Dashboard() {
           <div className="flex flex-wrap items-center gap-2.5">
             <Link
               to="/timer"
-              className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-blue-500 transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:text-white shadow-sm hover:bg-blue-500 transition-colors"
             >
               <span>⏱️</span> Solo Sprint
             </Link>
             <Link
               to="/study-room"
-              className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-blue-500 transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:text-white shadow-sm hover:bg-blue-500 transition-colors"
             >
               <span>👥</span> Study Room
             </Link>
             <Link
               to="/campus"
-              className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-blue-500 transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:text-white shadow-sm hover:bg-blue-500 transition-colors"
             >
               <span>🏫</span> Campus Repo
             </Link>

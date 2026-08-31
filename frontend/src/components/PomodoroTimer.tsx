@@ -239,57 +239,61 @@ export function PomodoroTimer({
 
   return (
     <section
-      className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800"
+      className="flex h-full w-full flex-col justify-between rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-800 sm:p-8"
       aria-labelledby="pomodoro-title"
     >
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <span className="eyebrow">focus/session</span>
-          <h2
-            className="mt-1 text-lg font-bold text-slate-900 dark:text-slate-100"
-            id="pomodoro-title"
-          >
-            {targetLabel} Pomodoro
-          </h2>
-          <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-            Ready to commit? Deploy a focus sprint and earn coins.
-          </p>
-        </div>
-        {coinsBalance !== null ? (
-          <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
-            {coinsBalance} coins
-          </span>
-        ) : null}
-      </div>
-
-      <div
-        className="mx-auto mt-5 grid max-w-md grid-cols-3 gap-1 rounded-full bg-slate-950 p-1.5 shadow-inner"
-        aria-label="Timer mode"
-        role="group"
-      >
-        {timerModes.map((timerMode) => {
-          const isSelected = timerMode.value === mode
-
-          return (
-            <button
-              className={`rounded-full px-3 py-2 text-xs font-bold transition sm:text-sm ${
-                isSelected
-                  ? 'bg-blue-600 text-white shadow-md'
-                  : 'text-slate-400 hover:bg-white/10 hover:text-white'
-              }`}
-              type="button"
-              key={timerMode.value}
-              onClick={() => selectMode(timerMode.value)}
-              aria-pressed={isSelected}
-              disabled={status === 'saving'}
+      {/* TOP SECTION: HEADER & MODE SWITCHER */}
+      <div>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <span className="eyebrow">focus/session</span>
+            <h2
+              className="mt-1 text-xl font-extrabold text-slate-900 dark:text-white"
+              id="pomodoro-title"
             >
-              {timerMode.label}
-            </button>
-          )
-        })}
+              {targetLabel} Pomodoro
+            </h2>
+            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+              Ready to commit? Deploy a focus sprint and earn coins.
+            </p>
+          </div>
+          {coinsBalance !== null ? (
+            <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
+              🪙 {coinsBalance} coins
+            </span>
+          ) : null}
+        </div>
+
+        <div
+          className="mx-auto mt-6 grid max-w-md grid-cols-3 gap-1 rounded-full bg-slate-950 p-1.5 shadow-inner"
+          aria-label="Timer mode"
+          role="group"
+        >
+          {timerModes.map((timerMode) => {
+            const isSelected = timerMode.value === mode
+
+            return (
+              <button
+                className={`rounded-full px-3 py-2 text-xs font-bold transition sm:text-sm ${
+                  isSelected
+                    ? 'bg-blue-600 text-white shadow-md'
+                    : 'text-slate-400 hover:bg-white/10 hover:text-white'
+                }`}
+                type="button"
+                key={timerMode.value}
+                onClick={() => selectMode(timerMode.value)}
+                aria-pressed={isSelected}
+                disabled={status === 'saving'}
+              >
+                {timerMode.label}
+              </button>
+            )
+          })}
+        </div>
       </div>
 
-      <div className="mt-6 text-center">
+      {/* MIDDLE SECTION: CIRCULAR TIMER & DURATION CONTROLS */}
+      <div className="my-auto py-6 text-center">
         <div
           className="relative mx-auto size-64 sm:size-72"
           role="progressbar"
@@ -381,51 +385,62 @@ export function PomodoroTimer({
         ) : null}
       </div>
 
-      <div className="mt-5 flex flex-wrap justify-center gap-2">
-        {status === 'running' ? (
-          <button className="button button--primary" type="button" onClick={pauseTimer}>
-            Pause
-          </button>
-        ) : status === 'error' ? (
-          <button className="button button--primary" type="button" onClick={retryReward}>
-            Retry reward
-          </button>
-        ) : (
+      {/* BOTTOM SECTION: CONTROLS & STATUS MESSAGE */}
+      <div>
+        <div className="flex flex-wrap justify-center gap-3">
+          {status === 'running' ? (
+            <button
+              className="button button--primary px-6"
+              type="button"
+              onClick={pauseTimer}
+            >
+              Pause
+            </button>
+          ) : status === 'error' ? (
+            <button
+              className="button button--primary px-6"
+              type="button"
+              onClick={retryReward}
+            >
+              Retry reward
+            </button>
+          ) : (
+            <button
+              className="button button--primary px-6"
+              type="button"
+              onClick={startTimer}
+              disabled={status === 'saving' || status === 'completed'}
+            >
+              {status === 'paused'
+                ? 'Resume'
+                : mode === 'focus'
+                  ? 'Start Focus'
+                  : 'Start Break'}
+            </button>
+          )}
           <button
-            className="button button--primary"
+            className="button button--ghost"
             type="button"
-            onClick={startTimer}
-            disabled={status === 'saving' || status === 'completed'}
+            onClick={resetTimer}
+            disabled={status === 'saving'}
           >
-            {status === 'paused'
-              ? 'Resume'
-              : mode === 'focus'
-                ? 'Start Focus'
-                : 'Start Break'}
+            Stop
           </button>
-        )}
-        <button
-          className="button button--ghost"
-          type="button"
-          onClick={resetTimer}
-          disabled={status === 'saving'}
-        >
-          Stop
-        </button>
-      </div>
+        </div>
 
-      {message ? (
-        <p
-          className={`mt-4 text-center text-sm ${
-            status === 'error'
-              ? 'text-red-600 dark:text-red-300'
-              : 'text-slate-600 dark:text-slate-300'
-          }`}
-          role={status === 'error' ? 'alert' : 'status'}
-        >
-          {message}
-        </p>
-      ) : null}
+        {message ? (
+          <p
+            className={`mt-4 text-center text-xs font-semibold ${
+              status === 'error'
+                ? 'text-red-600 dark:text-red-300'
+                : 'text-slate-600 dark:text-slate-300'
+            }`}
+            role={status === 'error' ? 'alert' : 'status'}
+          >
+            {message}
+          </p>
+        ) : null}
+      </div>
     </section>
   )
 }

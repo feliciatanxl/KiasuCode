@@ -12,6 +12,7 @@ import { io, type Socket } from 'socket.io-client'
 
 import { useAuth } from './AuthContext'
 import { getApiBaseUrl } from '../utils/api'
+import { ensureUserKeyPair } from '../utils/crypto'
 
 interface SocketContextValue {
   socket: Socket | null
@@ -51,6 +52,7 @@ export function SocketProvider({ children }: { children: ReactNode }) {
 
     socketInstance.on('connect', () => {
       setIsConnected(true)
+      void ensureUserKeyPair(user.id).catch(() => undefined)
     })
 
     socketInstance.on('disconnect', () => {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import type { Module } from '@kiasucode/shared'
 
@@ -14,19 +14,15 @@ interface ModulesResponse {
   modules: Module[]
 }
 
-const PRESET_CATEGORIES = [
-  'LeetCode Practice',
-  'Finals Revision',
-  'Assignment Sprint',
-  'Side Project',
-  'Life Admin',
-]
+const moduleTargetPrefix = 'module:'
+const customTargetValue = 'custom'
 
 export function TimerView() {
   const [isTelegramOpen, setIsTelegramOpen] = useState(false)
   const [modules, setModules] = useState<Module[]>([])
-  const [targetInput, setTargetInput] = useState('')
-  const [selectedModuleId, setSelectedModuleId] = useState<string | null>(null)
+  const [selectedTarget, setSelectedTarget] = useState(customTargetValue)
+  const [isCustom, setIsCustom] = useState(true)
+  const [customName, setCustomName] = useState('')
   const [heatmapRefreshKey, setHeatmapRefreshKey] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -39,10 +35,11 @@ export function TimerView() {
       .then(({ data }) => {
         setModules(data.modules)
         if (data.modules.length > 0) {
-          setSelectedModuleId(data.modules[0].id)
-          setTargetInput(data.modules[0].moduleCode)
+          setSelectedTarget(`${moduleTargetPrefix}${data.modules[0].id}`)
+          setIsCustom(false)
         } else {
-          setTargetInput('Finals Revision')
+          setSelectedTarget(customTargetValue)
+          setIsCustom(true)
         }
       })
       .catch((err: unknown) => {
@@ -59,39 +56,16 @@ export function TimerView() {
     return () => controller.abort()
   }, [])
 
-  // Check if targetInput corresponds to a registered academic module
-  const matchedModule = useMemo(() => {
-    const trimmed = targetInput.trim().toLowerCase()
-    if (!trimmed) return null
+  const selectedModuleId = selectedTarget.startsWith(moduleTargetPrefix)
+    ? selectedTarget.slice(moduleTargetPrefix.length)
+    : null
+  const selectedCustomCategory = isCustom ? customName.trim() || null : null
+  const selectedModule = modules.find((module) => module.id === selectedModuleId)
+  const selectedTargetLabel = selectedModule?.moduleCode ?? selectedCustomCategory
 
-    // Match by ID
-    if (selectedModuleId) {
-      const byId = modules.find((m) => m.id === selectedModuleId)
-      if (byId && (byId.moduleCode.toLowerCase() === trimmed || targetInput === `${byId.moduleCode} · ${byId.moduleName}`)) {
-        return byId
-      }
-    }
-
-    // Match by Code
-    return modules.find(
-      (m) =>
-        m.moduleCode.toLowerCase() === trimmed ||
-        `${m.moduleCode} · ${m.moduleName}`.toLowerCase() === trimmed,
-    ) || null
-  }, [targetInput, selectedModuleId, modules])
-
-  const selectedModule = matchedModule
-  const customCategory = !selectedModule && targetInput.trim() ? targetInput.trim() : null
-  const selectedTargetLabel = selectedModule?.moduleCode ?? customCategory
-
-  const handleSelectModule = (mod: Module) => {
-    setSelectedModuleId(mod.id)
-    setTargetInput(mod.moduleCode)
-  }
-
-  const handleSelectCategory = (cat: string) => {
-    setSelectedModuleId(null)
-    setTargetInput(cat)
+  const handleTargetChange = (value: string) => {
+    setSelectedTarget(value)
+    setIsCustom(value === customTargetValue)
   }
 
   return (
@@ -112,36 +86,31 @@ export function TimerView() {
 
         {/* 2-COLUMN RESPONSIVE GRID */}
         <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8 items-stretch">
-          {/* LEFT COLUMN: POMODORO TIMER PANEL */}
-          <section
-            className="h-full flex flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-800 sm:p-10 w-full"
-            aria-label="Pomodoro Timer"
-          >
+          {/* LEFT COLUMN: POMODORO TIMER (H-FULL DIRECT CARD) */}
+          <div className="h-full w-full flex flex-col">
             {selectedTargetLabel ? (
-              <div className="w-full">
-                <PomodoroTimer
-                  key={selectedTargetLabel}
-                  moduleId={selectedModule?.id ?? null}
-                  customCategory={customCategory}
-                  targetLabel={selectedTargetLabel}
-                  onSessionCompleted={(coinsEarned, coinsBalance) => {
-                    showToast(`Session completed! +${coinsEarned} coins (Balance: ${coinsBalance}).`)
-                    setHeatmapRefreshKey((current) => current + 1)
-                  }}
-                />
-              </div>
+              <PomodoroTimer
+                key={isCustom ? `${customTargetValue}:${selectedCustomCategory}` : selectedTarget}
+                moduleId={selectedModule?.id ?? null}
+                customCategory={selectedCustomCategory}
+                targetLabel={selectedTargetLabel}
+                onSessionCompleted={(coinsEarned, coinsBalance) => {
+                  showToast(`Session completed! +${coinsEarned} coins (Balance: ${coinsBalance}).`)
+                  setHeatmapRefreshKey((current) => current + 1)
+                }}
+              />
             ) : (
-              <div className="py-16 text-center w-full">
+              <div className="h-full flex flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white p-8 sm:p-12 text-center shadow-sm dark:border-slate-700 dark:bg-slate-800 w-full">
                 <span className="text-5xl" role="img" aria-label="Timer">⏱️</span>
-                <h3 className="mt-4 text-xl font-bold text-slate-900 dark:text-slate-100">
+                <h3 className="mt-4 text-xl font-bold text-gray-900 dark:text-white">
                   Select a Study Target First Lah
                 </h3>
                 <p className="mx-auto mt-2 max-w-sm text-sm text-slate-500 dark:text-slate-400">
-                  Type or select an academic module or custom category on the right before you start your focus block.
+                  Choose an academic module or enter a custom category on the right before you chiong your focus sprint.
                 </p>
               </div>
             )}
-          </section>
+          </div>
 
           {/* RIGHT COLUMN: ACTIVE STUDY TARGET PANEL */}
           <section
@@ -149,129 +118,120 @@ export function TimerView() {
             aria-labelledby="module-select-title"
           >
             <span className="eyebrow">academic.target/select</span>
-            <h2 className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-100" id="module-select-title">
+            <h2 className="mt-1 text-xl font-bold text-gray-900 dark:text-white" id="module-select-title">
               Active Study Target
             </h2>
             <p className="mt-1 text-xs text-slate-400">
-              Type any category directly or pick from your enrolled modules. Auto-selected instantly!
+              Select an academic module or custom category for this focus block. Don't slack hor!
             </p>
 
-            <div className="mt-6 space-y-4">
+            <div className="mt-6">
               {isLoading ? (
                 <div className="h-12 w-full animate-pulse rounded-xl bg-slate-100 dark:bg-slate-700/50" />
               ) : (
-                <>
-                  {/* UNIFIED INPUT / DROPDOWN EXPERIENCE */}
+                <div className="space-y-4">
+                  {/* TOP BOX: CLEAN DROPDOWN */}
                   <div>
-                    <label
-                      htmlFor="target-input-field"
-                      className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5"
-                    >
-                      Target Module or Custom Category
+                    <label htmlFor="module-picker" className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                      TARGET MODULE OR CATEGORY
                     </label>
-                    <div className="relative">
+                    <div className="relative mt-1.5">
+                      <select
+                        id="module-picker"
+                        value={selectedTarget}
+                        onChange={(e) => handleTargetChange(e.target.value)}
+                        className="h-12 w-full appearance-none truncate rounded-xl border border-slate-200 bg-slate-50 pl-4 pr-12 text-sm font-bold text-gray-900 shadow-sm transition-colors focus:border-blue-500 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:focus:bg-slate-900"
+                      >
+                        {modules.length > 0 && (
+                          <optgroup label="Academic Modules">
+                            {modules.map((module) => (
+                              <option
+                                key={module.id}
+                                value={`${moduleTargetPrefix}${module.id}`}
+                              >
+                                {module.moduleCode} · {module.moduleName}
+                              </option>
+                            ))}
+                          </optgroup>
+                        )}
+                        <optgroup label="Custom Category">
+                          <option value={customTargetValue}>
+                            + Create Custom Category
+                          </option>
+                        </optgroup>
+                      </select>
+                      <svg
+                        aria-hidden="true"
+                        viewBox="0 0 20 20"
+                        fill="none"
+                        className="pointer-events-none absolute right-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-500 dark:text-slate-300"
+                      >
+                        <path d="m6 8 4 4 4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </div>
+                  </div>
+
+                  {/* BOTTOM BOX: CLEAN CUSTOM CATEGORY INPUT */}
+                  {isCustom && (
+                    <div>
+                      <label
+                        htmlFor="custom-category-name"
+                        className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400"
+                      >
+                        CUSTOM CATEGORY NAME
+                      </label>
                       <input
-                        id="target-input-field"
-                        list="unified-target-options"
+                        id="custom-category-name"
                         type="text"
-                        value={targetInput}
-                        onChange={(e) => {
-                          setTargetInput(e.target.value)
-                          setSelectedModuleId(null)
-                        }}
-                        placeholder="Type or pick a target (e.g. CS2040C, LeetCode, Side Project)…"
-                        className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold text-slate-900 shadow-sm transition-colors placeholder:font-normal placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:focus:bg-slate-900"
+                        value={customName}
+                        onChange={(event) => setCustomName(event.target.value)}
+                        maxLength={255}
+                        placeholder="e.g., Side Hustle or Life Admin"
+                        className="mt-1.5 h-12 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-semibold text-gray-900 shadow-sm transition-colors placeholder:font-normal placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-500/10 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                       />
-                      <datalist id="unified-target-options">
-                        {modules.map((m) => (
-                          <option key={m.id} value={m.moduleCode}>
-                            {m.moduleCode} · {m.moduleName}
-                          </option>
-                        ))}
-                        {PRESET_CATEGORIES.map((cat) => (
-                          <option key={cat} value={cat}>
-                            {cat}
-                          </option>
-                        ))}
-                      </datalist>
                     </div>
-                  </div>
+                  )}
 
-                  {/* QUICK SUGGESTIONS CHIPS */}
-                  <div>
-                    <span className="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-2">
-                      Quick Suggestions
-                    </span>
-                    <div className="flex flex-wrap gap-2">
-                      {modules.map((mod) => (
-                        <button
-                          key={mod.id}
-                          type="button"
-                          onClick={() => handleSelectModule(mod)}
-                          className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all shadow-2xs ${
-                            selectedModule?.id === mod.id
-                              ? 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-500/30'
-                              : 'border border-blue-200 bg-blue-50/70 text-blue-700 hover:bg-blue-100 dark:border-blue-900/60 dark:bg-blue-950/40 dark:text-blue-300 dark:hover:bg-blue-900/60'
-                          }`}
-                        >
-                          📚 {mod.moduleCode}
-                        </button>
-                      ))}
-                      {PRESET_CATEGORIES.map((cat) => (
-                        <button
-                          key={cat}
-                          type="button"
-                          onClick={() => handleSelectCategory(cat)}
-                          className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all shadow-2xs ${
-                            customCategory?.toLowerCase() === cat.toLowerCase()
-                              ? 'bg-purple-600 text-white shadow-sm ring-2 ring-purple-500/30'
-                              : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700'
-                          }`}
-                        >
-                          ⚡ {cat}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* ACTIVE TARGET SUMMARY CARD */}
-                  {selectedModule ? (
-                    <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50/60 p-4 dark:border-blue-900/60 dark:bg-blue-950/30">
+                  {/* MODULE OR CUSTOM CATEGORY PREVIEW CARD */}
+                  {selectedModule && (
+                    <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50/50 p-4 dark:border-blue-900/40 dark:bg-blue-950/20">
                       <div className="flex items-center justify-between">
-                        <span className="font-mono text-xs font-bold text-blue-700 dark:text-blue-400">
-                          ACADEMIC MODULE · {selectedModule.moduleCode}
+                        <span className="font-mono text-xs font-bold text-blue-600 dark:text-blue-400">
+                          {selectedModule.moduleCode}
                         </span>
                         <span className="text-xs text-slate-500 dark:text-slate-400">
-                          {selectedModule.creditUnits} MCs
+                          {selectedModule.creditUnits} MCs / Units
                         </span>
                       </div>
-                      <strong className="mt-1 block text-sm text-slate-900 dark:text-slate-100">
+                      <strong className="mt-1 block text-sm font-bold text-gray-900 dark:text-white">
                         {selectedModule.moduleName}
                       </strong>
                     </div>
-                  ) : customCategory ? (
-                    <div className="mt-4 rounded-xl border border-purple-200 bg-purple-50/60 p-4 dark:border-purple-900/60 dark:bg-purple-950/30">
-                      <span className="font-mono text-xs font-bold text-purple-700 dark:text-purple-400">
-                        CUSTOM FOCUS CATEGORY
+                  )}
+
+                  {selectedCustomCategory && (
+                    <div className="mt-4 rounded-xl border border-purple-100 bg-purple-50/50 p-4 dark:border-purple-900/40 dark:bg-purple-950/20">
+                      <span className="font-mono text-xs font-bold text-purple-600 dark:text-purple-400">
+                        CUSTOM CATEGORY
                       </span>
-                      <strong className="mt-1 block text-sm text-slate-900 dark:text-slate-100">
-                        {customCategory}
+                      <strong className="mt-1 block text-sm font-bold text-gray-900 dark:text-white">
+                        {selectedCustomCategory}
                       </strong>
                       <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
-                        Tracked for this session. Complete minutes to earn study coins for your pet!
+                        This session tracked separately—no module linked, but still can earn coins and chiong your personal tasks!
                       </p>
                     </div>
-                  ) : null}
+                  )}
 
                   {modules.length === 0 && (
                     <p className="text-[11px] text-slate-400">
-                      Want module-linked tracking?{' '}
+                      Want academic tracking also?{' '}
                       <Link to="/campus" className="font-semibold text-blue-600 hover:underline dark:text-blue-400">
-                        Add a module in Campus Repo.
+                        Add a module in Campus Repo lah.
                       </Link>
                     </p>
                   )}
-                </>
+                </div>
               )}
             </div>
 

@@ -217,27 +217,27 @@ export function GuideView() {
         {/* BOTTOM HELP CTA */}
         <div className="mt-10 rounded-2xl border border-slate-200 bg-gradient-to-r from-blue-600 to-indigo-700 p-8 text-white shadow-lg dark:border-slate-800">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
-            <div>
+            <div className="flex-1">
               <span className="text-xs font-bold uppercase tracking-widest text-blue-200">
                 Ready to commit?
               </span>
-              <h2 className="mt-1 text-2xl font-black tracking-tight">
+              <h2 className="mt-1 text-2xl font-black tracking-tight text-white">
                 Start Your Study Session Now
               </h2>
               <p className="mt-1 max-w-xl text-xs text-blue-100">
                 Configure your modules on Campus, deploy your first 25-minute sprint, and watch your companion level up!
               </p>
             </div>
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-wrap items-center justify-end gap-3 sm:ml-auto shrink-0">
               <Link
                 to="/timer"
-                className="rounded-xl bg-white px-5 py-2.5 text-xs font-extrabold text-blue-700 shadow-sm transition hover:bg-blue-50"
+                className="rounded-xl bg-white px-5 py-2.5 text-xs font-extrabold text-blue-700 hover:text-blue-800 shadow-sm transition hover:bg-blue-50"
               >
-                Launch Pomodoro ⏱️
+                Solo Sprint ⏱️
               </Link>
               <Link
                 to="/study-room"
-                className="rounded-xl border border-white/30 bg-white/10 px-5 py-2.5 text-xs font-extrabold text-white backdrop-blur-sm transition hover:bg-white/20"
+                className="rounded-xl border border-white/30 bg-white/10 px-5 py-2.5 text-xs font-extrabold text-white hover:text-white backdrop-blur-sm transition hover:bg-white/20"
               >
                 Join Study Room 👥
               </Link>

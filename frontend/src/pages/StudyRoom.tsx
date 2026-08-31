@@ -7,6 +7,7 @@ import type {
   RoomTimerStatus,
   TimerCompletePayload,
 } from '@kiasucode/shared'
+import { FriendProfileModal } from '../components/FriendProfileModal'
 import { Logo } from '../components/Logo'
 import { Navbar } from '../components/Navbar'
 import { PrivateChat } from '../components/PrivateChat'
@@ -38,30 +39,30 @@ const STUDY_ROOMS: StudyRoomCard[] = [
   },
   {
     id: 'deep-work',
-    title: 'Deep Work',
-    category: 'Intense Sprint',
-    description: 'High-intensity silent sprint room. Keep chat minimal and grind out hard problem sets.',
-    icon: '⚡',
-    badgeColor: 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300',
-    accentColor: 'border-amber-200 dark:border-amber-800 hover:border-amber-400',
+    title: 'Deep Work Library',
+    category: 'Silent Sprint',
+    description: 'Zero distractions. Heads down, high efficiency 50-minute blocks.',
+    icon: '🤫',
+    badgeColor: 'bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300',
+    accentColor: 'border-purple-200 dark:border-purple-800 hover:border-purple-400',
   },
   {
-    id: 'quiet-pomodoro',
-    title: 'Quiet Pomodoro',
-    category: 'Standard 25/5',
-    description: 'Standard 25-minute synchronized pomodoro clock with calm ambient vibes.',
-    icon: '⏳',
+    id: 'coding-lab',
+    title: 'Hackers & Coders Lab',
+    category: 'Dev Sprints',
+    description: 'Pair programming, algorithm grinding, and late night debugging.',
+    icon: '💻',
     badgeColor: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300',
     accentColor: 'border-emerald-200 dark:border-emerald-800 hover:border-emerald-400',
   },
   {
-    id: 'exam-prep',
-    title: 'Exam Prep',
-    category: 'Finals Revision',
-    description: 'Finals sprint room. Share questions, conquer past-year papers together.',
-    icon: '🎯',
-    badgeColor: 'bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300',
-    accentColor: 'border-purple-200 dark:border-purple-800 hover:border-purple-400',
+    id: 'finals-grind',
+    title: 'Finals Chiong Station',
+    category: 'Intensive',
+    description: 'High stakes exam crunch room. Steady pom pi pi!',
+    icon: '🔥',
+    badgeColor: 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300',
+    accentColor: 'border-rose-200 dark:border-rose-800 hover:border-rose-400',
   },
 ]
 
@@ -70,6 +71,7 @@ const TOTAL_DURATION_SECONDS = 25 * 60
 export function StudyRoom() {
   const { user } = useAuth()
   const { showToast } = useToast()
+  const { socket, isConnected, presenceMap } = useSocket()
   const [isTelegramOpen, setIsTelegramOpen] = useState(false)
 
   // Navigation & Room state
@@ -79,9 +81,6 @@ export function StudyRoom() {
   // Lobby Search & Invite Code State
   const [searchQuery, setSearchQuery] = useState('')
   const [inviteCodeInput, setInviteCodeInput] = useState('')
-
-  // WebSocket state from global context
-  const { socket, isConnected, presenceMap } = useSocket()
 
   // Room state
   const [timerStatus, setTimerStatus] = useState<RoomTimerStatus>('idle')
@@ -102,6 +101,7 @@ export function StudyRoom() {
   const [isSendingRequest, setIsSendingRequest] = useState(false)
   const [friendError, setFriendError] = useState<string | null>(null)
   const [activeChatFriend, setActiveChatFriend] = useState<{ id: string; name: string; photoUrl?: string | null } | null>(null)
+  const [inspectedFriend, setInspectedFriend] = useState<{ id: string; name: string; photoUrl?: string | null } | null>(null)
 
   // Coin Reward celebration modal
   const [celebrationCoins, setCelebrationCoins] = useState<number | null>(null)
@@ -915,16 +915,21 @@ export function StudyRoom() {
 
                         return (
                           <li key={item.id} className="flex items-center justify-between py-3">
-                            <div className="flex items-center gap-3 min-w-0">
+                            <button
+                              type="button"
+                              onClick={() => setInspectedFriend(item.friend)}
+                              className="flex items-center gap-3 min-w-0 text-left hover:opacity-85 transition-opacity focus:outline-none group cursor-pointer"
+                              title={`View ${item.friend.name}'s Profile & Companion`}
+                            >
                               <div className="relative">
                                 {item.friend.photoUrl ? (
                                   <img
                                     src={item.friend.photoUrl}
                                     alt=""
-                                    className="size-10 rounded-full object-cover border border-slate-200 dark:border-slate-700"
+                                    className="size-10 rounded-full object-cover border border-slate-200 group-hover:ring-2 group-hover:ring-blue-500/40 dark:border-slate-700 transition-all"
                                   />
                                 ) : (
-                                  <div className="grid size-10 place-items-center rounded-full bg-blue-100 font-bold text-blue-700 dark:bg-blue-900/60 dark:text-blue-300">
+                                  <div className="grid size-10 place-items-center rounded-full bg-blue-100 font-bold text-blue-700 dark:bg-blue-900/60 dark:text-blue-300 group-hover:ring-2 group-hover:ring-blue-500/40 transition-all">
                                     {item.friend.name.slice(0, 2).toUpperCase()}
                                   </div>
                                 )}
@@ -937,7 +942,7 @@ export function StudyRoom() {
                               </div>
                               <div className="min-w-0">
                                 <div className="flex items-center gap-2">
-                                  <strong className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate block">
+                                  <strong className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate block group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
                                     {item.friend.name}
                                   </strong>
                                   <span
@@ -962,7 +967,7 @@ export function StudyRoom() {
                                   )}
                                 </small>
                               </div>
-                            </div>
+                            </button>
 
                             <div className="flex items-center gap-2">
                               {/* Open E2EE Private Chat Button */}
@@ -1139,6 +1144,13 @@ export function StudyRoom() {
         friend={activeChatFriend}
         isOpen={Boolean(activeChatFriend)}
         onClose={() => setActiveChatFriend(null)}
+      />
+
+      <FriendProfileModal
+        friend={inspectedFriend}
+        isOpen={Boolean(inspectedFriend)}
+        onClose={() => setInspectedFriend(null)}
+        presence={inspectedFriend ? presenceMap[inspectedFriend.id] : undefined}
       />
 
       <TelegramConnectModal isOpen={isTelegramOpen} onClose={() => setIsTelegramOpen(false)} />

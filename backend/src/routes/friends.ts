@@ -403,6 +403,71 @@ router.get(
   },
 )
 
+// GET /api/friends/:friendId/profile & GET /api/user/:id/public-profile - Get public stats, presence & pet details
+const handleGetFriendPublicProfile = async (request: Request, response: Response) => {
+  try {
+    const friendId = request.params.friendId || request.params.id
+    if (!friendId) {
+      response.status(400).json({ error: 'User ID is required.' })
+      return
+    }
+
+    const [userRows] = await db.execute<RowDataPacket[]>(
+      'SELECT id, name, photo_url, created_at FROM users WHERE id = ? LIMIT 1',
+      [friendId],
+    )
+    const user = userRows[0]
+    if (!user) {
+      response.status(404).json({ error: 'User not found.' })
+      return
+    }
+
+    const [petRows] = await db.execute<RowDataPacket[]>(
+      'SELECT id, name, first_name, pet_type, hunger_level, happiness_level, last_interacted_at FROM pets WHERE user_id = ? LIMIT 1',
+      [friendId],
+    )
+    const pet = petRows[0]
+
+    const [sessionRows] = await db.execute<RowDataPacket[]>(
+      'SELECT COALESCE(SUM(duration_minutes), 0) AS total_study_minutes, COUNT(id) AS total_sessions FROM study_sessions WHERE user_id = ?',
+      [friendId],
+    )
+    const totalMinutes = Number(sessionRows[0]?.total_study_minutes ?? 0)
+    const totalSessions = Number(sessionRows[0]?.total_sessions ?? 0)
+    const petLevel = pet ? Math.max(1, Math.floor(totalMinutes / 60) + 1) : 0
+
+    response.status(200).json({
+      user: {
+        id: user.id,
+        name: user.name,
+        photoUrl: user.photo_url || null,
+        createdAt: toIsoString(user.created_at),
+      },
+      pet: pet
+        ? {
+            id: pet.id,
+            name: pet.name,
+            firstName: pet.first_name || pet.name || 'Byte',
+            petType: pet.pet_type || 'hatchling',
+            hungerLevel: Number(pet.hunger_level),
+            happinessLevel: Number(pet.happiness_level),
+            level: petLevel,
+          }
+        : null,
+      stats: {
+        totalStudyMinutes: totalMinutes,
+        totalSessions,
+      },
+    })
+  } catch (error) {
+    console.error('Unable to retrieve public friend profile: %o', error)
+    response.status(500).json({ error: 'Unable to retrieve friend profile.' })
+  }
+}
+
+router.get('/friends/:friendId/profile', authenticateRequest, handleGetFriendPublicProfile)
+router.get('/user/:id/public-profile', authenticateRequest, handleGetFriendPublicProfile)
+
 // GET /api/messages/:friendId - Get encrypted message history
 const handleGetMessageHistory = async (request: Request, response: Response) => {
   try {

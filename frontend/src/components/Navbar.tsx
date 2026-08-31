@@ -87,7 +87,7 @@ export function Navbar({ onConnectTelegram }: NavbarProps) {
               end
               to="/dashboard"
             >
-              Dashboard
+              Daily Hub
             </NavLink>
             <NavLink
               className={({ isActive }) =>
@@ -99,7 +99,7 @@ export function Navbar({ onConnectTelegram }: NavbarProps) {
               }
               to="/campus"
             >
-              Campus
+              Campus Repo
             </NavLink>
             <NavLink
               className={({ isActive }) =>
@@ -112,7 +112,7 @@ export function Navbar({ onConnectTelegram }: NavbarProps) {
               end
               to="/files"
             >
-              Module Files
+              The Stash
             </NavLink>
             <NavLink
               className={({ isActive }) =>
@@ -125,7 +125,7 @@ export function Navbar({ onConnectTelegram }: NavbarProps) {
               end
               to="/countdowns"
             >
-              Countdowns
+              Radar
             </NavLink>
             <NavLink
               className={({ isActive }) =>
@@ -138,7 +138,7 @@ export function Navbar({ onConnectTelegram }: NavbarProps) {
               end
               to="/timer"
             >
-              Solo Timer
+              Chiong Sprint
             </NavLink>
             <NavLink
               className={({ isActive }) =>
@@ -151,7 +151,7 @@ export function Navbar({ onConnectTelegram }: NavbarProps) {
               end
               to="/study-room"
             >
-              Study Room
+              Multiplayer
             </NavLink>
             <NavLink
               className={({ isActive }) =>
@@ -164,7 +164,7 @@ export function Navbar({ onConnectTelegram }: NavbarProps) {
               end
               to="/pet"
             >
-              My Pet
+              Companion
             </NavLink>
           </nav>
         </div>
@@ -312,7 +312,7 @@ export function Navbar({ onConnectTelegram }: NavbarProps) {
                 }`
               }
             >
-              Dashboard
+              Daily Hub
             </NavLink>
             <NavLink
               to="/campus"
@@ -325,7 +325,7 @@ export function Navbar({ onConnectTelegram }: NavbarProps) {
                 }`
               }
             >
-              Campus
+              Campus Repo
             </NavLink>
             <NavLink
               to="/files"
@@ -339,7 +339,7 @@ export function Navbar({ onConnectTelegram }: NavbarProps) {
                 }`
               }
             >
-              Module Files
+              The Stash
             </NavLink>
             <NavLink
               to="/countdowns"
@@ -353,7 +353,7 @@ export function Navbar({ onConnectTelegram }: NavbarProps) {
                 }`
               }
             >
-              Countdowns
+              Radar
             </NavLink>
             <NavLink
               to="/timer"
@@ -367,7 +367,7 @@ export function Navbar({ onConnectTelegram }: NavbarProps) {
                 }`
               }
             >
-              Solo Timer
+              Chiong Sprint
             </NavLink>
             <NavLink
               to="/study-room"
@@ -381,7 +381,7 @@ export function Navbar({ onConnectTelegram }: NavbarProps) {
                 }`
               }
             >
-              Study Room
+              Multiplayer
             </NavLink>
             <NavLink
               to="/pet"
@@ -395,7 +395,7 @@ export function Navbar({ onConnectTelegram }: NavbarProps) {
                 }`
               }
             >
-              My Pet
+              Companion
             </NavLink>
             <NavLink
               to="/guide"
