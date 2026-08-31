@@ -6,7 +6,8 @@ interface TelegramConnectModalProps {
 }
 
 const pairingCode = 'KIASU-W8-4A7C'
-const botLink = `https://t.me/KiasuCodeBot?start=${pairingCode}`
+const botName = import.meta.env.VITE_TELEGRAM_BOT_NAME || 'KiasuCodeBot'
+const botLink = `https://t.me/${botName}?start=${pairingCode}`
 
 export function TelegramConnectModal({
   isOpen,
@@ -69,7 +70,7 @@ export function TelegramConnectModal({
           </button>
         </div>
         <a className="button button--telegram" href={botLink} target="_blank" rel="noreferrer">
-          Open t.me/KiasuCodeBot <span>↗</span>
+          Open t.me/{botName} <span>↗</span>
         </a>
         <small className="text-slate-500 dark:text-slate-400">Mock integration only. No account data is sent yet.</small>
       </section>
