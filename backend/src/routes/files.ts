@@ -20,23 +20,24 @@ interface FileRow extends RowDataPacket {
   module_id: string
   user_id: string
   file_name: string
-  file_url: string
-  file_size_kb: number
+  file_path: string | null
+  file_size: number | null
+  mime_type: string | null
   created_at: Date | string
 }
 
 const router = Router()
-const uploadsDirectory = path.resolve(process.cwd(), 'uploads')
+const uploadsDirectory = path.resolve(process.env.UPLOAD_DIR || '/app/uploads')
 
 if (!fs.existsSync(uploadsDirectory)) {
   fs.mkdirSync(uploadsDirectory, { recursive: true })
 }
 
-function getSafeUploadFilePath(fileNameOrUrl: string): string {
-  const baseName = path.basename(fileNameOrUrl)
+function getSafeUploadFilePath(filePath: string): string {
+  const baseName = path.basename(filePath)
   const normalizedUploadDir = path.resolve(uploadsDirectory)
   const resolvedPath = path.resolve(normalizedUploadDir, baseName)
-  if (!resolvedPath.startsWith(normalizedUploadDir + path.sep) && resolvedPath !== normalizedUploadDir) {
+  if (!baseName || !resolvedPath.startsWith(normalizedUploadDir + path.sep)) {
     throw new AppError(400, 'Invalid file path.', 'INVALID_FILE_PATH')
   }
   return resolvedPath
@@ -91,8 +92,8 @@ function serializeFile(row: FileRow): ModuleFile {
     moduleId: row.module_id,
     userId: row.user_id,
     fileName: row.file_name,
-    fileUrl: row.file_url,
-    fileSizeKb: row.file_size_kb,
+    fileUrl: `/files/${row.id}/download`,
+    fileSizeKb: Math.max(1, Math.round((row.file_size ?? 0) / 1024)),
     createdAt: toIsoString(row.created_at),
   }
 }
@@ -123,7 +124,7 @@ router.get(
       await validateModuleOwnership(moduleId, userId)
 
       const [rows] = await db.execute<FileRow[]>(
-        `SELECT id, module_id, user_id, file_name, file_url, file_size_kb, created_at
+        `SELECT id, module_id, user_id, file_name, file_path, file_size, mime_type, created_at
            FROM module_files
           WHERE module_id = ? AND user_id = ?
           ORDER BY created_at DESC`,
@@ -154,25 +155,25 @@ router.post(
       }
 
       const fileId = uuidv4()
-      const relativeFileUrl = `/uploads/${file.filename}`
-      const fileSizeKb = Math.max(1, Math.round(file.size / 1024))
+      const filePath = getSafeUploadFilePath(file.path)
 
       await db.execute<ResultSetHeader>(
         `INSERT INTO module_files
-          (id, module_id, user_id, file_name, file_url, file_size_kb)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+          (id, module_id, user_id, file_name, file_path, file_size, mime_type)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [
           fileId,
           moduleId,
           userId,
           file.originalname.slice(0, 255),
-          relativeFileUrl,
-          fileSizeKb,
+          filePath,
+          file.size,
+          file.mimetype,
         ],
       )
 
       const [rows] = await db.execute<FileRow[]>(
-        `SELECT id, module_id, user_id, file_name, file_url, file_size_kb, created_at
+        `SELECT id, module_id, user_id, file_name, file_path, file_size, mime_type, created_at
            FROM module_files
           WHERE id = ? AND user_id = ?
           LIMIT 1`,
@@ -198,7 +199,7 @@ router.post(
 async function handleDeleteFile(fileId: string, userId: string, response: Response, next: NextFunction) {
   try {
     const [rows] = await db.execute<FileRow[]>(
-      `SELECT id, module_id, user_id, file_name, file_url, file_size_kb, created_at
+      `SELECT id, module_id, user_id, file_name, file_path, file_size, mime_type, created_at
          FROM module_files
         WHERE id = ? AND user_id = ?
         LIMIT 1`,
@@ -215,8 +216,10 @@ async function handleDeleteFile(fileId: string, userId: string, response: Respon
       [fileId, userId],
     )
 
-    const diskPath = getSafeUploadFilePath(fileRow.file_url)
-    await fs.promises.unlink(diskPath).catch(() => undefined)
+    if (fileRow.file_path) {
+      const diskPath = getSafeUploadFilePath(fileRow.file_path)
+      await fs.promises.unlink(diskPath).catch(() => undefined)
+    }
 
     response.status(200).json({ success: true })
   } catch (error) {
@@ -233,7 +236,7 @@ router.get(
       const userId = getUserId(response)
 
       const [rows] = await db.execute<FileRow[]>(
-        `SELECT id, module_id, user_id, file_name, file_url, file_size_kb, created_at
+        `SELECT id, module_id, user_id, file_name, file_path, file_size, mime_type, created_at
            FROM module_files
           WHERE id = ? AND user_id = ?
           LIMIT 1`,
@@ -245,12 +248,17 @@ router.get(
         throw new AppError(404, 'File not found or access denied.', 'FILE_NOT_FOUND')
       }
 
-      const safePath = getSafeUploadFilePath(fileRow.file_url)
-      if (!fs.existsSync(safePath)) {
+      if (!fileRow.file_path) {
         throw new AppError(404, 'File not found on disk.', 'FILE_NOT_FOUND')
       }
 
-      response.download(safePath, path.basename(fileRow.file_name))
+      const filePath = getSafeUploadFilePath(fileRow.file_path)
+      if (!fs.existsSync(filePath)) {
+        throw new AppError(404, 'File not found on disk.', 'FILE_NOT_FOUND')
+      }
+
+      const originalName = path.basename(fileRow.file_name)
+      response.download(filePath, originalName)
     } catch (error) {
       next(error)
     }
@@ -284,4 +292,3 @@ router.delete(
 )
 
 export default router
-
