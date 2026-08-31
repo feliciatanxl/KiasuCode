@@ -6,17 +6,15 @@ import type {
   RoomState,
   RoomTimerStatus,
   TimerCompletePayload,
-  UserPresence,
 } from '@kiasucode/shared'
-import { io, type Socket } from 'socket.io-client'
-
 import { Logo } from '../components/Logo'
 import { Navbar } from '../components/Navbar'
 import { PrivateChat } from '../components/PrivateChat'
 import { TelegramConnectModal } from '../components/TelegramConnectModal'
 import { useAuth } from '../context/AuthContext'
+import { useSocket } from '../context/SocketContext'
 import { useToast } from '../context/ToastContext'
-import { apiRequest, formatApiError, getApiBaseUrl, isAbortError } from '../utils/api'
+import { apiRequest, formatApiError, isAbortError } from '../utils/api'
 
 interface StudyRoomCard {
   id: string
@@ -82,14 +80,8 @@ export function StudyRoom() {
   const [searchQuery, setSearchQuery] = useState('')
   const [inviteCodeInput, setInviteCodeInput] = useState('')
 
-  // WebSocket state
-  const [isConnected, setIsConnected] = useState(false)
-  const [isReconnecting, setIsReconnecting] = useState(false)
-  const socketRef = useRef<Socket | null>(null)
-  const [socketInstance, setSocketInstance] = useState<Socket | null>(null)
-
-  // Presence State: userId -> { status, roomId }
-  const [presenceMap, setPresenceMap] = useState<Record<string, { status: 'online' | 'offline'; roomId: string | null }>>({})
+  // WebSocket state from global context
+  const { socket, isConnected, presenceMap } = useSocket()
 
   // Room state
   const [timerStatus, setTimerStatus] = useState<RoomTimerStatus>('idle')
@@ -152,89 +144,53 @@ export function StudyRoom() {
     }
   }, [messages, roomSubTab])
 
-  // Setup WebSocket connection
+  // Attach room-specific WebSocket listeners
   useEffect(() => {
-    const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:'
-    const socket = io(getApiBaseUrl(), {
-      path: '/socket.io',
-      transports: ['websocket', 'polling'],
-      secure: isHttps,
-      withCredentials: true,
-      reconnection: true,
-      reconnectionAttempts: 20,
-      reconnectionDelay: 1000,
-    })
+    if (!socket || !currentRoom) return
 
-    socketRef.current = socket
+    socket.emit('join_room', { roomId: currentRoom })
 
-    socket.on('connect', () => {
-      setIsConnected(true)
-      setIsReconnecting(false)
-      setSocketInstance(socket)
-      if (currentRoom) {
-        socket.emit('join_room', { roomId: currentRoom })
-      }
-    })
-
-    socket.on('connect_error', () => {
-      setIsConnected(false)
-      setIsReconnecting(true)
-    })
-
-    socket.on('disconnect', () => {
-      setIsConnected(false)
-      setSocketInstance(null)
-    })
-
-    // Presence listeners
-    socket.on('initial_presence', (initialPresence: Record<string, { status: 'online' | 'offline'; roomId: string | null }>) => {
-      setPresenceMap(initialPresence)
-    })
-
-    socket.on('presence_update', (update: UserPresence) => {
-      setPresenceMap((prev) => ({
-        ...prev,
-        [update.userId]: {
-          status: update.status,
-          roomId: update.roomId,
-        },
-      }))
-    })
-
-    socket.on('room_state', (state: RoomState) => {
-      if (currentRoom && state.roomId === currentRoom) {
+    const handleRoomState = (state: RoomState) => {
+      if (state.roomId === currentRoom) {
         setTimerStatus(state.status)
         setRemainingSeconds(state.remainingSeconds)
         setParticipants(state.participants)
       }
-    })
+    }
 
-    socket.on('chat_message', (chatMsg: ChatMessage) => {
-      if (currentRoom && chatMsg.roomId === currentRoom) {
+    const handleChatMessage = (chatMsg: ChatMessage) => {
+      if (chatMsg.roomId === currentRoom) {
         setMessages((prev) => [...prev, chatMsg])
       }
-    })
+    }
 
-    socket.on('timer_tick', (data: { roomId: string; remainingSeconds: number; status: RoomTimerStatus }) => {
-      if (currentRoom && data.roomId === currentRoom) {
+    const handleTimerTick = (data: { roomId: string; remainingSeconds: number; status: RoomTimerStatus }) => {
+      if (data.roomId === currentRoom) {
         setRemainingSeconds(data.remainingSeconds)
         setTimerStatus(data.status)
       }
-    })
+    }
 
-    socket.on('timer_complete', (payload: TimerCompletePayload) => {
-      if (currentRoom && payload.roomId === currentRoom) {
+    const handleTimerComplete = (payload: TimerCompletePayload) => {
+      if (payload.roomId === currentRoom) {
         setCelebrationCoins(payload.coinsEarned)
         showToast(`🎉 Focus session complete! +${payload.coinsEarned} coins awarded to all participants!`)
       }
-    })
+    }
+
+    socket.on('room_state', handleRoomState)
+    socket.on('chat_message', handleChatMessage)
+    socket.on('timer_tick', handleTimerTick)
+    socket.on('timer_complete', handleTimerComplete)
 
     return () => {
-      socket.disconnect()
-      socketRef.current = null
-      setSocketInstance(null)
+      socket.off('room_state', handleRoomState)
+      socket.off('chat_message', handleChatMessage)
+      socket.off('timer_tick', handleTimerTick)
+      socket.off('timer_complete', handleTimerComplete)
+      socket.emit('leave_room', { roomId: currentRoom })
     }
-  }, [currentRoom, showToast])
+  }, [socket, currentRoom, showToast])
 
   // Join room helper
   const handleJoinRoom = (roomId: string) => {
@@ -247,15 +203,14 @@ export function StudyRoom() {
       setParticipants([])
       setRemainingSeconds(TOTAL_DURATION_SECONDS)
       setTimerStatus('idle')
-      socketRef.current?.emit('join_room', { roomId: cleanRoomId })
     }
     setActiveTab('room')
   }
 
   // Leave room helper
   const handleLeaveRoom = () => {
-    if (currentRoom) {
-      socketRef.current?.emit('leave_room', { roomId: currentRoom })
+    if (currentRoom && socket) {
+      socket.emit('leave_room', { roomId: currentRoom })
     }
     setCurrentRoom(null)
     setMessages([])
@@ -283,21 +238,21 @@ export function StudyRoom() {
 
   // Timer controls
   const handleStartTimer = () => {
-    if (!currentRoom) return
-    socketRef.current?.emit('timer_start', { roomId: currentRoom })
+    if (!currentRoom || !socket) return
+    socket.emit('timer_start', { roomId: currentRoom })
   }
 
   const handleResetTimer = () => {
-    if (!currentRoom) return
-    socketRef.current?.emit('timer_reset', { roomId: currentRoom })
+    if (!currentRoom || !socket) return
+    socket.emit('timer_reset', { roomId: currentRoom })
   }
 
   // Chat actions
   const handleSendMessage = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    if (!inputMessage.trim() || !isConnected || !currentRoom) return
+    if (!inputMessage.trim() || !isConnected || !currentRoom || !socket) return
 
-    socketRef.current?.emit('send_message', {
+    socket.emit('send_message', {
       roomId: currentRoom,
       message: inputMessage.trim(),
     })
@@ -411,7 +366,7 @@ export function StudyRoom() {
           >
             <div className="flex items-center gap-2">
               <span className="inline-block size-2 animate-ping rounded-full bg-amber-500" />
-              <span>{isReconnecting ? 'Reconnecting to multiplayer study room…' : 'Connecting to study server…'}</span>
+              <span>Connecting to multiplayer study server…</span>
             </div>
             <code className="text-xs font-mono">ws/study-hub</code>
           </div>
@@ -1184,7 +1139,6 @@ export function StudyRoom() {
         friend={activeChatFriend}
         isOpen={Boolean(activeChatFriend)}
         onClose={() => setActiveChatFriend(null)}
-        socket={socketInstance}
       />
 
       <TelegramConnectModal isOpen={isTelegramOpen} onClose={() => setIsTelegramOpen(false)} />

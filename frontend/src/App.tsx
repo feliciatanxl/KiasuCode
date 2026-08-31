@@ -10,6 +10,7 @@ import {
 
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { AuthProvider, useAuth } from './context/AuthContext'
+import { SocketProvider } from './context/SocketContext'
 import { ToastProvider } from './context/ToastContext'
 import { CampusPage } from './pages/CampusPage'
 import { CountdownsView } from './pages/CountdownsView'
@@ -181,7 +182,9 @@ function RouteTree() {
   return (
     <ErrorBoundary key={location.key}>
       <ToastProvider>
-        <AppRoutes />
+        <SocketProvider>
+          <AppRoutes />
+        </SocketProvider>
       </ToastProvider>
     </ErrorBoundary>
   )

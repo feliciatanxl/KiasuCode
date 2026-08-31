@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS users (
   name VARCHAR(160) NOT NULL,
   photo_url LONGTEXT NULL,
   public_key LONGTEXT NULL,
+  wrapped_private_key LONGTEXT NULL,
   has_consented BOOLEAN NOT NULL DEFAULT FALSE,
   telegram_chat_id VARCHAR(255) NULL,
   google_id VARCHAR(255) NULL,

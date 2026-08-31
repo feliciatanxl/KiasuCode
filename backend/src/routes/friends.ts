@@ -433,8 +433,70 @@ const handleGetMessageHistory = async (request: Request, response: Response) => 
   }
 }
 
-router.get('/messages/:friendId', authenticateRequest, handleGetMessageHistory)
-router.get('/private-messages/:friendId', authenticateRequest, handleGetMessageHistory)
+// PUT or POST /api/user/wrapped-private-key - Escrow user's PIN-wrapped private key
+const handleSaveWrappedPrivateKey = async (request: Request, response: Response) => {
+  try {
+    const currentUserId = getUserId(response)
+    if (!isRecord(request.body)) {
+      response.status(400).json({ error: 'A JSON request body is required.' })
+      return
+    }
+
+    const rawWrappedKey = request.body.wrappedPrivateKey ?? request.body.wrapped_private_key
+    const wrappedPrivateKey = typeof rawWrappedKey === 'string' ? rawWrappedKey.trim() : ''
+
+    if (!wrappedPrivateKey) {
+      response.status(400).json({ error: 'Wrapped private key is required.' })
+      return
+    }
+
+    await db.execute<ResultSetHeader>(
+      'UPDATE users SET wrapped_private_key = ? WHERE id = ?',
+      [wrappedPrivateKey, currentUserId],
+    )
+
+    response.status(200).json({
+      success: true,
+      message: 'Wrapped private key escrowed successfully.',
+    })
+  } catch (error) {
+    console.error('Unable to save wrapped private key: %o', error)
+    response.status(500).json({ error: 'Unable to escrow wrapped private key.' })
+  }
+}
+
+router.put('/user/wrapped-private-key', authenticateRequest, handleSaveWrappedPrivateKey)
+router.post('/user/wrapped-private-key', authenticateRequest, handleSaveWrappedPrivateKey)
+
+// GET /api/user/wrapped-private-key - Retrieve current user's escrowed wrapped private key
+router.get(
+  '/user/wrapped-private-key',
+  authenticateRequest,
+  async (_request: Request, response: Response) => {
+    try {
+      const currentUserId = getUserId(response)
+
+      const [rows] = await db.execute<RowDataPacket[]>(
+        'SELECT id, public_key, wrapped_private_key FROM users WHERE id = ? LIMIT 1',
+        [currentUserId],
+      )
+      const user = rows[0]
+
+      if (!user) {
+        response.status(404).json({ error: 'User not found.' })
+        return
+      }
+
+      response.status(200).json({
+        wrappedPrivateKey: user.wrapped_private_key || null,
+        publicKey: user.public_key || null,
+      })
+    } catch (error) {
+      console.error('Unable to retrieve wrapped private key: %o', error)
+      response.status(500).json({ error: 'Unable to retrieve wrapped private key.' })
+    }
+  },
+)
 
 export default router
 

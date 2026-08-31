@@ -11,6 +11,7 @@ import { ActivityCalendar } from '../components/ActivityCalendar'
 import { Navbar } from '../components/Navbar'
 import { TelegramConnectModal } from '../components/TelegramConnectModal'
 import { useAuth, type AuthUser } from '../context/AuthContext'
+import { useSocket } from '../context/SocketContext'
 import { useToast } from '../context/ToastContext'
 import { apiRequest, formatApiError, isAbortError } from '../utils/api'
 
@@ -50,6 +51,7 @@ function fileToDataUrl(file: File): Promise<string> {
 
 export function ProfilePage() {
   const { user, updateUser } = useAuth()
+  const { getUserPresence } = useSocket()
   const { showToast } = useToast()
 
   const [isTelegramOpen, setIsTelegramOpen] = useState(false)
@@ -59,6 +61,9 @@ export function ProfilePage() {
     status: 'offline',
     roomId: null,
   })
+
+  const livePres = user ? getUserPresence(user.id) : null
+  const currentPresence = livePres && livePres.status === 'online' ? livePres : presence
 
   // Profile Edit State
   const [isEditing, setIsEditing] = useState(false)
@@ -326,10 +331,10 @@ export function ProfilePage() {
 
                   {/* LIVE STATUS INDICATOR BADGE UNDER USER'S PROFILE PICTURE */}
                   <div className="mt-3">
-                    {presence.roomId ? (
+                    {currentPresence.status === 'online' ? (
                       <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700 border border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800">
                         <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
-                        <span>🟢 Studying in #{presence.roomId}</span>
+                        <span>{currentPresence.roomId ? `🟢 Studying in #${currentPresence.roomId}` : '🟢 Online'}</span>
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700">

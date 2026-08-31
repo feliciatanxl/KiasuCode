@@ -10,6 +10,20 @@ interface EncryptedPayload {
   c: string // AES-GCM encrypted ciphertext (base64)
 }
 
+interface WrappedKeyPayload {
+  v: number // version
+  iv: string // AES-GCM IV (base64)
+  salt: string // PBKDF2 salt (base64)
+  data: string // AES-GCM encrypted PKCS#8 bytes (base64)
+}
+
+export interface EscrowKeyStatus {
+  hasLocalKey: boolean
+  hasEscrowedKey: boolean
+  wrappedPrivateKey: string | null
+  publicKey: string | null
+}
+
 function bufferToBase64(buffer: ArrayBuffer | Uint8Array): string {
   const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer)
   let binary = ''
@@ -51,7 +65,7 @@ function openCryptoDb(): Promise<IDBDatabase> {
 }
 
 // Save private key in IndexedDB
-async function storePrivateKeyInDb(userId: string, key: CryptoKey): Promise<void> {
+export async function storePrivateKeyInDb(userId: string, key: CryptoKey): Promise<void> {
   const db = await openCryptoDb()
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readwrite')
@@ -64,7 +78,7 @@ async function storePrivateKeyInDb(userId: string, key: CryptoKey): Promise<void
 }
 
 // Retrieve private key from IndexedDB
-async function getPrivateKeyFromDb(userId: string): Promise<CryptoKey | null> {
+export async function getPrivateKeyFromDb(userId: string): Promise<CryptoKey | null> {
   const db = await openCryptoDb()
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readonly')
@@ -76,6 +90,16 @@ async function getPrivateKeyFromDb(userId: string): Promise<CryptoKey | null> {
     }
     request.onerror = () => reject(request.error)
   })
+}
+
+// Check if local private key exists
+export async function hasLocalPrivateKey(userId: string): Promise<boolean> {
+  try {
+    const key = await getPrivateKeyFromDb(userId)
+    return key !== null
+  } catch {
+    return false
+  }
 }
 
 // Import a Base64-encoded SPKI public key
@@ -95,17 +119,166 @@ export async function importPublicKey(publicKeyBase64: string): Promise<CryptoKe
 }
 
 /**
- * Generate or load RSA-OAEP public/private keypair for the current user.
- * Private key stays in local IndexedDB; Public key is registered on the backend.
+ * Derives an AES-GCM 256-bit encryption key from a user-provided Sync PIN using PBKDF2.
  */
-export async function ensureUserKeyPair(userId: string): Promise<{ publicKey: string; privateKey: CryptoKey }> {
+async function derivePinKey(pin: string, salt: Uint8Array): Promise<CryptoKey> {
+  const pinBytes = new TextEncoder().encode(pin)
+  const pinKeyMaterial = await window.crypto.subtle.importKey(
+    'raw',
+    pinBytes,
+    { name: 'PBKDF2' },
+    false,
+    ['deriveKey'],
+  )
+
+  return await window.crypto.subtle.deriveKey(
+    {
+      name: 'PBKDF2',
+      salt: salt.buffer as ArrayBuffer,
+      iterations: 100000,
+      hash: 'SHA-256',
+    },
+    pinKeyMaterial,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['encrypt', 'decrypt'],
+  )
+}
+
+/**
+ * Wraps (encrypts) the user's RSA-OAEP private key using a key derived from a 6-digit Sync PIN.
+ */
+export async function wrapPrivateKeyWithPin(
+  privateKey: CryptoKey,
+  pin: string,
+): Promise<string> {
+  const salt = window.crypto.getRandomValues(new Uint8Array(16))
+  const iv = window.crypto.getRandomValues(new Uint8Array(12))
+
+  const aesKey = await derivePinKey(pin, salt)
+
+  // Export private key to PKCS#8 ArrayBuffer
+  const pkcs8Buffer = await window.crypto.subtle.exportKey('pkcs8', privateKey)
+
+  // Encrypt with AES-GCM
+  const encryptedBytes = await window.crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv },
+    aesKey,
+    pkcs8Buffer,
+  )
+
+  const payload: WrappedKeyPayload = {
+    v: 1,
+    iv: bufferToBase64(iv),
+    salt: bufferToBase64(salt),
+    data: bufferToBase64(encryptedBytes),
+  }
+
+  return window.btoa(JSON.stringify(payload))
+}
+
+/**
+ * Unwraps (decrypts) an escrowed private key using the Sync PIN and imports it into IndexedDB.
+ */
+export async function unwrapPrivateKeyWithPin(
+  wrappedKeyBase64: string,
+  pin: string,
+  userId: string,
+): Promise<CryptoKey> {
+  const jsonString = window.atob(wrappedKeyBase64)
+  const payload = JSON.parse(jsonString) as WrappedKeyPayload
+
+  if (!payload.iv || !payload.salt || !payload.data) {
+    throw new Error('Invalid wrapped key payload.')
+  }
+
+  const iv = new Uint8Array(base64ToBuffer(payload.iv))
+  const salt = new Uint8Array(base64ToBuffer(payload.salt))
+  const encryptedBytes = base64ToBuffer(payload.data)
+
+  const aesKey = await derivePinKey(pin, salt)
+
+  try {
+    const pkcs8Buffer = await window.crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv },
+      aesKey,
+      encryptedBytes,
+    )
+
+    const privateKey = await window.crypto.subtle.importKey(
+      'pkcs8',
+      pkcs8Buffer,
+      {
+        name: 'RSA-OAEP',
+        hash: 'SHA-256',
+      },
+      true,
+      ['decrypt'],
+    )
+
+    await storePrivateKeyInDb(userId, privateKey)
+    return privateKey
+  } catch {
+    throw new Error('Incorrect Sync PIN. Please check your 6-digit PIN and try again.')
+  }
+}
+
+/**
+ * Queries the backend for escrowed key status.
+ */
+export async function checkEscrowStatus(userId: string): Promise<EscrowKeyStatus> {
+  const hasLocal = await hasLocalPrivateKey(userId)
+
+  try {
+    const res = await apiRequest<{ wrappedPrivateKey: string | null; publicKey: string | null }>(
+      '/api/user/wrapped-private-key',
+    )
+
+    return {
+      hasLocalKey: hasLocal,
+      hasEscrowedKey: Boolean(res.data.wrappedPrivateKey),
+      wrappedPrivateKey: res.data.wrappedPrivateKey,
+      publicKey: res.data.publicKey,
+    }
+  } catch {
+    return {
+      hasLocalKey: hasLocal,
+      hasEscrowedKey: false,
+      wrappedPrivateKey: null,
+      publicKey: null,
+    }
+  }
+}
+
+/**
+ * Escrows the current user's local private key to the backend using a Sync PIN.
+ */
+export async function escrowPrivateKeyWithPin(userId: string, pin: string): Promise<void> {
+  const privateKey = await getPrivateKeyFromDb(userId)
+  if (!privateKey) {
+    throw new Error('No local private key found on this device to backup.')
+  }
+
+  const wrappedKeyBase64 = await wrapPrivateKeyWithPin(privateKey, pin)
+
+  await apiRequest('/api/user/wrapped-private-key', {
+    method: 'PUT',
+    body: JSON.stringify({ wrappedPrivateKey: wrappedKeyBase64 }),
+  })
+}
+
+/**
+ * Generate or load RSA-OAEP public/private keypair for the current user.
+ */
+export async function ensureUserKeyPair(
+  userId: string,
+  backupPin?: string,
+): Promise<{ publicKey: string; privateKey: CryptoKey }> {
   const existingPrivateKey = await getPrivateKeyFromDb(userId).catch(() => null)
 
   if (existingPrivateKey) {
-    // If public key is saved in localStorage, return it
     const storedPub = localStorage.getItem(`kiasu_pub_${userId}`)
     if (storedPub) {
-      // Proactively ensure backend has it registered
       void apiRequest('/api/user/public-key', {
         method: 'PUT',
         body: JSON.stringify({ publicKey: storedPub }),
@@ -147,6 +320,19 @@ export async function ensureUserKeyPair(userId: string): Promise<{ publicKey: st
     console.warn('Failed to upload public key to backend:', err)
   })
 
+  // If a backup PIN was provided during key generation, escrow immediately
+  if (backupPin) {
+    try {
+      const wrapped = await wrapPrivateKeyWithPin(keyPair.privateKey, backupPin)
+      await apiRequest('/api/user/wrapped-private-key', {
+        method: 'PUT',
+        body: JSON.stringify({ wrappedPrivateKey: wrapped }),
+      })
+    } catch (escrowErr) {
+      console.warn('Failed to escrow wrapped key:', escrowErr)
+    }
+  }
+
   return {
     publicKey: publicKeyBase64,
     privateKey: keyPair.privateKey,
@@ -155,7 +341,6 @@ export async function ensureUserKeyPair(userId: string): Promise<{ publicKey: st
 
 /**
  * Encrypts a plaintext string using the recipient's RSA-OAEP public key.
- * Uses hybrid AES-GCM + RSA-OAEP encryption to support arbitrary text length.
  */
 export async function encryptMessage(
   plaintext: string,
@@ -207,7 +392,7 @@ export async function decryptMessage(
   try {
     const privateKey = await getPrivateKeyFromDb(userId)
     if (!privateKey) {
-      return '[⚠️ Unable to decrypt: Private key not found on this device]'
+      return '[🔒 Locked Message: Enter your Sync PIN to decrypt history on this device]'
     }
 
     // Decode bundle
@@ -215,7 +400,6 @@ export async function decryptMessage(
     const payload = JSON.parse(jsonString) as EncryptedPayload
 
     if (!payload.k || !payload.iv || !payload.c) {
-      // Fallback for direct RSA encryption if applicable
       const directCipherBuffer = base64ToBuffer(encryptedString)
       const decrypted = await window.crypto.subtle.decrypt(
         { name: 'RSA-OAEP' },
