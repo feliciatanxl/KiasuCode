@@ -10,12 +10,14 @@ interface PrivacyConsentModalProps {
 
 export function PrivacyConsentModal({ isOpen, onConsented }: PrivacyConsentModalProps) {
   const { user, updateUser } = useAuth()
+  const [isCheckboxChecked, setIsCheckboxChecked] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   if (!isOpen) return null
 
   const handleAgree = async () => {
+    if (!isCheckboxChecked) return
     setIsSubmitting(true)
     setError(null)
 
@@ -113,18 +115,29 @@ export function PrivacyConsentModal({ isOpen, onConsented }: PrivacyConsentModal
           </div>
         )}
 
-        <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <span className="text-[11px] text-slate-400 text-center sm:text-left">
-            By clicking Agree, you accept our privacy terms.
-          </span>
-          <button
-            type="button"
-            onClick={handleAgree}
-            disabled={isSubmitting}
-            className="w-full sm:w-auto rounded-xl bg-blue-600 px-6 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-blue-500 transition-colors disabled:opacity-50"
-          >
-            {isSubmitting ? 'Saving Consent…' : 'I Agree & Continue →'}
-          </button>
+        <div className="mt-5 space-y-4 pt-3 border-t border-slate-100 dark:border-slate-700/60">
+          <label className="flex items-start gap-3 cursor-pointer select-none text-xs text-slate-700 dark:text-slate-200">
+            <input
+              type="checkbox"
+              checked={isCheckboxChecked}
+              onChange={(e) => setIsCheckboxChecked(e.target.checked)}
+              className="mt-0.5 size-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 dark:border-slate-600 dark:bg-slate-900"
+            />
+            <span className="leading-snug">
+              I agree to the privacy and data usage terms.
+            </span>
+          </label>
+
+          <div className="flex flex-col sm:flex-row items-center justify-end gap-3 pt-1">
+            <button
+              type="button"
+              onClick={handleAgree}
+              disabled={isSubmitting || !isCheckboxChecked}
+              className="w-full sm:w-auto rounded-xl bg-blue-600 px-6 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-blue-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {isSubmitting ? 'Saving Consent…' : 'I Agree & Continue →'}
+            </button>
+          </div>
         </div>
       </div>
     </div>

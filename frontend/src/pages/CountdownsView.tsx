@@ -290,7 +290,7 @@ export function CountdownsView() {
                 <button
                   type="button"
                   onClick={handlePrevMonth}
-                  className="px-3 py-1.5 text-xs font-bold text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
+                  className="px-3 py-1.5 text-xs font-bold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
                   aria-label="Previous month"
                 >
                   ←
@@ -299,7 +299,7 @@ export function CountdownsView() {
                 <button
                   type="button"
                   onClick={handleNextMonth}
-                  className="px-3 py-1.5 text-xs font-bold text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
+                  className="px-3 py-1.5 text-xs font-bold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
                   aria-label="Next month"
                 >
                   →
@@ -309,7 +309,7 @@ export function CountdownsView() {
           </div>
 
           {/* 7-COLUMN DAYS HEADER */}
-          <div className="grid grid-cols-7 gap-px border-b border-slate-100 py-3 text-center text-xs font-bold uppercase tracking-wider text-slate-400 dark:border-slate-700 dark:text-slate-500">
+          <div className="grid grid-cols-7 gap-px border-b border-slate-200 py-3 text-center text-xs font-bold uppercase tracking-wider text-gray-700 dark:border-slate-700 dark:text-slate-300">
             {DAYS_OF_WEEK.map((day) => (
               <div key={day}>{day}</div>
             ))}
@@ -327,17 +327,17 @@ export function CountdownsView() {
                   onClick={() => setSelectedDate(cell.date)}
                   className={`relative flex min-h-[58px] sm:min-h-[72px] flex-col items-center justify-start rounded-xl p-1.5 text-center transition-all ${
                     !cell.isCurrentMonth
-                      ? 'text-slate-300 opacity-40 dark:text-slate-600'
+                      ? 'text-slate-400/50 opacity-40 dark:text-slate-600'
                       : cell.isToday
-                        ? 'bg-blue-50/70 font-black text-blue-600 dark:bg-blue-950/40 dark:text-blue-400 ring-2 ring-blue-500/40'
-                        : 'text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-700/40'
+                        ? 'bg-blue-50/80 font-black text-blue-600 dark:bg-blue-950/40 dark:text-blue-400 ring-2 ring-blue-500/40'
+                        : 'text-gray-900 hover:bg-slate-100 dark:text-white dark:hover:bg-slate-700/40'
                   } ${
                     isSelected
-                      ? 'ring-2 ring-blue-600 dark:ring-blue-400 bg-blue-50/40 dark:bg-blue-950/20'
+                      ? 'ring-2 ring-blue-600 dark:ring-blue-400 bg-blue-50/50 dark:bg-blue-950/20'
                       : ''
                   }`}
                 >
-                  <span className="text-xs sm:text-sm font-semibold">{cell.dayNumber}</span>
+                  <span className={`text-xs sm:text-sm font-bold ${!cell.isCurrentMonth ? 'text-slate-400 dark:text-slate-600' : 'text-gray-900 dark:text-white'}`}>{cell.dayNumber}</span>
 
                   {/* DOTS FOR COUNTDOWN DEADLINES */}
                   {cell.countdowns.length > 0 && (

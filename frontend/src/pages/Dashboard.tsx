@@ -180,13 +180,13 @@ export function Dashboard() {
             </Link>
             <Link
               to="/study-room"
-              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-blue-500 transition-colors"
             >
               <span>👥</span> Study Room
             </Link>
             <Link
               to="/campus"
-              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-blue-500 transition-colors"
             >
               <span>🏫</span> Campus Repo
             </Link>
@@ -301,7 +301,7 @@ export function Dashboard() {
                 </p>
                 <Link
                   to="/countdowns"
-                  className="button button--primary mt-4 inline-flex text-xs"
+                  className="mt-4 inline-flex items-center rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-blue-500 transition-colors"
                 >
                   + Add Deadline on Calendar
                 </Link>

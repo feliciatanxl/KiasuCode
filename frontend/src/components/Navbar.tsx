@@ -248,7 +248,7 @@ export function Navbar({ onConnectTelegram }: NavbarProps) {
                   role="menuitem"
                   onClick={() => setIsOpen(false)}
                 >
-                  📖 User Guide
+                  User Guide
                 </Link>
                 <button
                   className="flex w-full items-center px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
@@ -409,7 +409,7 @@ export function Navbar({ onConnectTelegram }: NavbarProps) {
                 }`
               }
             >
-              📖 User Guide
+              User Guide
             </NavLink>
 
             {/* Mobile Theme Toggle item */}

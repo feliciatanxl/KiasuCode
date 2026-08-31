@@ -223,29 +223,30 @@ export function ProfilePage() {
                 <button
                   type="button"
                   onClick={handleStartEdit}
-                  className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                  className="rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                 >
-                  Edit Profile
+                  ✏️ Edit Profile
                 </button>
               )}
             </div>
 
             {isEditing ? (
-              <form onSubmit={handleSaveProfile} className="p-6">
+              <form onSubmit={handleSaveProfile} className="p-6 sm:p-8">
                 {profileError && (
-                  <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
+                  <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-3.5 text-xs text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
                     {profileError}
                   </div>
                 )}
 
-                <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
+                <div className="flex flex-col sm:flex-row items-center sm:items-start gap-8">
+                  {/* Avatar Upload Container */}
                   <div className="flex shrink-0 flex-col items-center">
-                    <div className="flex size-24 items-center justify-center overflow-hidden rounded-2xl bg-blue-600 font-bold text-2xl text-white shadow-md">
+                    <div className="relative group flex size-28 items-center justify-center overflow-hidden rounded-3xl bg-blue-600 font-black text-3xl text-white shadow-lg ring-4 ring-blue-50 dark:ring-blue-950/50">
                       {editPhotoUrl ? (
                         <img
                           src={editPhotoUrl}
                           alt={editName || displayName}
-                          className="size-full rounded-2xl object-cover"
+                          className="size-full rounded-3xl object-cover"
                           referrerPolicy="no-referrer"
                         />
                       ) : (
@@ -255,9 +256,9 @@ export function ProfilePage() {
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
-                      className="mt-3 text-sm text-blue-600 hover:underline dark:text-blue-400"
+                      className="mt-3 inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-blue-600 shadow-2xs hover:bg-blue-50 dark:border-slate-700 dark:bg-slate-800 dark:text-blue-400 dark:hover:bg-slate-700"
                     >
-                      Change picture
+                      📷 Change Picture
                     </button>
                     <input
                       type="file"
@@ -267,19 +268,20 @@ export function ProfilePage() {
                       onChange={handleImageSelect}
                     />
                     {selectedImage && (
-                      <p className="mt-2 max-w-32 truncate text-center text-xs text-slate-500 dark:text-slate-400">
+                      <p className="mt-2 max-w-36 truncate text-center text-[11px] text-slate-500 dark:text-slate-400 font-mono">
                         {selectedImage.name}
                       </p>
                     )}
                   </div>
 
-                  <div className="flex-1 space-y-4">
+                  {/* Form Inputs */}
+                  <div className="flex-1 w-full space-y-5">
                     <div>
                       <label
                         htmlFor="profile-name"
                         className="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300"
                       >
-                        Full Name
+                        Full Student Name
                       </label>
                       <input
                         id="profile-name"
@@ -288,7 +290,7 @@ export function ProfilePage() {
                         value={editName}
                         onChange={(e) => setEditName(e.target.value)}
                         placeholder="Your full name"
-                        className="mt-1.5 block w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder-slate-500"
+                        className="mt-1.5 block w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold text-slate-900 placeholder-slate-400 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder-slate-500"
                       />
                     </div>
 
@@ -296,15 +298,15 @@ export function ProfilePage() {
                       <button
                         type="submit"
                         disabled={isSavingProfile}
-                        className="rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        {isSavingProfile ? 'Saving…' : 'Save Changes'}
+                        {isSavingProfile ? 'Saving Changes…' : 'Save Changes'}
                       </button>
                       <button
                         type="button"
                         onClick={handleCancelEdit}
                         disabled={isSavingProfile}
-                        className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                        className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                       >
                         Cancel
                       </button>
@@ -313,15 +315,15 @@ export function ProfilePage() {
                 </div>
               </form>
             ) : (
-              <div className="flex flex-col gap-6 p-6 sm:flex-row sm:items-center">
+              <div className="p-6 sm:p-8 flex flex-col sm:flex-row items-center sm:items-start gap-8">
                 {/* Profile Picture with Live Status Badge Directly Underneath */}
                 <div className="flex shrink-0 flex-col items-center">
-                  <div className="flex size-24 items-center justify-center rounded-2xl bg-blue-600 font-bold text-2xl text-white shadow-md overflow-hidden">
+                  <div className="flex size-28 items-center justify-center rounded-3xl bg-blue-600 font-black text-3xl text-white shadow-lg ring-4 ring-blue-50 dark:ring-blue-950/50 overflow-hidden">
                     {user?.photoUrl ? (
                       <img
                         src={user.photoUrl}
                         alt={displayName}
-                        className="size-full rounded-2xl object-cover"
+                        className="size-full rounded-3xl object-cover"
                         referrerPolicy="no-referrer"
                       />
                     ) : (
@@ -330,14 +332,14 @@ export function ProfilePage() {
                   </div>
 
                   {/* LIVE STATUS INDICATOR BADGE UNDER USER'S PROFILE PICTURE */}
-                  <div className="mt-3">
+                  <div className="mt-3.5">
                     {currentPresence.status === 'online' ? (
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700 border border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800">
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-bold text-emerald-700 border border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800 shadow-2xs">
                         <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
                         <span>{currentPresence.roomId ? `🟢 Studying in #${currentPresence.roomId}` : '🟢 Online'}</span>
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700">
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700">
                         <span className="size-2 rounded-full bg-slate-400" />
                         <span>⚪ Offline</span>
                       </span>
@@ -345,23 +347,41 @@ export function ProfilePage() {
                   </div>
                 </div>
 
-                <div className="flex-1 space-y-1.5">
-                  <div className="flex flex-wrap items-center gap-3">
-                    <h3 className="text-2xl font-black text-slate-900 dark:text-white">
+                {/* Profile Information Flex Grid */}
+                <div className="flex-1 w-full space-y-4 text-center sm:text-left">
+                  <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3">
+                    <h3 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 dark:text-white">
                       {displayName}
                     </h3>
-                    <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-semibold uppercase text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                    <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
                       Active Student
                     </span>
                   </div>
-                  <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
-                    {displayEmail}
-                  </p>
-                  <div className="pt-2 flex items-center gap-4 text-xs font-mono text-slate-400 dark:text-slate-500">
-                    <span>User ID: {user?.id || 'kc-local-user'}</span>
-                    <span>·</span>
-                    <Link to="/settings" className="text-blue-600 dark:text-blue-400 font-sans font-semibold hover:underline">
-                      Manage Authentication in Settings →
+
+                  <div className="grid gap-3 sm:grid-cols-2 pt-2 border-t border-slate-100 dark:border-slate-700/60">
+                    <div className="rounded-xl bg-slate-50/70 p-3.5 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800">
+                      <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                        Registered Email
+                      </span>
+                      <span className="mt-0.5 block text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">
+                        {displayEmail}
+                      </span>
+                    </div>
+
+                    <div className="rounded-xl bg-slate-50/70 p-3.5 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800">
+                      <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                        Student / User ID
+                      </span>
+                      <span className="mt-0.5 block text-xs font-mono font-bold text-slate-700 dark:text-slate-300 truncate">
+                        {user?.id || 'kc-local-user'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 flex items-center justify-center sm:justify-start gap-2 text-xs text-slate-400 dark:text-slate-500">
+                    <span>Need to manage linked Google or Telegram accounts?</span>
+                    <Link to="/settings" className="font-bold text-blue-600 dark:text-blue-400 hover:underline">
+                      Go to Settings →
                     </Link>
                   </div>
                 </div>
