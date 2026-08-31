@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 
 import { Logo } from '../components/Logo'
+import { PasswordStrengthMeter } from '../components/PasswordStrengthMeter'
 import { isAuthUser, useAuth, type AuthUser } from '../context/AuthContext'
 import { getApiBaseUrl } from '../utils/api'
 
@@ -212,6 +213,7 @@ export function RegisterPage() {
                   {showPassword ? <EyeOffIcon className="size-4" /> : <EyeIcon className="size-4" />}
                 </button>
               </div>
+              <PasswordStrengthMeter password={password} />
             </div>
 
             <div>

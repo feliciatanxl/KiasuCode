@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import type { Module } from '@kiasucode/shared'
 
+import { ActivityCalendar } from '../components/ActivityCalendar'
 import { Logo } from '../components/Logo'
 import { Navbar } from '../components/Navbar'
 import { PomodoroTimer } from '../components/PomodoroTimer'
@@ -13,10 +14,16 @@ interface ModulesResponse {
   modules: Module[]
 }
 
+const moduleTargetPrefix = 'module:'
+const customTargetValue = 'custom'
+
 export function TimerView() {
   const [isTelegramOpen, setIsTelegramOpen] = useState(false)
   const [modules, setModules] = useState<Module[]>([])
-  const [selectedModuleId, setSelectedModuleId] = useState<string>('')
+  const [selectedTarget, setSelectedTarget] = useState(customTargetValue)
+  const [isCustom, setIsCustom] = useState(true)
+  const [customName, setCustomName] = useState('')
+  const [heatmapRefreshKey, setHeatmapRefreshKey] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const { showToast } = useToast()
@@ -28,7 +35,8 @@ export function TimerView() {
       .then(({ data }) => {
         setModules(data.modules)
         if (data.modules.length > 0) {
-          setSelectedModuleId(data.modules[0].id)
+          setSelectedTarget(`${moduleTargetPrefix}${data.modules[0].id}`)
+          setIsCustom(false)
         }
       })
       .catch((err: unknown) => {
@@ -45,7 +53,17 @@ export function TimerView() {
     return () => controller.abort()
   }, [])
 
-  const selectedModule = modules.find((m) => m.id === selectedModuleId)
+  const selectedModuleId = selectedTarget.startsWith(moduleTargetPrefix)
+    ? selectedTarget.slice(moduleTargetPrefix.length)
+    : null
+  const selectedCustomCategory = isCustom ? customName.trim() || null : null
+  const selectedModule = modules.find((module) => module.id === selectedModuleId)
+  const selectedTargetLabel = selectedModule?.moduleCode ?? selectedCustomCategory
+
+  const handleTargetChange = (value: string) => {
+    setSelectedTarget(value)
+    setIsCustom(value === customTargetValue)
+  }
 
   return (
     <div className="app-shell bg-slate-50 text-slate-900 transition-colors duration-300 dark:bg-slate-900 dark:text-slate-100 min-h-screen flex flex-col justify-between">
@@ -70,33 +88,28 @@ export function TimerView() {
             className="h-full flex flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-800 sm:p-10 w-full"
             aria-label="Pomodoro Timer"
           >
-            {selectedModule ? (
+            {selectedTargetLabel ? (
               <div className="w-full">
                 <PomodoroTimer
-                  key={selectedModule.id}
-                  moduleId={selectedModule.id}
-                  moduleCode={selectedModule.moduleCode}
-                  onSessionCompleted={(coinsEarned, coinsBalance) =>
+                  key={isCustom ? `${customTargetValue}:${selectedCustomCategory}` : selectedTarget}
+                  moduleId={selectedModule?.id ?? null}
+                  customCategory={selectedCustomCategory}
+                  targetLabel={selectedTargetLabel}
+                  onSessionCompleted={(coinsEarned, coinsBalance) => {
                     showToast(`Session completed! +${coinsEarned} coins (Balance: ${coinsBalance}).`)
-                  }
+                    setHeatmapRefreshKey((current) => current + 1)
+                  }}
                 />
               </div>
             ) : (
               <div className="py-16 text-center w-full">
                 <span className="text-5xl" role="img" aria-label="Timer">⏱️</span>
                 <h3 className="mt-4 text-xl font-bold text-slate-900 dark:text-slate-100">
-                  {modules.length === 0 ? 'No Modules Found' : 'Select a Target Module'}
+                  Select a Study Target
                 </h3>
                 <p className="mx-auto mt-2 max-w-sm text-sm text-slate-500 dark:text-slate-400">
-                  {modules.length === 0
-                    ? 'Add at least one module under an institution/semester on the Dashboard to record study sessions.'
-                    : 'Choose an academic module from the right panel to activate the Pomodoro timer and earn study coins.'}
+                  Choose an academic module or custom category from the right panel to start tracking focus time.
                 </p>
-                {modules.length === 0 && (
-                  <Link to="/dashboard" className="button button--primary mt-5 inline-flex text-white hover:text-white !text-white">
-                    <span className="text-white hover:text-white !text-white font-bold">Go to Dashboard</span>
-                  </Link>
-                )}
               </div>
             )}
           </section>
@@ -111,30 +124,41 @@ export function TimerView() {
               Active Study Target
             </h2>
             <p className="mt-1 text-xs text-slate-400">
-              Select which academic module your focus time will be logged to.
+              Select an academic module or a custom category for this focus block.
             </p>
 
             <div className="mt-6">
               {isLoading ? (
                 <div className="h-12 w-full animate-pulse rounded-xl bg-slate-100 dark:bg-slate-700/50" />
-              ) : modules.length > 0 ? (
+              ) : (
                 <div className="space-y-4">
                   <label htmlFor="module-picker" className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                    Target Module
+                    Target Module or Category
                   </label>
                   <div className="relative">
                     <select
                       id="module-picker"
-                      value={selectedModuleId}
-                      onChange={(e) => setSelectedModuleId(e.target.value)}
+                      value={selectedTarget}
+                      onChange={(e) => handleTargetChange(e.target.value)}
                       className="h-12 w-full appearance-none truncate rounded-xl border border-slate-200 bg-slate-50 pl-4 pr-12 text-sm font-bold text-slate-900 shadow-sm transition-colors focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                     >
-                      <option value="">-- Choose Module --</option>
-                      {modules.map((module) => (
-                        <option key={module.id} value={module.id}>
-                          {module.moduleCode} · {module.moduleName}
+                      {modules.length > 0 ? (
+                        <optgroup label="Academic Modules">
+                          {modules.map((module) => (
+                            <option
+                              key={module.id}
+                              value={`${moduleTargetPrefix}${module.id}`}
+                            >
+                              {module.moduleCode} · {module.moduleName}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ) : null}
+                      <optgroup label="Custom Category">
+                        <option value={customTargetValue}>
+                          + Create Custom Category
                         </option>
-                      ))}
+                      </optgroup>
                     </select>
                     <svg
                       aria-hidden="true"
@@ -145,6 +169,27 @@ export function TimerView() {
                       <path d="m6 8 4 4 4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                   </div>
+
+                  {isCustom ? (
+                    <div>
+                      <label
+                        htmlFor="custom-category-name"
+                        className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400"
+                      >
+                        Custom Category Name
+                      </label>
+                      <input
+                        id="custom-category-name"
+                        type="text"
+                        value={customName}
+                        onChange={(event) => setCustomName(event.target.value)}
+                        maxLength={255}
+                        autoFocus
+                        placeholder="e.g., Side Hustle or Life Admin"
+                        className="mt-2 h-12 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-semibold text-slate-900 shadow-sm transition-colors placeholder:font-normal placeholder:text-slate-400 focus:border-violet-500 focus:outline-none focus:ring-4 focus:ring-violet-500/10 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                      />
+                    </div>
+                  ) : null}
 
                   {selectedModule && (
                     <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50/50 p-4 dark:border-blue-900/40 dark:bg-blue-950/20">
@@ -162,21 +207,27 @@ export function TimerView() {
                       </strong>
                     </div>
                   )}
-                </div>
-              ) : (
-                <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/50 p-6 text-center dark:border-slate-700 dark:bg-slate-900/30">
-                  <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">
-                    No academic modules configured.
-                  </p>
-                  <p className="mt-1 text-[11px] text-slate-400">
-                    Create your modules first on the Dashboard to start tracking focus time.
-                  </p>
-                  <Link
-                    to="/dashboard"
-                    className="mt-4 inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:text-white !text-white shadow-sm hover:bg-blue-700 transition-colors"
-                  >
-                    <span className="text-white hover:text-white !text-white font-bold">+ Add Module on Dashboard</span>
-                  </Link>
+                  {selectedCustomCategory ? (
+                    <div className="mt-4 rounded-xl border border-violet-100 bg-violet-50/50 p-4 dark:border-violet-900/40 dark:bg-violet-950/20">
+                      <span className="font-mono text-xs font-bold text-violet-600 dark:text-violet-400">
+                        CUSTOM CATEGORY
+                      </span>
+                      <strong className="mt-1 block text-sm text-slate-900 dark:text-slate-100">
+                        {selectedCustomCategory}
+                      </strong>
+                      <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                        This session will be tracked without linking it to an academic module.
+                      </p>
+                    </div>
+                  ) : null}
+                  {modules.length === 0 ? (
+                    <p className="text-[11px] text-slate-400">
+                      Want academic tracking too?{' '}
+                      <Link to="/dashboard" className="font-semibold text-blue-600 hover:underline dark:text-blue-400">
+                        Add a module on the Dashboard.
+                      </Link>
+                    </p>
+                  ) : null}
                 </div>
               )}
             </div>
@@ -195,6 +246,7 @@ export function TimerView() {
                 Completing the selected Pomodoro duration grants one coin per minute to feed your Tamagotchi pet companion.
               </p>
             </div>
+            <ActivityCalendar refreshKey={heatmapRefreshKey} />
           </section>
         </div>
       </main>

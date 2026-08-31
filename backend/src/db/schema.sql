@@ -17,6 +17,21 @@ CREATE TABLE IF NOT EXISTS users (
   DEFAULT CHARACTER SET = utf8mb4
   COLLATE = utf8mb4_0900_ai_ci;
 
+CREATE TABLE IF NOT EXISTS password_history (
+  id CHAR(36) NOT NULL,
+  user_id VARCHAR(36) NOT NULL,
+  password_hash VARCHAR(255) NOT NULL,
+  created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  PRIMARY KEY (id),
+  KEY idx_password_history_user_created (user_id, created_at),
+  CONSTRAINT fk_password_history_user
+    FOREIGN KEY (user_id) REFERENCES users (id)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE
+) ENGINE = InnoDB
+  DEFAULT CHARACTER SET = utf8mb4
+  COLLATE = utf8mb4_0900_ai_ci;
+
 CREATE TABLE IF NOT EXISTS institutions (
   id CHAR(36) NOT NULL,
   user_id VARCHAR(36) NOT NULL,
@@ -75,7 +90,8 @@ CREATE TABLE IF NOT EXISTS modules (
 CREATE TABLE IF NOT EXISTS study_sessions (
   id CHAR(36) NOT NULL,
   user_id VARCHAR(36) NOT NULL,
-  module_id CHAR(36) NOT NULL,
+  module_id CHAR(36) NULL,
+  custom_category VARCHAR(255) NULL,
   duration_minutes SMALLINT UNSIGNED NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),

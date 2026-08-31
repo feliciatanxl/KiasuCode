@@ -113,7 +113,7 @@ test.describe('Telegram OAuth Authentication Flow', () => {
     await page.goto('/login')
 
     // Verify login page loaded cleanly
-    await expect(page.locator('#login-title')).toContainText('Sign in. Ship steady.')
+    await expect(page.locator('#login-title')).toContainText('Sign in to KiasuCode')
 
     // 2. Start the custom Telegram popup flow.
     await page.getByRole('button', { name: 'Continue with Telegram' }).click()

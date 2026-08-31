@@ -25,9 +25,15 @@ interface WalletRow extends RowDataPacket {
 
 interface StudySessionRow extends RowDataPacket {
   id: string
-  module_id: string
+  module_id: string | null
+  custom_category: string | null
   duration_minutes: number
   created_at: Date | string
+}
+
+interface HeatmapRow extends RowDataPacket {
+  activity_date: string
+  total_minutes: number | string
 }
 
 interface PetResponse {
@@ -80,6 +86,10 @@ function serializePet(row: PetRow): PetResponse {
     happinessLevel: Number(row.happiness_level),
     lastInteractedAt: toIsoString(row.last_interacted_at),
   }
+}
+
+function formatUtcDate(date: Date): string {
+  return date.toISOString().slice(0, 10)
 }
 
 async function ensureGamificationRows(
@@ -172,6 +182,50 @@ async function getWalletBalance(
   return Number(rows[0]?.coins_balance ?? 0)
 }
 
+router.get(
+  '/study_sessions/heatmap',
+  authenticateRequest,
+  gamificationRateLimiter,
+  async (_request: Request, response: Response) => {
+    try {
+      const [rows] = await db.execute<HeatmapRow[]>(
+        `SELECT DATE_FORMAT(created_at, '%Y-%m-%d') AS activity_date,
+                SUM(duration_minutes) AS total_minutes
+           FROM study_sessions
+          WHERE user_id = ?
+            AND created_at >= UTC_DATE() - INTERVAL 29 DAY
+            AND created_at < UTC_DATE() + INTERVAL 1 DAY
+          GROUP BY activity_date
+          ORDER BY activity_date ASC`,
+        [getUserId(response)],
+      )
+      const minutesByDate = new Map(
+        rows.map((row) => [row.activity_date, Number(row.total_minutes)]),
+      )
+      const today = new Date()
+      const activity = Array.from({ length: 30 }, (_, index) => {
+        const offsetDays = index - 29
+        const date = new Date(Date.UTC(
+          today.getUTCFullYear(),
+          today.getUTCMonth(),
+          today.getUTCDate() + offsetDays,
+        ))
+        const dateKey = formatUtcDate(date)
+
+        return {
+          date: dateKey,
+          minutes: minutesByDate.get(dateKey) ?? 0,
+        }
+      })
+
+      response.status(200).json({ activity })
+    } catch (error) {
+      console.error('Unable to load study activity heatmap: %o', error)
+      response.status(500).json({ error: 'Unable to load study activity.' })
+    }
+  },
+)
+
 router.post(
   '/study/session',
   authenticateRequest,
@@ -188,12 +242,25 @@ router.post(
       const moduleId = typeof moduleIdValue === 'string'
         ? moduleIdValue.trim()
         : ''
+      const customCategoryValue = request.body.custom_category
+        ?? request.body.customCategory
+      const customCategory = typeof customCategoryValue === 'string'
+        ? customCategoryValue.trim()
+        : ''
       const durationValue = request.body.duration_minutes
         ?? request.body.durationMinutes
       const durationMinutes = Number(durationValue)
 
-      if (!moduleId) {
-        throw new InvalidGamificationRequestError('Module ID is required.')
+      if ((!moduleId && !customCategory) || (moduleId && customCategory)) {
+        throw new InvalidGamificationRequestError(
+          'Choose either a module or a custom category for the study session.',
+        )
+      }
+
+      if (customCategory.length > 255) {
+        throw new InvalidGamificationRequestError(
+          'Custom categories must be 255 characters or fewer.',
+        )
       }
 
       if (
@@ -212,27 +279,35 @@ router.post(
       connection = await db.getConnection()
       await connection.beginTransaction()
 
-      const [moduleRows] = await connection.execute<RowDataPacket[]>(
-        `SELECT m.id
-           FROM modules AS m
-           INNER JOIN semesters AS s ON s.id = m.semester_id
-           INNER JOIN institutions AS i ON i.id = s.institution_id
-          WHERE m.id = ? AND i.user_id = ?
-          FOR UPDATE`,
-        [moduleId, userId],
-      )
+      if (moduleId) {
+        const [moduleRows] = await connection.execute<RowDataPacket[]>(
+          `SELECT m.id
+             FROM modules AS m
+             INNER JOIN semesters AS s ON s.id = m.semester_id
+             INNER JOIN institutions AS i ON i.id = s.institution_id
+            WHERE m.id = ? AND i.user_id = ?
+            FOR UPDATE`,
+          [moduleId, userId],
+        )
 
-      if (!moduleRows[0]) {
-        await connection.rollback()
-        response.status(404).json({ error: 'Module not found.' })
-        return
+        if (!moduleRows[0]) {
+          await connection.rollback()
+          response.status(404).json({ error: 'Module not found.' })
+          return
+        }
       }
 
       await connection.execute<ResultSetHeader>(
         `INSERT INTO study_sessions
-          (id, user_id, module_id, duration_minutes)
-         VALUES (?, ?, ?, ?)`,
-        [sessionId, userId, moduleId, durationMinutes],
+          (id, user_id, module_id, custom_category, duration_minutes)
+         VALUES (?, ?, ?, ?, ?)`,
+        [
+          sessionId,
+          userId,
+          moduleId || null,
+          customCategory || null,
+          durationMinutes,
+        ],
       )
       await connection.execute<ResultSetHeader>(
         `INSERT INTO user_wallets (user_id, coins_balance)
@@ -242,7 +317,7 @@ router.post(
       )
 
       const [sessionRows] = await connection.execute<StudySessionRow[]>(
-        `SELECT id, module_id, duration_minutes, created_at
+        `SELECT id, module_id, custom_category, duration_minutes, created_at
            FROM study_sessions
           WHERE id = ? AND user_id = ?`,
         [sessionId, userId],
@@ -257,6 +332,7 @@ router.post(
         session: {
           id: studySession.id,
           moduleId: studySession.module_id,
+          customCategory: studySession.custom_category,
           durationMinutes: Number(studySession.duration_minutes),
           coinsEarned,
           createdAt: toIsoString(studySession.created_at),

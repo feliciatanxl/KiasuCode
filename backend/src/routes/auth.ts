@@ -7,7 +7,11 @@ import {
 } from 'express'
 import rateLimit from 'express-rate-limit'
 import jwt from 'jsonwebtoken'
-import type { ResultSetHeader, RowDataPacket } from 'mysql2'
+import type {
+  PoolConnection,
+  ResultSetHeader,
+  RowDataPacket,
+} from 'mysql2/promise'
 import { v4 as uuidv4 } from 'uuid'
 
 import { db } from '../config/db.js'
@@ -38,6 +42,10 @@ interface UserRow extends RowDataPacket {
   session_version?: number
 }
 
+interface PasswordHistoryRow extends RowDataPacket {
+  password_hash: string
+}
+
 interface AuthUser {
   id: string
   provider: AuthProvider
@@ -57,6 +65,7 @@ interface VerifiedIdentity {
 class InvalidAuthRequestError extends Error {}
 
 const router = Router()
+const passwordReuseError = 'For security reasons, you cannot reuse your last 3 passwords.'
 const authRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 30,
@@ -169,6 +178,27 @@ function sendAuthenticatedUser(
   response.status(status).json({ user })
 }
 
+async function hasRecentlyUsedPassword(
+  connection: PoolConnection,
+  userId: string,
+  password: string,
+): Promise<boolean> {
+  const [rows] = await connection.execute<PasswordHistoryRow[]>(
+    `SELECT password_hash
+       FROM password_history
+      WHERE user_id = ?
+      ORDER BY created_at DESC, id DESC
+      LIMIT 3`,
+    [userId],
+  )
+
+  const matches = await Promise.all(
+    rows.map((row) => bcrypt.compare(password, row.password_hash)),
+  )
+
+  return matches.some(Boolean)
+}
+
 async function upsertTelegramUser(
   telegramUser: VerifiedTelegramUser,
 ): Promise<UserRow> {
@@ -278,16 +308,40 @@ router.post('/register', async (request: Request, response: Response) => {
       return
     }
 
-    const passwordHash = await bcrypt.hash(password, 10)
     const id = uuidv4()
     const providerId = `local:${normalizedEmail}`
+    const connection = await db.getConnection()
 
-    await db.execute<ResultSetHeader>(
-      `INSERT INTO users
-        (id, provider, provider_id, email, password_hash, name, photo_url, session_version)
-       VALUES (?, 'local', ?, ?, ?, ?, NULL, 1)`,
-      [id, providerId, normalizedEmail, passwordHash, trimmedName],
-    )
+    try {
+      await connection.beginTransaction()
+
+      if (await hasRecentlyUsedPassword(connection, id, password)) {
+        await connection.rollback()
+        response.status(400).json({ error: passwordReuseError })
+        return
+      }
+
+      const passwordHash = await bcrypt.hash(password, 10)
+
+      await connection.execute<ResultSetHeader>(
+        `INSERT INTO users
+          (id, provider, provider_id, email, password_hash, name, photo_url, session_version)
+         VALUES (?, 'local', ?, ?, ?, ?, NULL, 1)`,
+        [id, providerId, normalizedEmail, passwordHash, trimmedName],
+      )
+      await connection.execute<ResultSetHeader>(
+        `INSERT INTO password_history (id, user_id, password_hash)
+         VALUES (?, ?, ?)`,
+        [uuidv4(), id, passwordHash],
+      )
+
+      await connection.commit()
+    } catch (error) {
+      await connection.rollback().catch(() => undefined)
+      throw error
+    } finally {
+      connection.release()
+    }
 
     const [rows] = await db.execute<UserRow[]>(
       'SELECT * FROM users WHERE id = ? LIMIT 1',

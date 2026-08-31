@@ -9,7 +9,11 @@ import type {
   Module,
   ModuleStatus,
 } from '@kiasucode/shared'
-import type { ResultSetHeader, RowDataPacket } from 'mysql2'
+import type {
+  PoolConnection,
+  ResultSetHeader,
+  RowDataPacket,
+} from 'mysql2/promise'
 import { v4 as uuidv4 } from 'uuid'
 
 import { db } from '../config/db.js'
@@ -38,6 +42,10 @@ interface ModuleRow extends RowDataPacket {
   status: 'Backlog' | 'In Progress' | 'Merged'
   academic_year: string
   term: string
+}
+
+interface PasswordHistoryRow extends RowDataPacket {
+  password_hash: string
 }
 
 const gradeLetters = new Set<GradeLetter>([
@@ -78,6 +86,7 @@ const supportedProfileImageDataUrl = /^data:image\/(?:gif|jpeg|png|webp);base64,
 class InvalidAcademicRequestError extends Error {}
 
 const router = Router()
+const passwordReuseError = 'For security reasons, you cannot reuse your last 3 passwords.'
 const academicRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 300,
@@ -765,6 +774,8 @@ router.put('/user/profile', handleUpdateUserProfile)
 router.put('/profile', handleUpdateUserProfile)
 
 router.post('/auth/set-password', async (request: Request, response: Response) => {
+  let connection: PoolConnection | undefined
+
   try {
     const userId = getUserId(response)
     if (!isRecord(request.body)) {
@@ -776,15 +787,58 @@ router.post('/auth/set-password', async (request: Request, response: Response) =
       throw new InvalidAcademicRequestError('Password must be at least 6 characters long.')
     }
 
+    connection = await db.getConnection()
+    await connection.beginTransaction()
+
+    const [userRows] = await connection.execute<RowDataPacket[]>(
+      'SELECT id FROM users WHERE id = ? FOR UPDATE',
+      [userId],
+    )
+
+    if (!userRows[0]) {
+      await connection.rollback()
+      response.status(404).json({ error: 'User not found.' })
+      return
+    }
+
+    const [recentPasswordRows] = await connection.execute<PasswordHistoryRow[]>(
+      `SELECT password_hash
+         FROM password_history
+        WHERE user_id = ?
+        ORDER BY created_at DESC, id DESC
+        LIMIT 3`,
+      [userId],
+    )
+    const recentPasswordMatches = await Promise.all(
+      recentPasswordRows.map((row) =>
+        bcrypt.compare(passwordValue, row.password_hash),
+      ),
+    )
+
+    if (recentPasswordMatches.some(Boolean)) {
+      await connection.rollback()
+      response.status(400).json({ error: passwordReuseError })
+      return
+    }
+
     const passwordHash = await bcrypt.hash(passwordValue, 10)
 
-    await db.execute<ResultSetHeader>(
+    await connection.execute<ResultSetHeader>(
       'UPDATE users SET password_hash = ? WHERE id = ?',
       [passwordHash, userId],
     )
+    await connection.execute<ResultSetHeader>(
+      `INSERT INTO password_history (id, user_id, password_hash)
+       VALUES (?, ?, ?)`,
+      [uuidv4(), userId, passwordHash],
+    )
+
+    await connection.commit()
 
     response.status(200).json({ success: true, message: 'Password configured successfully.' })
   } catch (error) {
+    if (connection) await connection.rollback().catch(() => undefined)
+
     if (error instanceof InvalidAcademicRequestError) {
       response.status(400).json({ error: error.message })
       return
@@ -792,6 +846,8 @@ router.post('/auth/set-password', async (request: Request, response: Response) =
 
     console.error('Unable to set user password: %o', error)
     response.status(500).json({ error: 'Unable to set password.' })
+  } finally {
+    connection?.release()
   }
 })
 

@@ -5,7 +5,8 @@ import { apiRequest, formatApiError } from '../utils/api'
 interface StudySessionResponse {
   session: {
     id: string
-    moduleId: string
+    moduleId: string | null
+    customCategory: string | null
     durationMinutes: number
     coinsEarned: number
     createdAt: string
@@ -16,8 +17,9 @@ interface StudySessionResponse {
 }
 
 interface PomodoroTimerProps {
-  moduleCode: string
-  moduleId: string
+  targetLabel: string
+  moduleId: string | null
+  customCategory: string | null
   onSessionCompleted?: (coinsEarned: number, coinsBalance: number) => void
 }
 
@@ -57,8 +59,9 @@ function formatTime(totalSeconds: number): string {
 }
 
 export function PomodoroTimer({
-  moduleCode,
+  targetLabel,
   moduleId,
+  customCategory,
   onSessionCompleted,
 }: PomodoroTimerProps) {
   const [mode, setMode] = useState<TimerMode>('focus')
@@ -115,6 +118,7 @@ export function PomodoroTimer({
           method: 'POST',
           body: JSON.stringify({
             module_id: moduleId,
+            custom_category: customCategory,
             duration_minutes: selectedDurationMinutes,
           }),
         })
@@ -134,7 +138,7 @@ export function PomodoroTimer({
       setMessage(`${formatApiError(error)} Your completed timer can be retried.`)
       setStatus('error')
     }
-  }, [mode, moduleId, onSessionCompleted, selectedDurationMinutes])
+  }, [customCategory, mode, moduleId, onSessionCompleted, selectedDurationMinutes])
 
   useEffect(() => {
     if (
@@ -245,7 +249,7 @@ export function PomodoroTimer({
             className="mt-1 text-lg font-bold text-slate-900 dark:text-slate-100"
             id="pomodoro-title"
           >
-            {moduleCode} Pomodoro
+            {targetLabel} Pomodoro
           </h2>
         </div>
         {coinsBalance !== null ? (

@@ -7,6 +7,7 @@ import {
 import { Link } from 'react-router-dom'
 
 import { Navbar } from '../components/Navbar'
+import { PasswordStrengthMeter } from '../components/PasswordStrengthMeter'
 import { TelegramConnectModal } from '../components/TelegramConnectModal'
 import { useAuth, type AuthUser } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
@@ -565,6 +566,7 @@ export function ProfilePage() {
                     {showNewPassword ? <EyeOffIcon className="size-4" /> : <EyeIcon className="size-4" />}
                   </button>
                 </div>
+                <PasswordStrengthMeter password={newPassword} />
               </div>
 
               <div>
