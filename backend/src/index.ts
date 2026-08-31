@@ -15,6 +15,8 @@ import filesRouter from './routes/files.js'
 import friendsRouter from './routes/friends.js'
 import gamificationRouter from './routes/gamification.js'
 import messagesRouter from './routes/messages.js'
+import todosRouter from './routes/todos.js'
+import scheduleRouter from './routes/schedule.js'
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js'
 import { setupStudyRoomSocket } from './sockets/studyRoom.js'
 import { initCountdownRemindersCron } from './cron/reminders.js'
@@ -106,6 +108,8 @@ app.use('/api', friendsRouter)
 app.use('/api', countdownsRouter)
 app.use('/api', gamificationRouter)
 app.use('/api', academicRouter)
+app.use('/api', todosRouter)
+app.use('/api', scheduleRouter)
 app.use('/api/messages', messagesRouter)
 app.use('/api', messagesRouter)
 app.use(notFoundHandler)

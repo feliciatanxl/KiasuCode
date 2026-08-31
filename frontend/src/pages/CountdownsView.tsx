@@ -33,6 +33,13 @@ function sortCountdowns(countdowns: AcademicCountdown[]): AcademicCountdown[] {
   )
 }
 
+function formatDateInput(d: Date): string {
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 export function CountdownsView() {
   const [isTelegramOpen, setIsTelegramOpen] = useState(false)
   const [currentDate, setCurrentDate] = useState(() => new Date())
@@ -40,12 +47,17 @@ export function CountdownsView() {
   const [countdowns, setCountdowns] = useState<AcademicCountdown[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
-  // Create Modal State
+  // Create / Edit Modal State
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [editingCountdownId, setEditingCountdownId] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [title, setTitle] = useState('')
-  const [targetDate, setTargetDate] = useState('')
-  const [category, setCategory] = useState('Exam')
+  const [isAllDay, setIsAllDay] = useState(false)
+  const [isMultipleDays, setIsMultipleDays] = useState(false)
+  const [startDate, setStartDate] = useState(() => formatDateInput(new Date()))
+  const [endDate, setEndDate] = useState(() => formatDateInput(new Date()))
+  const [startTime, setStartTime] = useState('09:00')
+  const [endTime, setEndTime] = useState('10:00')
   const [color, setColor] = useState(defaultCountdownColor)
   const [modalError, setModalError] = useState<string | null>(null)
   const { showToast } = useToast()
@@ -163,68 +175,174 @@ export function CountdownsView() {
     return countdowns.filter((c) => isSameCalendarDay(new Date(c.targetDate), selectedDate))
   }, [selectedDate, countdowns])
 
-  const categoryLegend = useMemo(() => {
-    const colorsByCategory = new Map<string, string>()
-
-    for (const countdown of countdowns) {
-      if (!colorsByCategory.has(countdown.category)) {
-        colorsByCategory.set(
-          countdown.category,
-          resolveCountdownColor(countdown.color || defaultCountdownColor),
-        )
-      }
-    }
-
-    return [...colorsByCategory.entries()]
-      .map(([category, color]) => ({ category, color }))
-      .sort((left, right) => left.category.localeCompare(right.category))
-  }, [countdowns])
-
-  const categoryOptions = useMemo(
-    () => [...new Set(countdowns.map((countdown) => countdown.category))].sort(
-      (left, right) => left.localeCompare(right),
-    ),
-    [countdowns],
-  )
-
   const openCreateForm = () => {
     if (isSubmitting) return
 
+    const todayStr = formatDateInput(selectedDate || new Date())
+    setEditingCountdownId(null)
     setTitle('')
-    setTargetDate('')
-    setCategory('Exam')
+    setIsAllDay(false)
+    setIsMultipleDays(false)
+    setStartDate(todayStr)
+    setEndDate(todayStr)
+    setStartTime('09:00')
+    setEndTime('10:00')
     setColor(defaultCountdownColor)
     setModalError(null)
     setIsModalOpen(true)
   }
 
-  const createCountdown = async (event: FormEvent<HTMLFormElement>) => {
+  const openEditForm = (item: AcademicCountdown) => {
+    if (isSubmitting) return
+
+    const targetDateObj = new Date(item.targetDate)
+    const dateStr = formatDateInput(targetDateObj)
+    const hours = String(targetDateObj.getHours()).padStart(2, '0')
+    const minutes = String(targetDateObj.getMinutes()).padStart(2, '0')
+    const isAllDayEvent = targetDateObj.getHours() === 0 && targetDateObj.getMinutes() === 0
+
+    setEditingCountdownId(item.id)
+    setTitle(item.title)
+    setIsAllDay(isAllDayEvent)
+    setIsMultipleDays(false)
+    setStartDate(dateStr)
+    setEndDate(dateStr)
+    setStartTime(`${hours}:${minutes}`)
+    setEndTime('10:00')
+    setColor(resolveCountdownColor(item.color || defaultCountdownColor))
+    setModalError(null)
+    setIsModalOpen(true)
+  }
+
+  const handleDeleteCountdown = async (id: string, eventTitle: string) => {
+    const original = [...countdowns]
+    setCountdowns((prev) => prev.filter((c) => c.id !== id))
+
+    try {
+      await apiRequest(`/api/countdowns/${id}`, {
+        method: 'DELETE',
+      })
+      showToast(`Removed "${eventTitle}".`)
+    } catch (err) {
+      setCountdowns(original)
+      showToast(formatApiError(err))
+    }
+  }
+
+  const handleToggleAllDay = () => {
+    setIsAllDay((prev) => !prev)
+  }
+
+  const handleToggleMultipleDays = () => {
+    setIsMultipleDays((prev) => {
+      const next = !prev
+      if (next && !endDate) {
+        setEndDate(startDate)
+      }
+      return next
+    })
+  }
+
+  const saveCountdown = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
 
-    if (!title.trim() || !targetDate || !category.trim()) return
+    if (!title.trim() || !startDate) return
+    if (isMultipleDays && !endDate) return
+    if (!isAllDay && (!startTime || !endTime)) return
 
     setIsSubmitting(true)
     setModalError(null)
 
     try {
-      const { data } = await apiRequest<CountdownResponse>('/api/countdowns', {
-        method: 'POST',
-        body: JSON.stringify({
-          title: title.trim(),
-          targetDate: new Date(targetDate).toISOString(),
-          category: category.trim(),
-          color,
-          moduleId: null,
-        }),
-      })
+      if (editingCountdownId) {
+        let targetDateIso: string
+        if (isAllDay) {
+          const [y, m, d] = startDate.split('-').map(Number)
+          targetDateIso = new Date(y, m - 1, d, 0, 0, 0).toISOString()
+        } else {
+          const [y, m, d] = startDate.split('-').map(Number)
+          const [h, min] = startTime.split(':').map(Number)
+          targetDateIso = new Date(y, m - 1, d, h || 0, min || 0, 0).toISOString()
+        }
 
-      setCountdowns((current) => sortCountdowns([...current, data.countdown]))
-      setIsModalOpen(false)
-      setTitle('')
-      setTargetDate('')
-      setCategory('Exam')
-      setColor(defaultCountdownColor)
-      showToast('Academic countdown created.')
+        const { data } = await apiRequest<CountdownResponse>(`/api/countdowns/${editingCountdownId}`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            title: title.trim(),
+            targetDate: targetDateIso,
+            category: 'General',
+            color,
+            moduleId: null,
+          }),
+        })
+
+        setCountdowns((current) =>
+          sortCountdowns(current.map((c) => (c.id === editingCountdownId ? data.countdown : c)))
+        )
+        setIsModalOpen(false)
+        setEditingCountdownId(null)
+        setTitle('')
+        showToast('Event updated successfully.')
+      } else {
+        const datesToCreate: string[] = []
+
+        if (isMultipleDays && endDate && endDate >= startDate) {
+          const [startY, startM, startD] = startDate.split('-').map(Number)
+          const [endY, endM, endD] = endDate.split('-').map(Number)
+
+          const startObj = new Date(startY, startM - 1, startD)
+          const endObj = new Date(endY, endM - 1, endD)
+
+          const curr = new Date(startObj)
+          while (curr <= endObj) {
+            const y = curr.getFullYear()
+            const m = curr.getMonth()
+            const d = curr.getDate()
+
+            if (isAllDay) {
+              datesToCreate.push(new Date(y, m, d, 0, 0, 0).toISOString())
+            } else {
+              const [h, min] = startTime.split(':').map(Number)
+              datesToCreate.push(new Date(y, m, d, h || 0, min || 0, 0).toISOString())
+            }
+
+            curr.setDate(curr.getDate() + 1)
+          }
+        } else {
+          const [y, m, d] = startDate.split('-').map(Number)
+          if (isAllDay) {
+            datesToCreate.push(new Date(y, m, d, 0, 0, 0).toISOString())
+          } else {
+            const [h, min] = startTime.split(':').map(Number)
+            datesToCreate.push(new Date(y, m, d, h || 0, min || 0, 0).toISOString())
+          }
+        }
+
+        const createdList: AcademicCountdown[] = []
+
+        for (const targetDateIso of datesToCreate) {
+          const { data } = await apiRequest<CountdownResponse>('/api/countdowns', {
+            method: 'POST',
+            body: JSON.stringify({
+              title: title.trim(),
+              targetDate: targetDateIso,
+              category: 'General',
+              color,
+              moduleId: null,
+            }),
+          })
+          createdList.push(data.countdown)
+        }
+
+        setCountdowns((current) => sortCountdowns([...current, ...createdList]))
+        setIsModalOpen(false)
+        setTitle('')
+        showToast(
+          createdList.length > 1
+            ? `Created multi-day event (${createdList.length} days).`
+            : 'Event created successfully.'
+        )
+      }
     } catch (createError) {
       setModalError(formatApiError(createError))
     } finally {
@@ -252,12 +370,12 @@ export function CountdownsView() {
           {/* + NEW COUNTDOWN BUTTON NEATLY AT TOP RIGHT DIRECTLY ABOVE CALENDAR */}
           <div>
             <button
-              className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-blue-500 transition-colors disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-blue-500 transition-colors disabled:opacity-50 whitespace-nowrap"
               type="button"
               onClick={openCreateForm}
               disabled={isSubmitting}
             >
-              <span aria-hidden="true">+</span> New Countdown
+              <span aria-hidden="true">+</span> New Event
             </button>
           </div>
         </div>
@@ -377,18 +495,42 @@ export function CountdownsView() {
               {selectedDateCountdowns.length > 0 ? (
                 <ul className="mt-3 divide-y divide-slate-200/60 dark:divide-slate-700/60">
                   {selectedDateCountdowns.map((item) => (
-                    <li key={item.id} className="flex items-center justify-between py-2 text-xs">
-                      <div className="flex items-center gap-2">
+                    <li key={item.id} className="group flex items-center justify-between py-2 text-xs">
+                      <div className="flex items-center gap-2 min-w-0">
                         <span
-                          className="size-2 rounded-full"
+                          className="size-2 rounded-full shrink-0"
                           style={{ backgroundColor: resolveCountdownColor(item.color || defaultCountdownColor) }}
                         />
-                        <strong className="text-slate-900 dark:text-slate-100">{item.title}</strong>
-                        <span className="text-slate-400 uppercase text-[10px]">({item.category})</span>
+                        <strong className="text-slate-900 dark:text-slate-100 truncate">{item.title}</strong>
+                        {item.category && item.category !== 'General' && (
+                          <span className="text-slate-400 uppercase text-[10px]">({item.category})</span>
+                        )}
                       </div>
-                      <time className="font-mono text-slate-500">
-                        {new Date(item.targetDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </time>
+                      <div className="flex items-center gap-2 shrink-0 ml-3">
+                        <time className="font-mono text-slate-500">
+                          {new Date(item.targetDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </time>
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            type="button"
+                            onClick={() => openEditForm(item)}
+                            className="size-6 flex items-center justify-center rounded text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 dark:hover:text-blue-400 transition-colors"
+                            title="Edit event"
+                            aria-label="Edit event"
+                          >
+                            ✏️
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void handleDeleteCountdown(item.id, item.title)}
+                            className="size-6 flex items-center justify-center rounded text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 dark:hover:text-red-400 transition-colors"
+                            title="Delete event"
+                            aria-label="Delete event"
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </div>
                     </li>
                   ))}
                 </ul>
@@ -399,130 +541,186 @@ export function CountdownsView() {
               )}
             </div>
           )}
-
-          {/* CALENDAR CATEGORY LEGEND */}
-          <div className="mt-6 flex flex-wrap items-center gap-4 border-t border-slate-100 pt-4 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">
-            <span className="font-semibold text-slate-700 dark:text-slate-300">Legend:</span>
-            {categoryLegend.map((item) => (
-              <div className="flex items-center gap-1.5" key={item.category}>
-                <span
-                  className="size-2 rounded-full"
-                  style={{ backgroundColor: item.color }}
-                />
-                <span>{item.category}</span>
-              </div>
-            ))}
-            {categoryLegend.length === 0 ? <span>No categories yet</span> : null}
-          </div>
         </section>
       </main>
 
-      {/* CREATE COUNTDOWN MODAL */}
+      {/* CREATE EVENT MODAL */}
       {isModalOpen ? (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
           onClick={() => setIsModalOpen(false)}
         >
           <div
-            className="w-full max-w-2xl rounded-xl border border-slate-200 bg-white p-6 shadow-2xl relative dark:border-gray-700 dark:bg-gray-900"
+            className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl relative dark:border-slate-700 dark:bg-slate-900"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-gray-700">
-              <h3 className="text-base font-bold text-gray-900 dark:text-white">
-                Create New Countdown
-              </h3>
+            <div className="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-slate-700">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">
+                  {editingCountdownId ? 'calendar.event.edit' : 'calendar.event.create'}
+                </span>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                  {editingCountdownId ? 'Edit Event' : 'New Event'}
+                </h3>
+              </div>
               <button
                 type="button"
                 onClick={() => setIsModalOpen(false)}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-white transition-colors"
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors"
                 aria-label="Close modal"
               >
                 ✕
               </button>
             </div>
 
-            <form className="mt-4" onSubmit={createCountdown}>
+            <form className="mt-5 space-y-4" onSubmit={saveCountdown}>
               {modalError ? (
-                <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300" role="alert">
+                <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300" role="alert">
                   {modalError}
                 </div>
               ) : null}
 
-              <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
-                <div className="md:col-span-4">
-                  <label className="block text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300">
-                    Title
-                    <input
-                      className="mt-2 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal normal-case tracking-normal text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:placeholder-gray-500"
-                      value={title}
-                      onChange={(event) => setTitle(event.target.value)}
-                      maxLength={255}
-                      placeholder="CS2103 final exam"
-                      autoFocus
-                      required
-                    />
-                  </label>
-                </div>
+              {/* Event Title */}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+                  Event Title
+                </label>
+                <input
+                  className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3.5 text-sm font-normal text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder-slate-500"
+                  value={title}
+                  onChange={(event) => setTitle(event.target.value)}
+                  maxLength={255}
+                  placeholder="e.g. CS2103 Final Project Demo, Finals Exam…"
+                  autoFocus
+                  required
+                />
+              </div>
 
-                <div className="md:col-span-3">
-                  <label className="block text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300">
-                    Target date
-                    <input
-                      className="mt-2 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal normal-case tracking-normal text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-                      type="datetime-local"
-                      value={targetDate}
-                      onChange={(event) => setTargetDate(event.target.value)}
-                      required
-                    />
-                  </label>
-                </div>
+              {/* Toggle Buttons: All Day, Multiple Days */}
+              <div>
+                <span className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+                  Event Options
+                </span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleToggleAllDay}
+                    className={`inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold transition-all ${
+                      isAllDay
+                        ? 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-500/30'
+                        : 'border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
+                    }`}
+                  >
+                    <span>☀️</span>
+                    <span>All day</span>
+                  </button>
 
-                <div className="md:col-span-3">
-                  <label className="block text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300">
-                    Category
-                    <input
-                      className="mt-2 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal normal-case tracking-normal text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:placeholder-gray-500"
-                      type="text"
-                      list="category-options"
-                      value={category}
-                      onChange={(event) => setCategory(event.target.value)}
-                      maxLength={50}
-                      placeholder="Exam, Assignment, CCA…"
-                      required
-                    />
-                  </label>
-                  <datalist id="category-options">
-                    {categoryOptions.map((item) => <option key={item} value={item} />)}
-                  </datalist>
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="block text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300">
-                    Color
-                    <div className="mt-2 flex h-11 items-center gap-2">
-                      <input
-                        type="color"
-                        value={resolveCountdownColor(color)}
-                        onChange={(event) => setColor(event.target.value)}
-                        className="h-10 w-10 cursor-pointer rounded border-0 p-0"
-                        title="Pick a color"
-                      />
-                      <input
-                        type="text"
-                        value={color}
-                        onChange={(event) => setColor(event.target.value)}
-                        className="h-11 w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2.5 font-mono text-xs font-normal normal-case tracking-normal text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:placeholder-gray-500"
-                        placeholder="#3b82f6"
-                        maxLength={7}
-                      />
-                    </div>
-                  </label>
+                  <button
+                    type="button"
+                    onClick={handleToggleMultipleDays}
+                    className={`inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold transition-all ${
+                      isMultipleDays
+                        ? 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-500/30'
+                        : 'border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
+                    }`}
+                  >
+                    <span>📅</span>
+                    <span>Multiple days</span>
+                  </button>
                 </div>
               </div>
 
-              <div className="mt-6 flex justify-end gap-2">
+              {/* Date Inputs */}
+              <div className={`grid gap-4 ${isMultipleDays ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'}`}>
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+                    {isMultipleDays ? 'Start Date' : 'Date'}
+                  </label>
+                  <input
+                    className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3.5 text-sm font-normal text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                    type="date"
+                    value={startDate}
+                    onChange={(event) => setStartDate(event.target.value)}
+                    required
+                  />
+                </div>
+
+                {isMultipleDays && (
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+                      End Date
+                    </label>
+                    <input
+                      className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3.5 text-sm font-normal text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                      type="date"
+                      value={endDate}
+                      min={startDate}
+                      onChange={(event) => setEndDate(event.target.value)}
+                      required
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Time Inputs (Hidden when 'All day' is selected) */}
+              {!isAllDay && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+                      Start Time
+                    </label>
+                    <input
+                      className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3.5 text-sm font-normal text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                      type="time"
+                      value={startTime}
+                      onChange={(event) => setStartTime(event.target.value)}
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+                      End Time
+                    </label>
+                    <input
+                      className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3.5 text-sm font-normal text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                      type="time"
+                      value={endTime}
+                      onChange={(event) => setEndTime(event.target.value)}
+                      required
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Color */}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+                  Color Badge
+                </label>
+                <div className="flex h-11 items-center gap-2 max-w-xs">
+                  <input
+                    type="color"
+                    value={resolveCountdownColor(color)}
+                    onChange={(event) => setColor(event.target.value)}
+                    className="size-11 cursor-pointer rounded-xl border border-slate-300 p-0.5 dark:border-slate-700 bg-white dark:bg-slate-800"
+                    title="Pick a color"
+                  />
+                  <input
+                    type="text"
+                    value={color}
+                    onChange={(event) => setColor(event.target.value)}
+                    className="h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-white px-2.5 font-mono text-xs text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder-slate-500"
+                    placeholder="#3b82f6"
+                    maxLength={7}
+                  />
+                </div>
+              </div>
+
+              {/* Modal Actions */}
+              <div className="mt-6 flex justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-700/60">
                 <button
-                  className="button button--ghost"
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                   type="button"
                   onClick={() => setIsModalOpen(false)}
                   disabled={isSubmitting}
@@ -530,11 +728,23 @@ export function CountdownsView() {
                   Cancel
                 </button>
                 <button
-                  className="button button--primary"
+                  className="rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 disabled:cursor-not-allowed disabled:opacity-50"
                   type="submit"
-                  disabled={isSubmitting || !title.trim() || !targetDate || !category.trim()}
+                  disabled={
+                    isSubmitting ||
+                    !title.trim() ||
+                    !startDate ||
+                    (isMultipleDays && !endDate) ||
+                    (!isAllDay && (!startTime || !endTime))
+                  }
                 >
-                  {isSubmitting ? 'Saving…' : 'Create'}
+                  {isSubmitting
+                    ? editingCountdownId
+                      ? 'Updating…'
+                      : 'Creating Event…'
+                    : editingCountdownId
+                      ? 'Save Changes'
+                      : 'Create Event'}
                 </button>
               </div>
             </form>

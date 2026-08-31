@@ -587,9 +587,9 @@ export function StudyRoom() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 shrink-0">
                 {/* Invite Code Share Pill */}
-                <div className="flex items-center gap-2 rounded-xl bg-blue-50 dark:bg-blue-950/50 px-3 py-1.5 border border-blue-200 dark:border-blue-900">
+                <div className="flex h-9 items-center gap-2 rounded-xl bg-blue-50 dark:bg-blue-950/50 px-3.5 py-1.5 border border-blue-200 dark:border-blue-900 text-xs font-bold shrink-0">
                   <span className="text-[11px] font-bold text-blue-700 dark:text-blue-300">Invite Code:</span>
                   <span className="font-mono font-black text-xs text-blue-900 dark:text-blue-200 uppercase tracking-widest">
                     {currentRoom}
@@ -611,7 +611,7 @@ export function StudyRoom() {
                 <button
                   type="button"
                   onClick={handleLeaveRoom}
-                  className="rounded-xl border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300 dark:hover:bg-red-900/60 px-4 py-2 text-xs font-bold transition-colors flex items-center gap-1.5 shadow-sm"
+                  className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300 dark:hover:bg-red-900/60 px-3.5 py-1.5 text-xs font-bold transition-colors shadow-sm whitespace-nowrap shrink-0"
                 >
                   <span>🚪</span> Leave Room
                 </button>

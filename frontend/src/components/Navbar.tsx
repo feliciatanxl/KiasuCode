@@ -123,6 +123,19 @@ export function Navbar({ onConnectTelegram }: NavbarProps) {
                 }`
               }
               end
+              to="/schedule"
+            >
+              Timetable
+            </NavLink>
+            <NavLink
+              className={({ isActive }) =>
+                `border-b-2 px-3 py-2 text-sm font-semibold transition-colors ${
+                  isActive
+                    ? 'border-blue-600 text-slate-950 dark:border-blue-400 dark:text-white'
+                    : 'border-transparent text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100'
+                }`
+              }
+              end
               to="/countdowns"
             >
               Radar
@@ -169,9 +182,9 @@ export function Navbar({ onConnectTelegram }: NavbarProps) {
           </nav>
         </div>
 
-        <div className="flex items-center gap-2 sm:gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
           <button
-            className="theme-toggle hidden size-9 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 transition-all duration-200 hover:bg-slate-100 hover:text-slate-950 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white sm:inline-grid"
+            className="theme-toggle inline-flex shrink-0 size-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition-all duration-200 hover:bg-slate-100 hover:text-slate-950 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
             type="button"
             onClick={toggleTheme}
             aria-label={`Switch to ${isDarkMode ? 'light' : 'dark'} mode`}
@@ -340,6 +353,20 @@ export function Navbar({ onConnectTelegram }: NavbarProps) {
               }
             >
               The Stash
+            </NavLink>
+            <NavLink
+              to="/schedule"
+              end
+              onClick={() => setIsMobileMenuOpen(false)}
+              className={({ isActive }) =>
+                `flex items-center rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ${
+                  isActive
+                    ? 'bg-blue-50 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400 font-bold'
+                    : 'text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
+                }`
+              }
+            >
+              Timetable
             </NavLink>
             <NavLink
               to="/countdowns"

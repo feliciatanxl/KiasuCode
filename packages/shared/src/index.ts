@@ -155,4 +155,46 @@ export interface UserPresence {
   roomId: string | null
 }
 
+export interface TodoItem {
+  id: string
+  userId?: string
+  title: string
+  label?: string | null
+  description?: string | null
+  deadline?: string | null
+  isCompleted: boolean
+  createdAt?: string
+}
 
+export interface CreateTodoInput {
+  title: string
+  label?: string | null
+  description?: string | null
+  deadline?: string | null
+  isCompleted?: boolean
+}
+
+export type DayOfWeek = 'Mon' | 'Tue' | 'Wed' | 'Thu' | 'Fri' | 'Sat' | 'Sun'
+
+export interface ClassScheduleItem {
+  id: string
+  userId?: string
+  color: string
+  title: string
+  instructor?: string | null
+  roomLocation?: string | null
+  dayOfWeek: DayOfWeek
+  startTime: string
+  endTime: string
+  createdAt?: string
+}
+
+export interface CreateScheduleInput {
+  color?: string
+  title: string
+  instructor?: string | null
+  roomLocation?: string | null
+  dayOfWeek: DayOfWeek
+  startTime: string
+  endTime: string
+}

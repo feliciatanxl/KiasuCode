@@ -9,31 +9,33 @@ export function LandingPage() {
 
   return (
     <div className="app-shell landing-page !bg-slate-50 text-slate-900 transition-colors dark:!bg-slate-900 dark:text-slate-100">
-      <header className="site-header landing-header !border-slate-200 !bg-white text-slate-900 dark:!border-slate-700 dark:!bg-slate-900 dark:text-slate-100">
-        <Link className="brand" to="/" aria-label="KiasuCode home">
-          <Logo className="text-[18px]" />
-        </Link>
-        <nav className="hidden lg:flex" aria-label="Landing page navigation">
-          <a className="!text-slate-600 hover:!text-slate-900 dark:!text-slate-300 dark:hover:!text-white" href="#pomodoro-pet">
-            Pomodoro Pet
-          </a>
-          <a className="!text-slate-600 hover:!text-slate-900 dark:!text-slate-300 dark:hover:!text-white" href="#countdowns">
-            DaysMatter
-          </a>
-          <a className="!text-slate-600 hover:!text-slate-900 dark:!text-slate-300 dark:hover:!text-white" href="#file-pipeline">
-            Module Files
-          </a>
-          <a className="!text-slate-600 hover:!text-slate-900 dark:!text-slate-300 dark:hover:!text-white" href="#gpa-sandbox">
-            GPA Sandbox
-          </a>
-        </nav>
-        <div className="header-actions">
-          <span className="system-status !text-emerald-600 dark:!text-emerald-400">
-            <i className="animate-pulse bg-emerald-500" /> 90% Maturity · RC Ready
-          </span>
-          <Link className="button button--dark whitespace-nowrap" to={destination}>
-            {isAuthenticated ? 'Open dashboard' : 'Launch Console'} <span>→</span>
+      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white text-slate-900 transition-colors dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100">
+        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+          <Link className="brand shrink-0" to="/" aria-label="KiasuCode home">
+            <Logo className="text-[18px]" />
           </Link>
+          <nav className="hidden lg:flex items-center gap-6" aria-label="Landing page navigation">
+            <a className="text-sm font-semibold text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white transition-colors" href="#pomodoro-pet">
+              Pomodoro Pet
+            </a>
+            <a className="text-sm font-semibold text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white transition-colors" href="#countdowns">
+              DaysMatter
+            </a>
+            <a className="text-sm font-semibold text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white transition-colors" href="#file-pipeline">
+              Module Files
+            </a>
+            <a className="text-sm font-semibold text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white transition-colors" href="#gpa-sandbox">
+              GPA Sandbox
+            </a>
+          </nav>
+          <div className="flex items-center gap-4">
+            <span className="hidden sm:inline-flex items-center gap-1.5 text-xs font-bold text-emerald-600 dark:text-emerald-400">
+              <i className="size-2 rounded-full animate-pulse bg-emerald-500 inline-block" /> 90% Maturity · RC Ready
+            </span>
+            <Link className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-slate-800 dark:bg-blue-600 dark:hover:bg-blue-500 transition-colors whitespace-nowrap" to={destination}>
+              {isAuthenticated ? 'Open dashboard' : 'Launch Console'} <span>→</span>
+            </Link>
+          </div>
         </div>
       </header>
 

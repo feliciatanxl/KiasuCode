@@ -299,7 +299,7 @@ export function CampusPage() {
       <Navbar onConnectTelegram={() => setIsTelegramOpen(true)} />
 
       <main id="top" className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-8 flex-1">
-        <header className="flex flex-row justify-between items-end w-full mb-6">
+        <header className="flex flex-wrap gap-4 items-center justify-between w-full mb-6">
           <div className="flex flex-col gap-2 justify-start">
             <Breadcrumbs
               ancestors={breadcrumbAncestors}
@@ -315,7 +315,7 @@ export function CampusPage() {
           </div>
           {depth === 0 && institutions.length > 0 && !isLoading ? (
             <button
-              className="inline-flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-blue-700 bg-blue-600 px-3.5 text-xs font-bold text-white shadow-[3px_3px_0_#a9c7ff] transition-colors hover:bg-blue-700 dark:border-blue-500 dark:bg-blue-600 dark:hover:bg-blue-500"
+              className="inline-flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-blue-700 bg-blue-600 px-3.5 text-xs font-bold text-white shadow-[3px_3px_0_#a9c7ff] transition-colors hover:bg-blue-700 dark:border-blue-500 dark:bg-blue-600 dark:hover:bg-blue-500 whitespace-nowrap"
               type="button"
               onClick={openInstitutionForm}
             >

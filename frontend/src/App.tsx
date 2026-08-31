@@ -24,6 +24,7 @@ import { NotFoundPage } from './pages/NotFoundPage'
 import { PetView } from './pages/PetView'
 import { ProfilePage } from './pages/ProfilePage'
 import { RegisterPage } from './pages/RegisterPage'
+import { ScheduleView } from './pages/ScheduleView'
 import { SettingsPage } from './pages/SettingsPage'
 import { ServerErrorPage } from './pages/ServerErrorPage'
 import { StudyRoom } from './pages/StudyRoom'
@@ -91,6 +92,22 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <ModuleFilesView />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/schedule"
+        element={
+          <ProtectedRoute>
+            <ScheduleView />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/timetable"
+        element={
+          <ProtectedRoute>
+            <ScheduleView />
           </ProtectedRoute>
         }
       />

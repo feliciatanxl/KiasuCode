@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import type { AcademicCountdown } from '@kiasucode/shared'
+import type { AcademicCountdown, ClassScheduleItem, DayOfWeek } from '@kiasucode/shared'
 
 import { Logo } from '../components/Logo'
 import { Navbar } from '../components/Navbar'
 import { PrivacyConsentModal } from '../components/PrivacyConsentModal'
 import { TelegramConnectModal } from '../components/TelegramConnectModal'
+import { TodoList } from '../components/TodoList'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { apiRequest, formatApiError, isAbortError } from '../utils/api'
@@ -78,6 +79,10 @@ export function Dashboard() {
   const [isLoadingCountdowns, setIsLoadingCountdowns] = useState(true)
   const [countdownsError, setCountdownsError] = useState<string | null>(null)
 
+  // Schedules State (Mini iPod Widget)
+  const [schedules, setSchedules] = useState<ClassScheduleItem[]>([])
+  const [isLoadingSchedules, setIsLoadingSchedules] = useState(true)
+
   // Pet State (Pet Overview Widget)
   const [petStatus, setPetStatus] = useState<PetStatusResponse | null>(null)
   const [isLoadingPet, setIsLoadingPet] = useState(true)
@@ -96,6 +101,17 @@ export function Dashboard() {
       })
       .finally(() => {
         if (!controller.signal.aborted) setIsLoadingCountdowns(false)
+      })
+
+    void apiRequest<{ schedules: ClassScheduleItem[] }>('/api/schedules', {
+      signal: controller.signal,
+    })
+      .then(({ data }) => setSchedules(data.schedules || []))
+      .catch((err: unknown) => {
+        if (!isAbortError(err)) console.error('Failed to load schedules for dashboard:', err)
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setIsLoadingSchedules(false)
       })
 
     void apiRequest<PetStatusResponse>('/api/pet', {
@@ -126,6 +142,54 @@ export function Dashboard() {
     // If no events in next 14 days, show up to 5 closest upcoming events
     return relevant.length > 0 ? relevant : sorted.slice(0, 5)
   }, [countdowns])
+
+  // Upcoming class calculation for iPod Mini Timetable
+  const upcomingClassInfo = useMemo(() => {
+    if (!schedules.length) return null
+
+    const dayMap: DayOfWeek[] = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+    const now = new Date()
+    const currentDay = dayMap[now.getDay()]
+    const currentMinutes = now.getHours() * 60 + now.getMinutes()
+
+    const parseTimeToMinutes = (t: string) => {
+      const [h, m] = t.split(':').map(Number)
+      return (h || 0) * 60 + (m || 0)
+    }
+
+    // 1. Look for remaining or current class today
+    const todaysClasses = schedules
+      .filter((s) => s.dayOfWeek === currentDay)
+      .sort((a, b) => parseTimeToMinutes(a.startTime) - parseTimeToMinutes(b.startTime))
+
+    const nextToday = todaysClasses.find((s) => parseTimeToMinutes(s.endTime) >= currentMinutes)
+    if (nextToday) {
+      const isNow = parseTimeToMinutes(nextToday.startTime) <= currentMinutes
+      return { classItem: nextToday, isToday: true, isNow, dayLabel: 'Today' }
+    }
+
+    // 2. Look for upcoming days in circular sequence
+    const dayOrder: DayOfWeek[] = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+    const todayIndex = dayOrder.indexOf(currentDay)
+
+    for (let offset = 1; offset <= 7; offset++) {
+      const nextDay = dayOrder[(todayIndex + offset) % 7]
+      const nextDayClasses = schedules
+        .filter((s) => s.dayOfWeek === nextDay)
+        .sort((a, b) => parseTimeToMinutes(a.startTime) - parseTimeToMinutes(b.startTime))
+
+      if (nextDayClasses.length > 0) {
+        return {
+          classItem: nextDayClasses[0],
+          isToday: false,
+          isNow: false,
+          dayLabel: offset === 1 ? 'Tomorrow' : nextDay,
+        }
+      }
+    }
+
+    return null
+  }, [schedules])
 
   const feedPet = async () => {
     if (!petStatus || isFeeding) return
@@ -171,7 +235,7 @@ export function Dashboard() {
           </div>
         </header>
 
-        {/* 2 MAIN SECTIONS: TODAY'S AGENDA & PET OVERVIEW WIDGET */}
+        {/* TOP ROW: TODAY'S AGENDA (SPAN 2) & MINI IPOD TIMETABLE WIDGET (SPAN 1) */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8 items-stretch">
           {/* SECTION 1: TODAY'S AGENDA (SPAN 2 COLUMNS) */}
           <section
@@ -287,7 +351,125 @@ export function Dashboard() {
             )}
           </section>
 
-          {/* SECTION 2: PET OVERVIEW WIDGET (1 COLUMN) */}
+          {/* SECTION 2: MINI IPOD TIMETABLE (FLOATING NAKED DEVICE) */}
+          <div className="flex flex-col items-center justify-center">
+            {isLoadingSchedules ? (
+              <div className="flex flex-col items-center justify-center py-8">
+                <div className="size-16 animate-pulse rounded-full bg-blue-100 dark:bg-blue-950/60" />
+                <p className="mt-3 text-xs text-slate-400">Syncing timetable…</p>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center">
+                {/* Mini iPod Shell */}
+                <div className="relative w-full max-w-[250px] sm:max-w-[270px] rounded-[36px] p-4 bg-gradient-to-b from-slate-200 via-slate-100 to-slate-300 dark:from-slate-700 dark:via-slate-800 dark:to-slate-900 border-2 border-slate-300/80 dark:border-slate-600 shadow-[0_20px_50px_-10px_rgba(0,0,0,0.35),0_0_0_1px_rgba(255,255,255,0.9)_inset] select-none">
+                  {/* Gloss reflex */}
+                  <div className="absolute top-2 left-6 right-6 h-2.5 rounded-full bg-gradient-to-b from-white/60 to-transparent pointer-events-none" />
+
+                  {/* iPod Color Screen */}
+                  <div className="relative rounded-2xl border-4 border-slate-900/90 bg-gradient-to-b from-[#c3e3f7] to-[#91c5e4] dark:from-[#132c3f] dark:to-[#0a1824] p-3.5 shadow-[inset_0_4px_10px_rgba(0,0,0,0.35)] text-slate-900 dark:text-cyan-50 flex flex-col justify-between h-40 overflow-hidden font-sans">
+                    {/* Top Status Bar */}
+                    <div className="flex items-center justify-between pb-1 border-b border-slate-900/15 dark:border-cyan-400/20 text-[10px] font-bold">
+                      <div className="flex items-center gap-1">
+                        <span className="text-[10px]">▶</span>
+                        <span className="truncate">
+                          {upcomingClassInfo?.isNow ? 'Now Classing' : 'Up Next'}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-0.5">
+                        <div className="h-2.5 w-4 rounded-2xs border border-slate-900/70 dark:border-cyan-200/70 p-0.5 flex items-center">
+                          <div className="h-full w-3/4 rounded-3xs bg-emerald-600 dark:bg-emerald-400" />
+                        </div>
+                        <div className="h-1 w-0.5 rounded-r bg-slate-900/70 dark:bg-cyan-200/70" />
+                      </div>
+                    </div>
+
+                    {/* Main Screen Body */}
+                    {upcomingClassInfo?.classItem ? (
+                      <div className="flex items-center gap-2.5 my-auto">
+                        <div
+                          className="size-11 rounded-lg shadow-sm flex items-center justify-center text-lg text-white font-black shrink-0 border border-white/40"
+                          style={{ backgroundColor: upcomingClassInfo.classItem.color || '#3b82f6' }}
+                        >
+                          🎓
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <h4 className="text-xs font-black truncate leading-tight text-slate-950 dark:text-white">
+                            {upcomingClassInfo.classItem.title}
+                          </h4>
+                          {upcomingClassInfo.classItem.instructor && (
+                            <p className="text-[10px] font-semibold text-slate-700 dark:text-cyan-200 truncate mt-0.5">
+                              {upcomingClassInfo.classItem.instructor}
+                            </p>
+                          )}
+                          {upcomingClassInfo.classItem.roomLocation && (
+                            <p className="text-[9px] font-mono text-slate-600 dark:text-cyan-300/80 truncate">
+                              {upcomingClassInfo.classItem.roomLocation}
+                            </p>
+                          )}
+                          <p className="text-[9px] font-bold uppercase tracking-wider text-blue-800 dark:text-blue-300 mt-0.5">
+                            {upcomingClassInfo.dayLabel} · {upcomingClassInfo.classItem.startTime} - {upcomingClassInfo.classItem.endTime}
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center text-center my-auto py-1">
+                        <span className="text-xl">🏖️</span>
+                        <p className="text-xs font-bold text-slate-900 dark:text-cyan-50 mt-0.5">
+                          No upcoming classes
+                        </p>
+                        <p className="text-[9px] text-slate-700 dark:text-cyan-300/80">
+                          You're all clear!
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Bottom Scrubber Bar */}
+                    <div className="pt-1 border-t border-slate-900/10 dark:border-cyan-400/20">
+                      <div className="h-1 w-full rounded-full bg-slate-900/20 dark:bg-cyan-950 overflow-hidden">
+                        <div className="h-full w-2/3 rounded-full bg-blue-600 dark:bg-cyan-400 shadow-xs" />
+                      </div>
+                      <div className="flex justify-between text-[8px] font-mono text-slate-600 dark:text-cyan-300 mt-0.5">
+                        <span>{upcomingClassInfo?.classItem.startTime || '00:00'}</span>
+                        <span>{upcomingClassInfo?.classItem.endTime || '00:00'}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Compact Click Wheel */}
+                  <div className="mt-3.5 flex justify-center">
+                    <Link
+                      to="/schedule"
+                      className="size-28 rounded-full bg-gradient-to-b from-slate-50 to-slate-200 dark:from-slate-800 dark:to-slate-700 border border-slate-300/90 dark:border-slate-600 shadow-[0_4px_8px_rgba(0,0,0,0.15),inset_0_1px_2px_rgba(255,255,255,0.9)] relative flex items-center justify-center hover:scale-105 transition-transform"
+                      title="Open full timetable"
+                    >
+                      <span className="absolute top-1.5 text-[7px] font-black tracking-widest text-slate-500 dark:text-slate-400 uppercase">
+                        MENU
+                      </span>
+                      <span className="absolute left-2 text-[8px] font-bold text-slate-500 dark:text-slate-400">
+                        |◀◀
+                      </span>
+                      <span className="absolute right-2 text-[8px] font-bold text-slate-500 dark:text-slate-400">
+                        ▶▶|
+                      </span>
+                      <span className="absolute bottom-1.5 text-[8px] font-bold text-slate-500 dark:text-slate-400">
+                        ▶||
+                      </span>
+                      <div className="size-11 rounded-full bg-gradient-to-b from-slate-200 to-slate-100 dark:from-slate-700 dark:to-slate-800 border border-slate-300 dark:border-slate-600 shadow-[inset_0_1px_2px_rgba(0,0,0,0.12)] flex items-center justify-center">
+                        <span className="text-[7px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tighter">
+                          SELECT
+                        </span>
+                      </div>
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* BOTTOM ROW: PET OVERVIEW & TO-DO LIST (SIDE BY SIDE) */}
+        <div className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8 items-stretch">
+          {/* PET OVERVIEW WIDGET */}
           <section
             className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-800 sm:p-8 flex flex-col h-full justify-between"
             aria-labelledby="pet-widget-title"
@@ -316,7 +498,7 @@ export function Dashboard() {
                 <p className="mt-3 text-xs text-slate-400">Loading companion status…</p>
               </div>
             ) : petStatus?.pet ? (
-              <div className="mt-6 flex flex-col justify-between">
+              <div className="mt-6 flex flex-col justify-between flex-1">
                 <div className="flex items-center gap-4">
                   <div
                     className="grid size-20 shrink-0 place-items-center rounded-2xl border-2 border-blue-100 bg-blue-50 text-4xl shadow-inner dark:border-blue-900/60 dark:bg-blue-950/40"
@@ -346,7 +528,7 @@ export function Dashboard() {
                       <span className="font-semibold text-slate-600 dark:text-slate-300">
                         Hunger
                       </span>
-                      <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+                      <span className="font-mono text-slate-500">
                         {clampLevel(petStatus.pet.hungerLevel)}/100
                       </span>
                     </div>
@@ -359,7 +541,7 @@ export function Dashboard() {
                       aria-valuemax={100}
                     >
                       <div
-                        className="h-full rounded-full bg-emerald-500 transition-all duration-500"
+                        className="h-full rounded-full bg-amber-500 transition-all duration-500"
                         style={{ width: `${clampLevel(petStatus.pet.hungerLevel)}%` }}
                       />
                     </div>
@@ -370,7 +552,7 @@ export function Dashboard() {
                       <span className="font-semibold text-slate-600 dark:text-slate-300">
                         Happiness
                       </span>
-                      <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+                      <span className="font-mono text-slate-500">
                         {clampLevel(petStatus.pet.happinessLevel)}/100
                       </span>
                     </div>
@@ -414,6 +596,11 @@ export function Dashboard() {
                 <p className="text-xs text-red-500">{petError ?? 'Pet status unavailable.'}</p>
               </div>
             )}
+          </section>
+
+          {/* TO-DO LIST WIDGET */}
+          <section className="h-full flex flex-col">
+            <TodoList className="h-full flex flex-col justify-between" />
           </section>
         </div>
       </main>

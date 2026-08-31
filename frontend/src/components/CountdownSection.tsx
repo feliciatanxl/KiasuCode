@@ -52,12 +52,19 @@ export function CountdownSection({
   const [color, setColor] = useState(defaultCountdownColor)
   const [error, setError] = useState<string | null>(null)
   const { showToast } = useToast()
-  const categoryOptions = useMemo(
-    () => [...new Set(countdowns.map((countdown) => countdown.category))].sort(
-      (left, right) => left.localeCompare(right),
-    ),
-    [countdowns],
-  )
+  const STANDARD_CATEGORIES = ['Exam', 'Assignment', 'Project', 'Quiz', 'Lab', 'Course', 'Personal', 'CCA']
+
+  const categoryOptions = useMemo(() => {
+    const existing = countdowns
+      .map((countdown) => countdown.category)
+      .filter((c): c is string => Boolean(c && typeof c === 'string' && c.trim()))
+
+    const uniqueSet = new Set<string>()
+    STANDARD_CATEGORIES.forEach((cat) => uniqueSet.add(cat))
+    existing.forEach((cat) => uniqueSet.add(cat))
+
+    return Array.from(uniqueSet)
+  }, [countdowns])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -255,20 +262,29 @@ export function CountdownSection({
                 <div className="md:col-span-3">
                   <label className="block text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300">
                     Category
-                    <input
-                      className="mt-2 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal normal-case tracking-normal text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:placeholder-gray-500"
-                      type="text"
-                      list="category-options"
-                      value={category}
-                      onChange={(event) => setCategory(event.target.value)}
-                      maxLength={50}
-                      placeholder="Exam, Assignment, CCA…"
-                      required
-                    />
+                    <div className="relative mt-2">
+                      <select
+                        className="h-11 w-full appearance-none rounded-lg border border-slate-300 bg-white px-3 pr-9 text-sm font-normal normal-case tracking-normal text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white cursor-pointer"
+                        value={category}
+                        onChange={(event) => setCategory(event.target.value)}
+                        required
+                      >
+                        {categoryOptions.map((item) => (
+                          <option key={item} value={item}>
+                            {item}
+                          </option>
+                        ))}
+                      </select>
+                      <svg
+                        className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-slate-400"
+                        viewBox="0 0 20 20"
+                        fill="none"
+                        aria-hidden="true"
+                      >
+                        <path d="m6 8 4 4 4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </div>
                   </label>
-                  <datalist id="category-options">
-                    {categoryOptions.map((item) => <option key={item} value={item} />)}
-                  </datalist>
                 </div>
 
                 <div className="md:col-span-2">

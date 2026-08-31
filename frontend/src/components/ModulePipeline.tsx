@@ -119,9 +119,9 @@ export function ModulePipeline({
         <div className="pipeline-row pipeline-row--header border-slate-200 bg-slate-50 text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400" role="row">
           <span role="columnheader">Commit / module</span>
           <span role="columnheader">CU</span>
-          <span role="columnheader">Target</span>
-          <span role="columnheader">Actual</span>
-          <span role="columnheader">Pipeline state</span>
+          <span role="columnheader" className="whitespace-nowrap">Target Grade</span>
+          <span role="columnheader" className="whitespace-nowrap">Actual Grade</span>
+          <span role="columnheader" className="whitespace-nowrap">Pipeline state</span>
           <span role="columnheader" aria-label="Actions" />
         </div>
         {visibleModules.map((module, index) => (
@@ -160,7 +160,7 @@ export function ModulePipeline({
                 }
               />
             </label>
-            <label className="compact-field" role="cell">
+            <label className="compact-field whitespace-nowrap" role="cell">
               <span className="sr-only">Target grade for {module.moduleCode}</span>
               <select
                 className="border-slate-200 bg-white text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
@@ -176,7 +176,7 @@ export function ModulePipeline({
                 ))}
               </select>
             </label>
-            <label className="compact-field" role="cell">
+            <label className="compact-field whitespace-nowrap" role="cell">
               <span className="sr-only">Actual grade for {module.moduleCode}</span>
               <select
                 className="border-slate-200 bg-white text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
@@ -198,10 +198,10 @@ export function ModulePipeline({
                 ))}
               </select>
             </label>
-            <div role="cell">
+            <div role="cell" className="whitespace-nowrap">
               <button
                 type="button"
-                className={`status-pill status-pill--${module.status}`}
+                className={`status-pill status-pill--${module.status} whitespace-nowrap`}
                 onClick={() => void cycleStatus(module).catch(() => undefined)}
                 title="Click to move to the next pipeline state"
               >
@@ -209,7 +209,7 @@ export function ModulePipeline({
               </button>
             </div>
             <button
-              className="row-menu"
+              className="row-menu whitespace-nowrap shrink-0"
               type="button"
               aria-label={`Remove ${module.moduleCode}`}
               title="Remove module"

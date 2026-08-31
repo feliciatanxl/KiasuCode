@@ -126,7 +126,7 @@ export function GuideView() {
 
           <Link
             to="/dashboard"
-            className="inline-flex items-center gap-2 self-start sm:self-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 shadow-sm transition-all hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:border-slate-600 dark:hover:bg-slate-700/80"
+            className="inline-flex items-center gap-2 self-start sm:self-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 shadow-sm transition-all hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:border-slate-600 dark:hover:bg-slate-700/80 whitespace-nowrap"
           >
             <span>Back to Dashboard</span>
             <span>→</span>
@@ -216,29 +216,29 @@ export function GuideView() {
 
         {/* BOTTOM HELP CTA */}
         <div className="mt-10 rounded-2xl border border-slate-200 bg-gradient-to-r from-blue-600 to-indigo-700 p-8 text-white shadow-lg dark:border-slate-800">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
-            <div className="flex-1">
+          <div className="flex flex-col items-start gap-6">
+            <div className="max-w-2xl">
               <span className="text-xs font-bold uppercase tracking-widest text-blue-200">
                 Ready to commit?
               </span>
               <h2 className="mt-1 text-2xl font-black tracking-tight text-white">
                 Start Your Study Session Now
               </h2>
-              <p className="mt-1 max-w-xl text-xs text-blue-100">
+              <p className="mt-1 text-xs text-blue-100 leading-relaxed">
                 Configure your modules on Campus, deploy your first 25-minute sprint, and watch your companion level up!
               </p>
             </div>
-            <div className="flex flex-wrap items-center justify-end gap-3 sm:ml-auto shrink-0">
+            <div className="flex flex-wrap items-center justify-start gap-3">
               <Link
                 to="/timer"
-                className="inline-flex items-center gap-1.5 rounded-xl bg-white px-5 py-2.5 text-xs font-extrabold text-blue-700 !text-blue-700 hover:text-blue-800 hover:!text-blue-800 shadow-sm transition hover:bg-blue-50"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-white px-5 py-2.5 text-xs font-extrabold text-blue-700 !text-blue-700 hover:text-blue-800 hover:!text-blue-800 shadow-sm transition hover:bg-blue-50 whitespace-nowrap shrink-0"
               >
                 <span className="font-extrabold text-blue-700">Solo Sprint</span>
                 <span>⏱️</span>
               </Link>
               <Link
                 to="/study-room"
-                className="inline-flex items-center gap-1.5 rounded-xl border border-white/30 bg-white/10 px-5 py-2.5 text-xs font-extrabold text-white hover:text-white backdrop-blur-sm transition hover:bg-white/20"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-white/30 bg-white/10 px-5 py-2.5 text-xs font-extrabold text-white hover:text-white backdrop-blur-sm transition hover:bg-white/20 whitespace-nowrap shrink-0"
               >
                 <span>Join Study Room</span>
                 <span>👥</span>

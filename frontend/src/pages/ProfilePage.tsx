@@ -205,7 +205,7 @@ export function ProfilePage() {
 
           <Link
             to="/dashboard"
-            className="inline-flex items-center gap-2 self-start sm:self-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 shadow-sm transition-all hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:border-slate-600 dark:hover:bg-slate-700/80"
+            className="inline-flex items-center gap-2 self-start sm:self-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 shadow-sm transition-all hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:border-slate-600 dark:hover:bg-slate-700/80 whitespace-nowrap"
           >
             <span>Back to Dashboard</span>
             <span>→</span>
@@ -223,7 +223,7 @@ export function ProfilePage() {
                 <button
                   type="button"
                   onClick={handleStartEdit}
-                  className="rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                  className="rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 whitespace-nowrap"
                 >
                   ✏️ Edit Profile
                 </button>
@@ -238,7 +238,7 @@ export function ProfilePage() {
                   </div>
                 )}
 
-                <div className="flex flex-col sm:flex-row items-center gap-8">
+                <div className="flex flex-col items-center md:flex-row md:items-start lg:items-center gap-8">
                   {/* Avatar Upload Container */}
                   <div className="flex shrink-0 flex-col items-center">
                     <div className="relative group flex size-28 items-center justify-center overflow-hidden rounded-3xl bg-blue-600 font-black text-3xl text-white shadow-lg ring-4 ring-blue-50 dark:ring-blue-950/50">
@@ -256,7 +256,7 @@ export function ProfilePage() {
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
-                      className="mt-3 inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-blue-600 shadow-2xs hover:bg-blue-50 dark:border-slate-700 dark:bg-slate-800 dark:text-blue-400 dark:hover:bg-slate-700"
+                      className="mt-3 inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-blue-600 shadow-2xs hover:bg-blue-50 dark:border-slate-700 dark:bg-slate-800 dark:text-blue-400 dark:hover:bg-slate-700 whitespace-nowrap shrink-0"
                     >
                       📷 Change Picture
                     </button>
@@ -315,7 +315,7 @@ export function ProfilePage() {
                 </div>
               </form>
             ) : (
-              <div className="p-6 sm:p-8 flex flex-col sm:flex-row items-center sm:items-start gap-8">
+              <div className="p-6 sm:p-8 flex flex-col items-center md:flex-row md:items-start lg:items-center gap-8">
                 {/* Profile Picture with Live Status Badge Directly Underneath */}
                 <div className="flex shrink-0 flex-col items-center">
                   <div className="flex size-28 items-center justify-center rounded-3xl bg-blue-600 font-black text-3xl text-white shadow-lg ring-4 ring-blue-50 dark:ring-blue-950/50 overflow-hidden">
@@ -348,8 +348,8 @@ export function ProfilePage() {
                 </div>
 
                 {/* Profile Information Flex Grid */}
-                <div className="flex-1 w-full space-y-4 text-center sm:text-left">
-                  <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3">
+                <div className="flex-1 w-full space-y-4 text-center md:text-left">
+                  <div className="flex flex-wrap items-center justify-center md:justify-start gap-3">
                     <h3 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 dark:text-white">
                       {displayName}
                     </h3>
@@ -358,7 +358,7 @@ export function ProfilePage() {
                     </span>
                   </div>
 
-                  <div className="grid gap-3 sm:grid-cols-2 pt-2 border-t border-slate-100 dark:border-slate-700/60">
+                  <div className="grid gap-3 grid-cols-1 md:grid-cols-2 pt-2 border-t border-slate-100 dark:border-slate-700/60">
                     <div className="rounded-xl bg-slate-50/70 p-3.5 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800">
                       <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
                         Registered Email
@@ -378,7 +378,7 @@ export function ProfilePage() {
                     </div>
                   </div>
 
-                  <div className="pt-2 flex items-center justify-center sm:justify-start gap-2 text-xs text-slate-400 dark:text-slate-500">
+                  <div className="pt-2 flex items-center justify-center md:justify-start gap-2 text-xs text-slate-400 dark:text-slate-500">
                     <span>Need to manage linked Google or Telegram accounts?</span>
                     <Link to="/settings" className="font-bold text-blue-600 dark:text-blue-400 hover:underline">
                       Go to Settings →
