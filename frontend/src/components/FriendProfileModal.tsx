@@ -166,9 +166,6 @@ export function FriendProfileModal({
                     <span>Offline</span>
                   </span>
                 )}
-                <span className="text-[11px] font-mono text-slate-400 truncate">
-                  ID: {friend.id.slice(0, 8)}…
-                </span>
               </div>
             </div>
           </div>

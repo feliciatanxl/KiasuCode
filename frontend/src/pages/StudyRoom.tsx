@@ -443,7 +443,7 @@ export function StudyRoom() {
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Search by room name or topic…"
-                    className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 pl-9 text-xs text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:placeholder-slate-500"
+                    className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 pl-9 text-xs text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:placeholder-slate-500 dark:focus:bg-slate-800"
                   />
                   <span className="absolute left-3 top-2.5 text-slate-400 text-xs">🔍</span>
                 </div>
@@ -461,7 +461,7 @@ export function StudyRoom() {
                     onChange={(e) => setInviteCodeInput(e.target.value.toUpperCase())}
                     placeholder="e.g. 6-CHAR CODE"
                     maxLength={10}
-                    className="h-10 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-mono uppercase text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:placeholder-slate-500"
+                    className="h-10 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-mono uppercase text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:placeholder-slate-500 dark:focus:bg-slate-800"
                   />
                   <button
                     type="submit"

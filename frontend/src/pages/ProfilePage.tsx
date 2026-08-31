@@ -207,8 +207,8 @@ export function ProfilePage() {
             to="/dashboard"
             className="inline-flex items-center gap-2 self-start sm:self-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 shadow-sm transition-all hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:border-slate-600 dark:hover:bg-slate-700/80"
           >
-            <span>←</span>
             <span>Back to Dashboard</span>
+            <span>→</span>
           </Link>
         </div>
 
@@ -238,7 +238,7 @@ export function ProfilePage() {
                   </div>
                 )}
 
-                <div className="flex flex-col sm:flex-row items-center sm:items-start gap-8">
+                <div className="flex flex-col sm:flex-row items-center gap-8">
                   {/* Avatar Upload Container */}
                   <div className="flex shrink-0 flex-col items-center">
                     <div className="relative group flex size-28 items-center justify-center overflow-hidden rounded-3xl bg-blue-600 font-black text-3xl text-white shadow-lg ring-4 ring-blue-50 dark:ring-blue-950/50">
@@ -275,7 +275,7 @@ export function ProfilePage() {
                   </div>
 
                   {/* Form Inputs */}
-                  <div className="flex-1 w-full space-y-5">
+                  <div className="flex-1 w-full space-y-4">
                     <div>
                       <label
                         htmlFor="profile-name"
@@ -294,7 +294,7 @@ export function ProfilePage() {
                       />
                     </div>
 
-                    <div className="flex items-center gap-3 pt-2">
+                    <div className="flex items-center gap-3 pt-1">
                       <button
                         type="submit"
                         disabled={isSavingProfile}

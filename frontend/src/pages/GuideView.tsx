@@ -128,8 +128,8 @@ export function GuideView() {
             to="/dashboard"
             className="inline-flex items-center gap-2 self-start sm:self-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 shadow-sm transition-all hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:border-slate-600 dark:hover:bg-slate-700/80"
           >
-            <span>←</span>
             <span>Back to Dashboard</span>
+            <span>→</span>
           </Link>
         </div>
 
@@ -185,19 +185,19 @@ export function GuideView() {
                   </div>
                 </div>
 
-                <p className="mt-3 text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                <p className="mt-3 text-xs text-gray-900 dark:text-gray-200 leading-relaxed">
                   {section.description}
                 </p>
 
                 <div className="mt-4">
-                  <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-2">
+                  <h3 className="text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">
                     Key Highlights
                   </h3>
-                  <ul className="space-y-1.5 text-xs text-slate-700 dark:text-slate-200">
+                  <ul className="space-y-1.5 text-xs text-gray-900 dark:text-gray-200">
                     {section.features.map((feat, index) => (
                       <li key={index} className="flex items-start gap-2">
-                        <span className="text-blue-500 font-bold">✓</span>
-                        <span>{feat}</span>
+                        <span className="text-blue-600 dark:text-blue-400 font-bold">✓</span>
+                        <span className="text-gray-900 dark:text-gray-200">{feat}</span>
                       </li>
                     ))}
                   </ul>
@@ -205,9 +205,9 @@ export function GuideView() {
               </div>
 
               {section.tip && (
-                <div className="mt-5 rounded-xl border border-blue-100 bg-blue-50/70 p-3 text-[11px] text-blue-800 dark:border-blue-900/40 dark:bg-blue-950/30 dark:text-blue-300">
-                  <span className="font-bold">Pro Tip: </span>
-                  {section.tip}
+                <div className="mt-5 rounded-xl border border-blue-200 bg-blue-50/90 p-3 text-[11px] text-gray-900 dark:border-blue-900/40 dark:bg-blue-950/30 dark:text-gray-200">
+                  <span className="font-bold text-blue-700 dark:text-blue-300">Pro Tip: </span>
+                  <span className="text-gray-900 dark:text-gray-200">{section.tip}</span>
                 </div>
               )}
             </section>
@@ -231,15 +231,17 @@ export function GuideView() {
             <div className="flex flex-wrap items-center justify-end gap-3 sm:ml-auto shrink-0">
               <Link
                 to="/timer"
-                className="rounded-xl bg-white px-5 py-2.5 text-xs font-extrabold text-blue-700 hover:text-blue-800 shadow-sm transition hover:bg-blue-50"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-white px-5 py-2.5 text-xs font-extrabold text-blue-700 !text-blue-700 hover:text-blue-800 hover:!text-blue-800 shadow-sm transition hover:bg-blue-50"
               >
-                Solo Sprint ⏱️
+                <span className="font-extrabold text-blue-700">Solo Sprint</span>
+                <span>⏱️</span>
               </Link>
               <Link
                 to="/study-room"
-                className="rounded-xl border border-white/30 bg-white/10 px-5 py-2.5 text-xs font-extrabold text-white hover:text-white backdrop-blur-sm transition hover:bg-white/20"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-white/30 bg-white/10 px-5 py-2.5 text-xs font-extrabold text-white hover:text-white backdrop-blur-sm transition hover:bg-white/20"
               >
-                Join Study Room 👥
+                <span>Join Study Room</span>
+                <span>👥</span>
               </Link>
             </div>
           </div>

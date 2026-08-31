@@ -156,7 +156,7 @@ export function Dashboard() {
 
       <main className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-8 flex-1">
         {/* DAILY HUB HEADER */}
-        <header className="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-slate-200/80 pb-6 dark:border-slate-800">
+        <header className="mb-8 border-b border-slate-200/80 pb-6 dark:border-slate-800">
           <div>
             <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">
               <span className="inline-block size-2 rounded-full bg-emerald-500 animate-pulse" />
@@ -168,28 +168,6 @@ export function Dashboard() {
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
               Your Daily Academic Command Center. Keep deadlines in check, feed your pet, and push straight to production.
             </p>
-          </div>
-
-          {/* QUICK SHORTCUTS */}
-          <div className="flex flex-wrap items-center gap-2.5">
-            <Link
-              to="/timer"
-              className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:text-white shadow-sm hover:bg-blue-500 transition-colors"
-            >
-              <span>⏱️</span> Solo Sprint
-            </Link>
-            <Link
-              to="/study-room"
-              className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:text-white shadow-sm hover:bg-blue-500 transition-colors"
-            >
-              <span>👥</span> Study Room
-            </Link>
-            <Link
-              to="/campus"
-              className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:text-white shadow-sm hover:bg-blue-500 transition-colors"
-            >
-              <span>🏫</span> Campus Repo
-            </Link>
           </div>
         </header>
 

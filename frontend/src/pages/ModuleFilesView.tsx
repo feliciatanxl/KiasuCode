@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import type { Module } from '@kiasucode/shared'
 
@@ -66,8 +66,8 @@ export function ModuleFilesView() {
             className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800 sm:p-6"
             aria-labelledby="module-select-heading"
           >
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div className="max-w-md">
                 <h2 id="module-select-heading" className="text-base font-bold text-slate-900 dark:text-slate-100">
                   Target Module
                 </h2>
@@ -76,16 +76,16 @@ export function ModuleFilesView() {
                 </p>
               </div>
 
-              <div className="w-full sm:w-80">
+              <div className="w-full lg:max-w-2xl">
                 {isLoading ? (
                   <div className="h-12 w-full animate-pulse rounded-xl bg-slate-100 dark:bg-slate-700/50" />
                 ) : modules.length > 0 ? (
-                  <div className="relative">
+                  <div className="relative w-full">
                     <select
                       id="module-files-picker"
                       value={selectedModuleId}
                       onChange={(e) => setSelectedModuleId(e.target.value)}
-                      className="h-12 w-full appearance-none truncate rounded-xl border border-slate-200 bg-slate-50 pl-4 pr-12 text-sm font-bold text-slate-900 shadow-sm transition-colors focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                      className="h-12 w-full appearance-none rounded-xl border border-slate-200 bg-slate-50 pl-4 pr-12 text-sm font-bold text-slate-900 shadow-sm transition-colors focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                     >
                       <option value="">-- Choose a Module --</option>
                       {modules.map((module) => (

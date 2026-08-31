@@ -15,11 +15,13 @@ interface ModulesResponse {
 }
 
 const moduleTargetPrefix = 'module:'
+const customTargetPrefix = 'custom:'
 const customTargetValue = 'custom'
 
 export function TimerView() {
   const [isTelegramOpen, setIsTelegramOpen] = useState(false)
   const [modules, setModules] = useState<Module[]>([])
+  const [customCategories, setCustomCategories] = useState<string[]>([])
   const [selectedTarget, setSelectedTarget] = useState(customTargetValue)
   const [isCustom, setIsCustom] = useState(true)
   const [customName, setCustomName] = useState('')
@@ -59,13 +61,36 @@ export function TimerView() {
   const selectedModuleId = selectedTarget.startsWith(moduleTargetPrefix)
     ? selectedTarget.slice(moduleTargetPrefix.length)
     : null
-  const selectedCustomCategory = isCustom ? customName.trim() || null : null
+  const selectedCustomCategory = selectedTarget.startsWith(customTargetPrefix)
+    ? selectedTarget.slice(customTargetPrefix.length)
+    : isCustom
+      ? customName.trim() || null
+      : null
   const selectedModule = modules.find((module) => module.id === selectedModuleId)
   const selectedTargetLabel = selectedModule?.moduleCode ?? selectedCustomCategory
 
   const handleTargetChange = (value: string) => {
     setSelectedTarget(value)
-    setIsCustom(value === customTargetValue)
+    if (value === customTargetValue) {
+      setIsCustom(true)
+    } else if (value.startsWith(customTargetPrefix)) {
+      setIsCustom(true)
+      setCustomName(value.slice(customTargetPrefix.length))
+    } else {
+      setIsCustom(false)
+    }
+  }
+
+  const handleConfirmCustomCategory = () => {
+    const trimmed = customName.trim()
+    if (!trimmed) return
+
+    if (!customCategories.includes(trimmed)) {
+      setCustomCategories((prev) => [...prev, trimmed])
+    }
+    setSelectedTarget(`${customTargetPrefix}${trimmed}`)
+    setIsCustom(true)
+    showToast(`🎯 Locked target: "${trimmed}"`)
   }
 
   return (
@@ -154,7 +179,19 @@ export function TimerView() {
                             ))}
                           </optgroup>
                         )}
-                        <optgroup label="Custom Category">
+                        {customCategories.length > 0 && (
+                          <optgroup label="Custom Categories">
+                            {customCategories.map((category) => (
+                              <option
+                                key={category}
+                                value={`${customTargetPrefix}${category}`}
+                              >
+                                🏷️ {category}
+                              </option>
+                            ))}
+                          </optgroup>
+                        )}
+                        <optgroup label="New Custom Category">
                           <option value={customTargetValue}>
                             + Create Custom Category
                           </option>
@@ -171,7 +208,7 @@ export function TimerView() {
                     </div>
                   </div>
 
-                  {/* BOTTOM BOX: CLEAN CUSTOM CATEGORY INPUT */}
+                  {/* BOTTOM BOX: CLEAN CUSTOM CATEGORY INPUT WITH BLUE TICK CONFIRM BUTTON */}
                   {isCustom && (
                     <div>
                       <label
@@ -180,15 +217,33 @@ export function TimerView() {
                       >
                         CUSTOM CATEGORY NAME
                       </label>
-                      <input
-                        id="custom-category-name"
-                        type="text"
-                        value={customName}
-                        onChange={(event) => setCustomName(event.target.value)}
-                        maxLength={255}
-                        placeholder="e.g., Side Hustle or Life Admin"
-                        className="mt-1.5 h-12 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-semibold text-gray-900 shadow-sm transition-colors placeholder:font-normal placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-500/10 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-                      />
+                      <div className="mt-1.5 flex items-center gap-2">
+                        <input
+                          id="custom-category-name"
+                          type="text"
+                          value={customName}
+                          onChange={(event) => setCustomName(event.target.value)}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter') {
+                              event.preventDefault()
+                              handleConfirmCustomCategory()
+                            }
+                          }}
+                          maxLength={255}
+                          placeholder="e.g., Side Hustle or Life Admin"
+                          className="h-12 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-semibold text-slate-900 shadow-sm transition-colors placeholder:font-normal placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-500/10 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:placeholder:text-slate-500 dark:focus:bg-slate-800 dark:focus:border-blue-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleConfirmCustomCategory}
+                          disabled={!customName.trim()}
+                          className="grid size-12 place-items-center rounded-xl bg-blue-600 font-black text-white shadow-sm transition-all hover:bg-blue-500 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 shrink-0"
+                          title="Confirm and lock category as active target"
+                          aria-label="Confirm custom category"
+                        >
+                          <span className="text-lg">✓</span>
+                        </button>
+                      </div>
                     </div>
                   )}
 
