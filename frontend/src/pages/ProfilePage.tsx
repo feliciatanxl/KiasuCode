@@ -69,8 +69,8 @@ export function ProfilePage() {
   const [isSavingProfile, setIsSavingProfile] = useState(false)
   const [profileError, setProfileError] = useState<string | null>(null)
 
-  const displayName = user?.name || editName || 'Felicia Tan'
-  const displayEmail = user?.email || 'felicia@u.nus.edu'
+  const displayName = user?.name || editName || 'Student'
+  const displayEmail = user?.email?.trim() ? user.email : 'None'
 
   const userInitials = displayName
     .split(/\s+/)

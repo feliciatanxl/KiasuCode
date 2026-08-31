@@ -20,6 +20,9 @@ export interface AuthUser {
   email?: string
   photoUrl?: string
   provider: AuthProviderName
+  hasConsented?: boolean
+  telegramChatId?: string
+  googleId?: string
 }
 
 interface AuthContextValue {
@@ -58,6 +61,9 @@ export function isAuthUser(value: unknown): value is AuthUser {
     && user.name.length > 0
     && (user.email === undefined || typeof user.email === 'string')
     && (user.photoUrl === undefined || typeof user.photoUrl === 'string')
+    && (user.hasConsented === undefined || typeof user.hasConsented === 'boolean')
+    && (user.telegramChatId === undefined || typeof user.telegramChatId === 'string')
+    && (user.googleId === undefined || typeof user.googleId === 'string')
     && isAuthProvider(user.provider)
   )
 }

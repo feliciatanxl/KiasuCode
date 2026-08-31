@@ -1,17 +1,26 @@
+import { GoogleOAuthProvider, useGoogleLogin } from '@react-oauth/google'
 import { useState, type FormEvent } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 
 import { Navbar } from '../components/Navbar'
 import { PasswordStrengthMeter } from '../components/PasswordStrengthMeter'
 import { TelegramConnectModal } from '../components/TelegramConnectModal'
-import { useAuth } from '../context/AuthContext'
+import { useAuth, type AuthUser } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
 import { useToast } from '../context/ToastContext'
 import { apiRequest, formatApiError } from '../utils/api'
 
+const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID?.trim() ?? ''
+
 interface SetPasswordResponse {
   success?: boolean
   message?: string
+}
+
+interface LinkGoogleResponse {
+  success?: boolean
+  message?: string
+  user?: AuthUser
 }
 
 function EyeIcon({ className = 'size-4' }: { className?: string }) {
@@ -47,14 +56,18 @@ function SelectChevron() {
   )
 }
 
-export function SettingsPage() {
-  const { user } = useAuth()
+function SettingsPageContent() {
+  const { user, updateUser, logout } = useAuth()
   const { theme, toggleTheme } = useTheme()
   const { showToast } = useToast()
+  const navigate = useNavigate()
 
   const [isTelegramOpen, setIsTelegramOpen] = useState(false)
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false)
   const [hasLocalPassword, setHasLocalPassword] = useState(false)
+
+  // Google Linking State
+  const [isLinkingGoogle, setIsLinkingGoogle] = useState(false)
 
   // Password Modal State
   const [newPassword, setNewPassword] = useState('')
@@ -64,12 +77,47 @@ export function SettingsPage() {
   const [isSettingPassword, setIsSettingPassword] = useState(false)
   const [passwordError, setPasswordError] = useState<string | null>(null)
 
+  // Delete Account Modal State
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
+  const [deleteConfirmationText, setDeleteConfirmationText] = useState('')
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+
   // Settings states
   const [telegramReminders, setTelegramReminders] = useState(true)
   const [gradingScale, setGradingScale] = useState('UNI')
   const [defaultTerm, setDefaultTerm] = useState('Semester 1')
 
   const provider = user?.provider || 'local'
+  const isGoogleLinked = provider === 'google' || Boolean(user?.googleId)
+  const displayEmail = user?.email?.trim() ? user.email : 'None'
+
+  const linkGoogleLogin = useGoogleLogin({
+    onSuccess: async (tokenResponse) => {
+      setIsLinkingGoogle(true)
+      try {
+        const response = await apiRequest<LinkGoogleResponse>(
+          '/api/user/link-google',
+          {
+            method: 'POST',
+            body: JSON.stringify({ credential: tokenResponse.access_token }),
+          },
+        )
+
+        if (response.data.user) {
+          updateUser(response.data.user)
+        }
+        showToast('Google account linked successfully.')
+      } catch (err) {
+        showToast(formatApiError(err))
+      } finally {
+        setIsLinkingGoogle(false)
+      }
+    },
+    onError: () => {
+      showToast('Google linking was cancelled.')
+    },
+  })
 
   const handleSetPassword = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -108,6 +156,31 @@ export function SettingsPage() {
     }
   }
 
+  const handleDeleteAccount = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    if (deleteConfirmationText !== 'DELETE') {
+      setDeleteError('Please type DELETE exactly to confirm.')
+      return
+    }
+
+    setIsDeletingAccount(true)
+    setDeleteError(null)
+
+    try {
+      await apiRequest<{ success: boolean }>(
+        '/api/user/me',
+        { method: 'DELETE' },
+      )
+
+      showToast('Account permanently deleted.')
+      await logout()
+      navigate('/login', { replace: true })
+    } catch (err) {
+      setDeleteError(formatApiError(err))
+      setIsDeletingAccount(false)
+    }
+  }
+
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault()
     showToast('Preferences saved successfully.')
@@ -129,7 +202,7 @@ export function SettingsPage() {
               Application Settings
             </h1>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              Manage authentication providers, theme appearance, and academic defaults.
+              Manage authentication providers, account syncing, appearance, and privacy defaults.
             </p>
           </div>
 
@@ -143,7 +216,34 @@ export function SettingsPage() {
         </div>
 
         <form onSubmit={handleSave} className="grid gap-6">
-          {/* Connected Authentication Providers (Migrated from ProfilePage) */}
+          {/* Account Overview & Email Display */}
+          <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-800/80">
+            <div className="border-b border-slate-200 bg-slate-50/70 px-6 py-4 dark:border-slate-700/60 dark:bg-slate-800/40">
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                Account Information
+              </h2>
+            </div>
+            <div className="p-6 grid gap-4 sm:grid-cols-2">
+              <div>
+                <span className="block text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                  Student Name
+                </span>
+                <span className="mt-1 block text-sm font-bold text-slate-900 dark:text-white">
+                  {user?.name || 'Student'}
+                </span>
+              </div>
+              <div>
+                <span className="block text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                  Registered Email
+                </span>
+                <span className="mt-1 block text-sm font-bold text-slate-900 dark:text-white">
+                  {displayEmail}
+                </span>
+              </div>
+            </div>
+          </section>
+
+          {/* Connected Authentication Providers */}
           <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-800/80">
             <div className="border-b border-slate-200 bg-slate-50/70 px-6 py-4 dark:border-slate-700/60 dark:bg-slate-800/40">
               <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
@@ -256,15 +356,26 @@ export function SettingsPage() {
                   </div>
                 </div>
                 <div>
-                  {provider === 'google' ? (
+                  {isGoogleLinked ? (
                     <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
                       <span className="size-1.5 rounded-full bg-emerald-500" />
                       Connected
                     </span>
                   ) : (
-                    <span className="text-xs text-slate-400 dark:text-slate-500">
-                      Not Linked
-                    </span>
+                    <button
+                      type="button"
+                      disabled={isLinkingGoogle || !googleClientId}
+                      onClick={() => linkGoogleLogin()}
+                      className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                    >
+                      <svg className="size-3.5" viewBox="0 0 24 24">
+                        <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z" />
+                        <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.35 24 12 24z" />
+                        <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.99 0 12s.45 3.82 1.25 5.42l4.03-3.15z" />
+                        <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.35 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z" />
+                      </svg>
+                      <span>{isLinkingGoogle ? 'Linking…' : 'Link Google'}</span>
+                    </button>
                   )}
                 </div>
               </div>
@@ -408,6 +519,36 @@ export function SettingsPage() {
             </div>
           </section>
 
+          {/* Danger Zone: Hard Delete Account */}
+          <section className="overflow-hidden rounded-2xl border border-red-200 bg-white shadow-sm dark:border-red-900/60 dark:bg-slate-800/80">
+            <div className="border-b border-red-100 bg-red-50/50 px-6 py-4 dark:border-red-900/40 dark:bg-red-950/20">
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-red-600 dark:text-red-400">
+                Danger Zone
+              </h2>
+            </div>
+            <div className="p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div>
+                <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+                  Delete Student Account
+                </h4>
+                <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400 max-w-lg">
+                  Permanently delete your account, virtual companion, study logs, encrypted messages, and module countdowns. This action is irreversible.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setDeleteConfirmationText('')
+                  setDeleteError(null)
+                  setIsDeleteModalOpen(true)
+                }}
+                className="shrink-0 rounded-xl bg-red-600 px-5 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/50"
+              >
+                Delete Account
+              </button>
+            </div>
+          </section>
+
           <div className="flex justify-end">
             <button
               type="submit"
@@ -530,10 +671,87 @@ export function SettingsPage() {
         </div>
       )}
 
+      {/* Delete Account Confirmation Modal */}
+      {isDeleteModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-red-200 bg-white p-6 shadow-2xl dark:border-red-900/60 dark:bg-slate-800 sm:p-8">
+            <div className="flex items-center gap-3">
+              <div className="grid size-12 place-items-center rounded-xl bg-red-100 text-2xl text-red-600 dark:bg-red-950/60 dark:text-red-400">
+                ⚠️
+              </div>
+              <div>
+                <h3 className="text-lg font-black text-slate-900 dark:text-white">
+                  Permanently Delete Account?
+                </h3>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-red-600 dark:text-red-400">
+                  This action is irreversible
+                </span>
+              </div>
+            </div>
+
+            <p className="mt-4 text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+              This will permanently delete your account, academic records, countdowns, focus coins, virtual pets, and encrypted chat messages.
+            </p>
+
+            <form onSubmit={handleDeleteAccount} className="mt-4 space-y-4">
+              {deleteError && (
+                <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
+                  {deleteError}
+                </div>
+              )}
+
+              <div>
+                <label
+                  htmlFor="delete-confirm-input"
+                  className="block text-xs font-bold text-slate-700 dark:text-slate-200 mb-1"
+                >
+                  To confirm, type <span className="font-mono font-black text-red-600 dark:text-red-400">DELETE</span> below:
+                </label>
+                <input
+                  id="delete-confirm-input"
+                  type="text"
+                  required
+                  value={deleteConfirmationText}
+                  onChange={(e) => setDeleteConfirmationText(e.target.value)}
+                  placeholder="DELETE"
+                  className="block w-full rounded-lg border border-red-300 bg-white px-3.5 py-2.5 text-sm font-mono text-slate-900 placeholder-slate-400 shadow-sm focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20 dark:border-red-800 dark:bg-slate-900 dark:text-slate-100"
+                />
+              </div>
+
+              <div className="mt-6 flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsDeleteModalOpen(false)}
+                  disabled={isDeletingAccount}
+                  className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isDeletingAccount || deleteConfirmationText !== 'DELETE'}
+                  className="rounded-lg bg-red-600 px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/50 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {isDeletingAccount ? 'Deleting Account…' : 'Permanently Delete Account'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       <TelegramConnectModal
         isOpen={isTelegramOpen}
         onClose={() => setIsTelegramOpen(false)}
       />
     </div>
+  )
+}
+
+export function SettingsPage() {
+  return (
+    <GoogleOAuthProvider clientId={googleClientId}>
+      <SettingsPageContent />
+    </GoogleOAuthProvider>
   )
 }

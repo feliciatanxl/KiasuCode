@@ -43,6 +43,10 @@ interface UserRow extends RowDataPacket {
   password_hash?: string | null
   name: string
   photo_url: string | null
+  public_key?: string | null
+  has_consented?: boolean | number
+  telegram_chat_id?: string | null
+  google_id?: string | null
   session_version?: number
 }
 
@@ -56,6 +60,9 @@ interface AuthUser {
   name: string
   email?: string
   photoUrl?: string
+  hasConsented?: boolean
+  telegramChatId?: string
+  googleId?: string
 }
 
 interface VerifiedIdentity {
@@ -167,6 +174,9 @@ function serializeUser(row: UserRow): AuthUser {
     name: row.name,
     ...(row.email ? { email: row.email } : {}),
     ...(row.photo_url ? { photoUrl: row.photo_url } : {}),
+    hasConsented: Boolean(row.has_consented),
+    ...(row.telegram_chat_id ? { telegramChatId: row.telegram_chat_id } : {}),
+    ...(row.google_id ? { googleId: row.google_id } : {}),
   }
 }
 

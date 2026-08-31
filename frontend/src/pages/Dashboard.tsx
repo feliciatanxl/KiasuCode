@@ -4,6 +4,7 @@ import type { AcademicCountdown } from '@kiasucode/shared'
 
 import { Logo } from '../components/Logo'
 import { Navbar } from '../components/Navbar'
+import { PrivacyConsentModal } from '../components/PrivacyConsentModal'
 import { TelegramConnectModal } from '../components/TelegramConnectModal'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
@@ -446,6 +447,8 @@ export function Dashboard() {
         <p>Built with <span>⌨</span> and kopi. Ship steady, score steady.</p>
         <code>hub: daily · latency: 0ms</code>
       </footer>
+
+      <PrivacyConsentModal isOpen={user !== null && user.hasConsented === false} />
 
       <TelegramConnectModal
         isOpen={isTelegramOpen}

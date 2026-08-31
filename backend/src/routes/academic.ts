@@ -19,6 +19,8 @@ import { v4 as uuidv4 } from 'uuid'
 import { db } from '../config/db.js'
 import { authenticateRequest } from '../middleware/authenticate.js'
 import { getUserLivePresence } from '../sockets/studyRoom.js'
+import { verifyGoogleToken } from '../utils/auth.js'
+import { clearSessionCookie } from '../utils/session.js'
 
 interface InstitutionRow extends RowDataPacket {
   id: string
@@ -862,5 +864,141 @@ router.post('/auth/set-password', async (request: Request, response: Response) =
     connection?.release()
   }
 })
+
+// DELETE /api/user/me - Hard delete user account and cascade remove all data
+router.delete(
+  '/user/me',
+  authenticateRequest,
+  async (request: Request, response: Response) => {
+    try {
+      const userId = getUserId(response)
+
+      await db.execute<ResultSetHeader>(
+        'DELETE FROM users WHERE id = ?',
+        [userId],
+      )
+
+      clearSessionCookie(request, response)
+      response.status(200).json({
+        success: true,
+        message: 'Account and all associated academic/pet data permanently deleted.',
+      })
+    } catch (error) {
+      console.error('Unable to delete user account: %o', error)
+      response.status(500).json({ error: 'Unable to delete user account.' })
+    }
+  },
+)
+
+// POST /api/user/consent - Record user onboarding privacy consent
+const handleUserConsent = async (_request: Request, response: Response) => {
+  try {
+    const userId = getUserId(response)
+
+    await db.execute<ResultSetHeader>(
+      'UPDATE users SET has_consented = TRUE WHERE id = ?',
+      [userId],
+    )
+
+    const [rows] = await db.execute<RowDataPacket[]>(
+      'SELECT * FROM users WHERE id = ? LIMIT 1',
+      [userId],
+    )
+    const user = rows[0]
+
+    response.status(200).json({
+      success: true,
+      user: user
+        ? {
+            id: user.id,
+            provider: user.provider,
+            name: user.name,
+            ...(user.email ? { email: user.email } : {}),
+            ...(user.photo_url ? { photoUrl: user.photo_url } : {}),
+            hasConsented: true,
+            ...(user.telegram_chat_id ? { telegramChatId: user.telegram_chat_id } : {}),
+            ...(user.google_id ? { googleId: user.google_id } : {}),
+          }
+        : null,
+    })
+  } catch (error) {
+    console.error('Unable to record user consent: %o', error)
+    response.status(500).json({ error: 'Unable to record privacy consent.' })
+  }
+}
+
+router.post('/user/consent', authenticateRequest, handleUserConsent)
+router.put('/user/consent', authenticateRequest, handleUserConsent)
+
+// POST /api/user/link-google - Link Google account to existing user
+router.post(
+  '/user/link-google',
+  authenticateRequest,
+  async (request: Request, response: Response) => {
+    try {
+      const userId = getUserId(response)
+      const rawCredential = request.body?.credential ?? request.body?.token ?? request.body?.access_token
+      const credential = typeof rawCredential === 'string' ? rawCredential.trim() : ''
+
+      if (!credential) {
+        response.status(400).json({ error: 'Google credential is required.' })
+        return
+      }
+
+      const googleUser = await verifyGoogleToken(credential)
+
+      // Enforce uniqueness: Check if another user already linked this Google ID
+      const [existingRows] = await db.execute<RowDataPacket[]>(
+        `SELECT id FROM users
+          WHERE (google_id = ? OR (provider = 'google' AND provider_id = ?))
+            AND id != ?
+          LIMIT 1`,
+        [googleUser.providerId, googleUser.providerId, userId],
+      )
+
+      if (existingRows.length > 0) {
+        response.status(409).json({
+          error: 'This Google account is already linked to another user.',
+        })
+        return
+      }
+
+      await db.execute<ResultSetHeader>(
+        `UPDATE users
+            SET google_id = ?,
+                email = COALESCE(email, ?),
+                photo_url = COALESCE(photo_url, ?)
+          WHERE id = ?`,
+        [googleUser.providerId, googleUser.email ?? null, googleUser.picture ?? null, userId],
+      )
+
+      const [updatedRows] = await db.execute<RowDataPacket[]>(
+        'SELECT * FROM users WHERE id = ? LIMIT 1',
+        [userId],
+      )
+      const user = updatedRows[0]
+
+      response.status(200).json({
+        success: true,
+        message: 'Google account linked successfully.',
+        user: user
+          ? {
+              id: user.id,
+              provider: user.provider,
+              name: user.name,
+              ...(user.email ? { email: user.email } : {}),
+              ...(user.photo_url ? { photoUrl: user.photo_url } : {}),
+              hasConsented: Boolean(user.has_consented),
+              ...(user.telegram_chat_id ? { telegramChatId: user.telegram_chat_id } : {}),
+              googleId: googleUser.providerId,
+            }
+          : null,
+      })
+    } catch (error) {
+      console.error('Unable to link Google account: %o', error)
+      response.status(500).json({ error: 'Unable to link Google account.' })
+    }
+  },
+)
 
 export default router

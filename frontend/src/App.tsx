@@ -15,6 +15,7 @@ import { CampusPage } from './pages/CampusPage'
 import { CountdownsView } from './pages/CountdownsView'
 import { Dashboard } from './pages/Dashboard'
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
+import { GuideView } from './pages/GuideView'
 import { LandingPage } from './pages/LandingPage'
 import { LoginPage } from './pages/LoginPage'
 import { ModuleFilesView } from './pages/ModuleFilesView'
@@ -137,6 +138,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <SettingsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/guide"
+        element={
+          <ProtectedRoute>
+            <GuideView />
           </ProtectedRoute>
         }
       />
