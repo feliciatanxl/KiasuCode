@@ -128,19 +128,77 @@ export function Dashboard() {
     return () => controller.abort()
   }, [])
 
+interface AgendaItem {
+  id: string
+  title: string
+  category: string
+  color?: string
+  startDate: string
+  endDate?: string
+  daysRemaining: number
+}
+
+function isSameCalendarDate(d1: Date, d2: Date): boolean {
+  return (
+    d1.getFullYear() === d2.getFullYear() &&
+    d1.getMonth() === d2.getMonth() &&
+    d1.getDate() === d2.getDate()
+  )
+}
+
   // Filter countdowns relevant today/soon (upcoming within next 14 days or closest deadlines)
   const todaysAgenda = useMemo(() => {
     const sorted = [...countdowns].sort(
       (a, b) => new Date(a.targetDate).getTime() - new Date(b.targetDate).getTime(),
     )
-    // Filter items due today or upcoming within next 14 days
-    const relevant = sorted.filter((c) => {
-      const days = getDaysRemaining(c.targetDate)
-      return days >= 0 && days <= 14
+
+    // Deduplicate / consolidate multi-day items (either explicit endDate or consecutive identical title/category entries)
+    const consolidated: AgendaItem[] = []
+
+    for (const item of sorted) {
+      const itemStart = item.targetDate
+      const itemEnd = item.endDate || item.targetDate
+
+      // Check if this item belongs to an existing multi-day cluster
+      const existing = consolidated.find((c) => {
+        if (c.title !== item.title || c.category !== item.category) return false
+        const cEnd = new Date(c.endDate || c.startDate)
+        const currentStart = new Date(itemStart)
+        // Check if current item starts on the same day or within 1.5 days of previous item's end
+        const diffMs = currentStart.getTime() - cEnd.getTime()
+        const diffDays = diffMs / (1000 * 60 * 60 * 24)
+        return diffDays >= 0 && diffDays <= 1.5
+      })
+
+      if (existing) {
+        // Extend existing cluster end date
+        const existingEnd = new Date(existing.endDate || existing.startDate).getTime()
+        const newEnd = new Date(itemEnd).getTime()
+        if (newEnd > existingEnd) {
+          existing.endDate = itemEnd
+        }
+      } else {
+        consolidated.push({
+          id: item.id,
+          title: item.title,
+          category: item.category,
+          color: item.color,
+          startDate: itemStart,
+          endDate: item.endDate && !isSameCalendarDate(new Date(itemStart), new Date(item.endDate)) ? item.endDate : undefined,
+          daysRemaining: getDaysRemaining(itemStart),
+        })
+      }
+    }
+
+    // Filter items due today, ongoing, or upcoming within next 14 days
+    const relevant = consolidated.filter((c) => {
+      const startDays = getDaysRemaining(c.startDate)
+      const endDays = c.endDate ? getDaysRemaining(c.endDate) : startDays
+      return endDays >= 0 && startDays <= 14
     })
 
     // If no events in next 14 days, show up to 5 closest upcoming events
-    return relevant.length > 0 ? relevant : sorted.slice(0, 5)
+    return relevant.length > 0 ? relevant : consolidated.slice(0, 5)
   }, [countdowns])
 
   // Upcoming class calculation for iPod Mini Timetable
@@ -276,11 +334,59 @@ export function Dashboard() {
                 ))}
               </div>
             ) : todaysAgenda.length > 0 ? (
-              <div className="mt-6 space-y-3">
+              <div className="mt-6 space-y-3 max-h-[400px] overflow-y-auto custom-scrollbar pr-1">
                 {todaysAgenda.map((item) => {
-                  const days = getDaysRemaining(item.targetDate)
-                  const badge = getUrgencyBadge(days)
-                  const targetTime = new Date(item.targetDate)
+                  const startDateObj = new Date(item.startDate)
+                  const endDateObj = item.endDate ? new Date(item.endDate) : null
+                  const isMultiDay = Boolean(endDateObj && !isSameCalendarDate(startDateObj, endDateObj))
+
+                  const daysToStart = getDaysRemaining(item.startDate)
+                  const daysToEnd = endDateObj ? getDaysRemaining(item.endDate!) : daysToStart
+
+                  let badge: { label: string; color: string }
+                  if (isMultiDay && daysToStart <= 0 && daysToEnd >= 0) {
+                    badge = {
+                      label: daysToEnd === 0 ? 'Ends Today' : 'Ongoing',
+                      color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800 animate-pulse',
+                    }
+                  } else {
+                    badge = getUrgencyBadge(daysToStart)
+                  }
+
+                  const hasStartTime = startDateObj.getHours() !== 0 || startDateObj.getMinutes() !== 0
+                  const hasEndTime = endDateObj ? (endDateObj.getHours() !== 0 || endDateObj.getMinutes() !== 0) : false
+
+                  const startDateFormatted = startDateObj.toLocaleDateString([], {
+                    weekday: 'short',
+                    month: 'short',
+                    day: 'numeric',
+                  })
+                  const startTimeFormatted = startDateObj.toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })
+
+                  let dateDisplay = ''
+                  if (isMultiDay && endDateObj) {
+                    const endDateFormatted = endDateObj.toLocaleDateString([], {
+                      weekday: 'short',
+                      month: 'short',
+                      day: 'numeric',
+                    })
+                    if (hasStartTime && hasEndTime) {
+                      const endTimeFormatted = endDateObj.toLocaleTimeString([], {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })
+                      dateDisplay = `${startDateFormatted} (${startTimeFormatted}) – ${endDateFormatted} (${endTimeFormatted})`
+                    } else if (hasStartTime) {
+                      dateDisplay = `${startDateFormatted} – ${endDateFormatted} · ${startTimeFormatted}`
+                    } else {
+                      dateDisplay = `${startDateFormatted} – ${endDateFormatted}`
+                    }
+                  } else {
+                    dateDisplay = `${startDateFormatted} · ${startTimeFormatted}`
+                  }
 
                   return (
                     <div
@@ -307,16 +413,7 @@ export function Dashboard() {
                             </span>
                           </div>
                           <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                            {targetTime.toLocaleDateString([], {
-                              weekday: 'short',
-                              month: 'short',
-                              day: 'numeric',
-                            })}{' '}
-                            ·{' '}
-                            {targetTime.toLocaleTimeString([], {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
+                            {dateDisplay}
                           </p>
                         </div>
                       </div>
@@ -343,7 +440,7 @@ export function Dashboard() {
                 </p>
                 <Link
                   to="/countdowns"
-                  className="mt-4 inline-flex items-center rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-blue-500 transition-colors"
+                  className="mt-4 inline-flex items-center rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold !text-white text-white shadow-sm hover:bg-blue-500 transition-colors"
                 >
                   + Add Deadline on Calendar
                 </Link>

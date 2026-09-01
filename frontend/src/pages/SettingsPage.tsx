@@ -191,14 +191,7 @@ function SettingsPageContent() {
       <Navbar onConnectTelegram={() => setIsTelegramOpen(true)} />
 
       <main className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6 lg:px-8 flex-1">
-        <div className="mb-6">
-          <Link
-            to="/dashboard"
-            className="mb-4 inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 shadow-sm transition-all hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:border-slate-600 dark:hover:bg-slate-700/80 whitespace-nowrap"
-          >
-            <span>←</span>
-            <span>Back to Dashboard</span>
-          </Link>
+        <div className="mb-6 flex flex-col sm:flex-row sm:items-start justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
               <span>Settings</span>
@@ -212,6 +205,13 @@ function SettingsPageContent() {
               Manage authentication providers, account syncing, appearance, and privacy defaults.
             </p>
           </div>
+          <Link
+            to="/dashboard"
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 shadow-sm transition-all hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:border-slate-600 dark:hover:bg-slate-700/80 whitespace-nowrap shrink-0"
+          >
+            <span>Back to Dashboard</span>
+            <span>→</span>
+          </Link>
         </div>
 
         <form onSubmit={handleSave} className="grid gap-6">

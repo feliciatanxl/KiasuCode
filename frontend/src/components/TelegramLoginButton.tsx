@@ -46,7 +46,6 @@ export function TelegramLoginButton({
   onError,
 }: TelegramLoginButtonProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [widgetLoaded, setWidgetLoaded] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
   // Use environment variable with fallback
@@ -114,10 +113,6 @@ export function TelegramLoginButton({
     // Dynamic callback function
     script.setAttribute('data-onauth', 'onTelegramAuth(user)')
 
-    script.onload = () => {
-      setWidgetLoaded(true)
-    }
-
     container.appendChild(script)
 
     return () => {
@@ -161,35 +156,37 @@ export function TelegramLoginButton({
   }
 
   return (
-    <div className="w-full flex flex-col items-center justify-center min-h-[44px]">
-      <div ref={containerRef} className="telegram-widget-container flex justify-center w-full min-h-[40px]" />
-
-      {/* Fallback button if widget script is blocked or still loading */}
-      {!widgetLoaded && (
-        <button
-          type="button"
-          disabled={isSubmitting}
-          onClick={() => void handleManualClick()}
-          className="relative z-10 flex w-full cursor-pointer items-center justify-center gap-3 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+    <div className="w-full relative">
+      <button
+        type="button"
+        disabled={isSubmitting}
+        onClick={() => void handleManualClick()}
+        className="relative z-10 flex w-full cursor-pointer items-center justify-center gap-3 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 overflow-hidden"
+      >
+        <svg
+          className="size-4 shrink-0"
+          viewBox="0 0 24 24"
+          aria-hidden="true"
         >
-          <svg
-            className="size-4 shrink-0"
-            viewBox="0 0 24 24"
-            aria-hidden="true"
-          >
-            <path
-              fill="#229ED9"
-              d="M21.9 3.2 18.7 20c-.2 1.2-.9 1.5-1.9.9l-4.9-3.6-2.4 2.3c-.3.3-.5.5-1 .5l.4-5 9.1-8.2c.4-.4-.1-.6-.6-.2L6.2 13.8l-4.8-1.5c-1.1-.3-1.1-1.1.2-1.6L20.4 3.4c.9-.3 1.7.2 1.5-.2Z"
-            />
-          </svg>
-          <span>
-            {isSubmitting ? 'Verifying Telegram…' : 'Continue with Telegram'}
-          </span>
-        </button>
-      )}
+          <path
+            fill="#229ED9"
+            d="M21.9 3.2 18.7 20c-.2 1.2-.9 1.5-1.9.9l-4.9-3.6-2.4 2.3c-.3.3-.5.5-1 .5l.4-5 9.1-8.2c.4-.4-.1-.6-.6-.2L6.2 13.8l-4.8-1.5c-1.1-.3-1.1-1.1.2-1.6L20.4 3.4c.9-.3 1.7.2 1.5-.2Z"
+          />
+        </svg>
+        <span>
+          {isSubmitting ? 'Verifying Telegram…' : 'Continue with Telegram'}
+        </span>
+
+        {/* Telegram hidden widget overlay */}
+        <div
+          ref={containerRef}
+          className="telegram-widget-container absolute inset-0 opacity-0 cursor-pointer overflow-hidden flex items-center justify-center pointer-events-auto [&>iframe]:scale-[3] [&>iframe]:cursor-pointer [&>iframe]:opacity-0"
+          aria-hidden="true"
+        />
+      </button>
 
       {isSubmitting && (
-        <p className="mt-2 text-xs text-blue-600 dark:text-blue-400 font-medium animate-pulse">
+        <p className="mt-2 text-center text-xs text-blue-600 dark:text-blue-400 font-medium animate-pulse">
           Completing Telegram authentication…
         </p>
       )}

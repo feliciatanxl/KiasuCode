@@ -71,6 +71,7 @@ export interface AcademicCountdown {
   moduleId: string | null
   title: string
   targetDate: string
+  endDate?: string
   category: CountdownCategory
   color?: string
   createdAt: string
@@ -80,6 +81,7 @@ export interface CreateCountdownInput {
   moduleId: string | null
   title: string
   targetDate: string
+  endDate?: string
   category: CountdownCategory
   color?: string
 }

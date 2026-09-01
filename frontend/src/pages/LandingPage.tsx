@@ -32,7 +32,7 @@ export function LandingPage() {
             <span className="hidden sm:inline-flex items-center gap-1.5 text-xs font-bold text-emerald-600 dark:text-emerald-400">
               <i className="size-2 rounded-full animate-pulse bg-emerald-500 inline-block" /> 90% Maturity · RC Ready
             </span>
-            <Link className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-slate-800 dark:bg-blue-600 dark:hover:bg-blue-500 transition-colors whitespace-nowrap" to={destination}>
+            <Link className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white !text-white shadow-sm hover:bg-blue-700 transition-colors whitespace-nowrap" to={destination}>
               {isAuthenticated ? 'Open dashboard' : 'Launch Console'} <span>→</span>
             </Link>
           </div>

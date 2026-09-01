@@ -1,6 +1,6 @@
-import { useState, type FormEvent } from 'react'
-import type { CreateTodoInput, TodoItem } from '@kiasucode/shared'
-import { apiRequest, formatApiError } from '../utils/api'
+import { useEffect, useState, type FormEvent } from 'react'
+import type { CreateTodoInput, Module, TodoItem } from '@kiasucode/shared'
+import { apiRequest, formatApiError, isAbortError } from '../utils/api'
 import { useToast } from '../context/ToastContext'
 
 interface NewTodoModalProps {
@@ -13,9 +13,16 @@ interface CreateTodoResponse {
   todo: TodoItem
 }
 
+interface ModulesResponse {
+  modules: Module[]
+}
+
 export function NewTodoModal({ isOpen, onClose, onTodoCreated }: NewTodoModalProps) {
   const [title, setTitle] = useState('')
   const [labelType, setLabelType] = useState<'Course' | 'Custom'>('Course')
+  const [modules, setModules] = useState<Module[]>([])
+  const [selectedCourse, setSelectedCourse] = useState('')
+  const [isLoadingModules, setIsLoadingModules] = useState(false)
   const [customLabel, setCustomLabel] = useState('')
   const [description, setDescription] = useState('')
   const [deadline, setDeadline] = useState('')
@@ -23,6 +30,33 @@ export function NewTodoModal({ isOpen, onClose, onTodoCreated }: NewTodoModalPro
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const { showToast } = useToast()
+
+  useEffect(() => {
+    if (!isOpen) return
+    const controller = new AbortController()
+    setIsLoadingModules(true)
+
+    void apiRequest<ModulesResponse>('/api/modules', { signal: controller.signal })
+      .then(({ data }) => {
+        const fetched = data.modules || []
+        setModules(fetched)
+        if (fetched.length > 0 && !selectedCourse) {
+          setSelectedCourse(fetched[0].moduleCode)
+        }
+      })
+      .catch((err: unknown) => {
+        if (!isAbortError(err)) {
+          console.error('Failed to load modules for todo modal:', err)
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setIsLoadingModules(false)
+        }
+      })
+
+    return () => controller.abort()
+  }, [isOpen])
 
   if (!isOpen) return null
 
@@ -45,6 +79,7 @@ export function NewTodoModal({ isOpen, onClose, onTodoCreated }: NewTodoModalPro
   const resetForm = () => {
     setTitle('')
     setLabelType('Course')
+    setSelectedCourse(modules[0]?.moduleCode || '')
     setCustomLabel('')
     setDescription('')
     setDeadline('')
@@ -60,7 +95,9 @@ export function NewTodoModal({ isOpen, onClose, onTodoCreated }: NewTodoModalPro
     setError(null)
 
     try {
-      const finalLabel = labelType === 'Course' ? 'Course' : (customLabel.trim() || 'Custom')
+      const finalLabel = labelType === 'Course'
+        ? (selectedCourse || modules[0]?.moduleCode || 'Course')
+        : (customLabel.trim() || 'Custom')
 
       // Combine description and subtasks if any
       let finalDescription = description.trim()
@@ -156,14 +193,37 @@ export function NewTodoModal({ isOpen, onClose, onTodoCreated }: NewTodoModalPro
               <select
                 value={labelType}
                 onChange={(e) => setLabelType(e.target.value as 'Course' | 'Custom')}
-                className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3.5 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
               >
                 <option value="Course">📚 Course</option>
                 <option value="Custom">🏷️ Custom</option>
               </select>
             </div>
 
-            {labelType === 'Custom' && (
+            {labelType === 'Course' ? (
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+                  Course Module
+                </label>
+                <select
+                  value={selectedCourse}
+                  onChange={(e) => setSelectedCourse(e.target.value)}
+                  className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3.5 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder-slate-500"
+                >
+                  {isLoadingModules ? (
+                    <option value="">Loading saved modules…</option>
+                  ) : modules.length > 0 ? (
+                    modules.map((mod) => (
+                      <option key={mod.id} value={mod.moduleCode}>
+                        {mod.moduleCode}{mod.moduleName ? ` - ${mod.moduleName}` : ''}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="Course">No saved modules found</option>
+                  )}
+                </select>
+              </div>
+            ) : (
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
                   Custom Label
@@ -217,7 +277,7 @@ export function NewTodoModal({ isOpen, onClose, onTodoCreated }: NewTodoModalPro
                 onClick={handleAddSubtask}
                 className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
               >
-                <span>+</span> Add Subto-do
+                <span>+</span> Add
               </button>
             </div>
 
