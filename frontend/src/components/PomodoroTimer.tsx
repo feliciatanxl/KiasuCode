@@ -49,6 +49,15 @@ const timerModes: Array<{ label: string; value: TimerMode }> = [
   { label: 'Long Break', value: 'longBreak' },
 ]
 
+const ALARM_SOUNDS = [
+  '/alarm1.mp3',
+  '/alarm2.mp3',
+  '/alarm3.mp3',
+  '/alarm4.mp3',
+  '/alarm5.mp3',
+  '/alarm6.wav',
+]
+
 function formatTime(totalSeconds: number): string {
   const minutes = Math.floor(totalSeconds / 60)
   const seconds = totalSeconds % 60
@@ -151,6 +160,10 @@ export function PomodoroTimer({
 
     completionSentRef.current = true
     endAtRef.current = null
+
+    const randomSound = ALARM_SOUNDS[Math.floor(Math.random() * ALARM_SOUNDS.length)]
+    const alarm = new Audio(randomSound)
+    alarm.play().catch((err) => console.log('Audio play blocked:', err))
 
     const completionTimeoutId = window.setTimeout(() => {
       if (mode === 'focus') {

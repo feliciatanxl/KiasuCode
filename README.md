@@ -438,7 +438,7 @@ Real-time communication is powered through **Socket.IO**.
 ```text
 ROOM: Finals Chiong Station
 
-Felicia      ● FOCUSING
+You          ● FOCUSING
 Friend A     ● FOCUSING
 Friend B     ○ suspiciously idle
 ```
@@ -929,12 +929,15 @@ Together:
 
 ## 🚀 Ready to ship the semester?
 
+</div>
+
 ```text
 $ git checkout -b semester/new
 $ npm run chiong
 $ git commit -m "feat: somehow survived another semester"
 $ git push origin graduation
 ```
+<div align="center">
 
 ### Built with ⌨️, TypeScript, questionable sleep schedules and kopi. ☕
 
