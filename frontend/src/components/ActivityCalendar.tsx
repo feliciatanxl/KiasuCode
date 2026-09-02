@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 
 import { apiRequest, formatApiError, isAbortError } from '../utils/api'
+import { FocusBreakdownModal } from './FocusBreakdownModal'
 
 interface ActivityDay {
   date: string
@@ -27,6 +28,7 @@ function formatDate(date: string): string {
 
 export function ActivityCalendar({ refreshKey = 0 }: ActivityCalendarProps) {
   const [activity, setActivity] = useState<ActivityDay[]>([])
+  const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -114,14 +116,15 @@ export function ActivityCalendar({ refreshKey = 0 }: ActivityCalendarProps) {
               const label = `${formatDate(day.date)}: ${day.minutes} study ${day.minutes === 1 ? 'minute' : 'minutes'}`
 
               return (
-                <div
-                  className={`aspect-square rounded-md border transition-colors ${
+                <button
+                  type="button"
+                  onClick={() => setSelectedDate(day.date)}
+                  className={`aspect-square rounded-md border transition-all cursor-pointer hover:ring-2 hover:ring-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                     day.minutes > 0
                       ? 'border-blue-500 bg-blue-500 shadow-sm shadow-blue-500/20 dark:border-blue-400 dark:bg-blue-400'
-                      : 'border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-slate-900/70'
+                      : 'border-slate-200 bg-slate-100 hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-900/70 dark:hover:bg-slate-800'
                   }`}
                   key={day.date}
-                  role="img"
                   aria-label={label}
                   title={label}
                 />
@@ -132,6 +135,11 @@ export function ActivityCalendar({ refreshKey = 0 }: ActivityCalendarProps) {
             <span>{activity[0] ? formatDate(activity[0].date) : ''}</span>
             <span>Today</span>
           </div>
+
+          <FocusBreakdownModal
+            date={selectedDate}
+            onClose={() => setSelectedDate(null)}
+          />
         </>
       )}
     </section>

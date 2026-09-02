@@ -17,6 +17,7 @@ export function TodoList({ className = '' }: { className?: string } = {}) {
   const [isLoading, setIsLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'active' | 'completed'>('all')
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  const [editingTodo, setEditingTodo] = useState<TodoItem | null>(null)
   const [togglingId, setTogglingId] = useState<string | null>(null)
   const { showToast } = useToast()
 
@@ -88,6 +89,12 @@ export function TodoList({ className = '' }: { className?: string } = {}) {
     setTodos((prev) => [newTodo, ...prev])
   }
 
+  const handleTodoUpdated = (updatedTodo: TodoItem) => {
+    setTodos((prev) =>
+      prev.map((item) => (item.id === updatedTodo.id ? updatedTodo : item)),
+    )
+  }
+
   const activeCount = todos.filter((t) => !t.isCompleted).length
   const completedCount = todos.filter((t) => t.isCompleted).length
 
@@ -122,7 +129,10 @@ export function TodoList({ className = '' }: { className?: string } = {}) {
 
         <button
           type="button"
-          onClick={() => setIsCreateModalOpen(true)}
+          onClick={() => {
+            setEditingTodo(null)
+            setIsCreateModalOpen(true)
+          }}
           className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-2 text-xs font-bold text-white shadow-sm hover:bg-blue-500 transition-colors whitespace-nowrap shrink-0"
         >
           <span className="text-sm leading-none">+</span> New Task
@@ -261,15 +271,30 @@ export function TodoList({ className = '' }: { className?: string } = {}) {
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={(e) => void handleDelete(todo.id, e)}
-                  className="size-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40 dark:hover:text-red-400 transition-all shrink-0"
-                  title="Delete task"
-                  aria-label="Delete task"
-                >
-                  🗑️
-                </button>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setEditingTodo(todo)
+                      setIsCreateModalOpen(true)
+                    }}
+                    className="size-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-950/40 dark:hover:text-blue-400 transition-all"
+                    title="Edit task"
+                    aria-label="Edit task"
+                  >
+                    ✏️
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => void handleDelete(todo.id, e)}
+                    className="size-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40 dark:hover:text-red-400 transition-all shrink-0"
+                    title="Delete task"
+                    aria-label="Delete task"
+                  >
+                    🗑️
+                  </button>
+                </div>
               </li>
             )
           })}
@@ -280,8 +305,13 @@ export function TodoList({ className = '' }: { className?: string } = {}) {
       {/* New Todo Modal */}
       <NewTodoModal
         isOpen={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
+        initialTodo={editingTodo}
+        onClose={() => {
+          setIsCreateModalOpen(false)
+          setEditingTodo(null)
+        }}
         onTodoCreated={handleTodoCreated}
+        onTodoUpdated={handleTodoUpdated}
       />
     </div>
   )

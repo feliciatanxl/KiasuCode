@@ -99,6 +99,12 @@ export function PomodoroTimer({
   }, [activeDurationSeconds])
 
   useEffect(() => {
+    if ('Notification' in window) {
+      void Notification.requestPermission()
+    }
+  }, [])
+
+  useEffect(() => {
     if (status !== 'running') return
 
     const updateRemainingTime = () => {
@@ -164,6 +170,12 @@ export function PomodoroTimer({
     const randomSound = ALARM_SOUNDS[Math.floor(Math.random() * ALARM_SOUNDS.length)]
     const alarm = new Audio(randomSound)
     alarm.play().catch((err) => console.log('Audio play blocked:', err))
+
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification('Sprint Complete! 🚀', {
+        body: 'Time to switch gears. Return to KiasuCode.',
+      })
+    }
 
     const completionTimeoutId = window.setTimeout(() => {
       if (mode === 'focus') {

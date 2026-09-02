@@ -7,6 +7,8 @@ interface NewTodoModalProps {
   isOpen: boolean
   onClose: () => void
   onTodoCreated: (todo: TodoItem) => void
+  onTodoUpdated?: (todo: TodoItem) => void
+  initialTodo?: TodoItem | null
 }
 
 interface CreateTodoResponse {
@@ -17,7 +19,29 @@ interface ModulesResponse {
   modules: Module[]
 }
 
-export function NewTodoModal({ isOpen, onClose, onTodoCreated }: NewTodoModalProps) {
+function formatDateTimeLocal(isoString: string): string {
+  try {
+    const d = new Date(isoString)
+    if (Number.isNaN(d.getTime())) return ''
+    const pad = (n: number) => n.toString().padStart(2, '0')
+    const year = d.getFullYear()
+    const month = pad(d.getMonth() + 1)
+    const day = pad(d.getDate())
+    const hours = pad(d.getHours())
+    const minutes = pad(d.getMinutes())
+    return `${year}-${month}-${day}T${hours}:${minutes}`
+  } catch {
+    return ''
+  }
+}
+
+export function NewTodoModal({
+  isOpen,
+  onClose,
+  onTodoCreated,
+  onTodoUpdated,
+  initialTodo,
+}: NewTodoModalProps) {
   const [title, setTitle] = useState('')
   const [labelType, setLabelType] = useState<'Course' | 'Custom'>('Course')
   const [modules, setModules] = useState<Module[]>([])
@@ -32,6 +56,50 @@ export function NewTodoModal({ isOpen, onClose, onTodoCreated }: NewTodoModalPro
   const { showToast } = useToast()
 
   useEffect(() => {
+    if (!isOpen) {
+      setTitle('')
+      setLabelType('Course')
+      setSelectedCourse('')
+      setCustomLabel('')
+      setDescription('')
+      setDeadline('')
+      setSubtasks([])
+      setError(null)
+      return
+    }
+
+    if (initialTodo) {
+      setTitle(initialTodo.title)
+      setDeadline(initialTodo.deadline ? formatDateTimeLocal(initialTodo.deadline) : '')
+      if (initialTodo.description) {
+        const subtaskMatch = initialTodo.description.match(/(?:^|\n\n)Subtasks:\n([\s\S]*)$/)
+        if (subtaskMatch) {
+          setDescription(initialTodo.description.slice(0, subtaskMatch.index).trim())
+          const parsedSubtasks = subtaskMatch[1]
+            .split('\n')
+            .map((line) => line.replace(/^•\s*\[[ xX]?\]\s*/, '').trim())
+            .filter(Boolean)
+          setSubtasks(parsedSubtasks)
+        } else {
+          setDescription(initialTodo.description)
+          setSubtasks([])
+        }
+      } else {
+        setDescription('')
+        setSubtasks([])
+      }
+    } else {
+      setTitle('')
+      setLabelType('Course')
+      setCustomLabel('')
+      setDescription('')
+      setDeadline('')
+      setSubtasks([])
+      setError(null)
+    }
+  }, [isOpen, initialTodo])
+
+  useEffect(() => {
     if (!isOpen) return
     const controller = new AbortController()
     setIsLoadingModules(true)
@@ -40,7 +108,15 @@ export function NewTodoModal({ isOpen, onClose, onTodoCreated }: NewTodoModalPro
       .then(({ data }) => {
         const fetched = data.modules || []
         setModules(fetched)
-        if (fetched.length > 0 && !selectedCourse) {
+        if (initialTodo?.label) {
+          if (fetched.some((m) => m.moduleCode === initialTodo.label)) {
+            setLabelType('Course')
+            setSelectedCourse(initialTodo.label)
+          } else {
+            setLabelType('Custom')
+            setCustomLabel(initialTodo.label)
+          }
+        } else if (fetched.length > 0 && !selectedCourse) {
           setSelectedCourse(fetched[0].moduleCode)
         }
       })
@@ -56,7 +132,7 @@ export function NewTodoModal({ isOpen, onClose, onTodoCreated }: NewTodoModalPro
       })
 
     return () => controller.abort()
-  }, [isOpen])
+  }, [isOpen, initialTodo])
 
   if (!isOpen) return null
 
@@ -114,16 +190,25 @@ export function NewTodoModal({ isOpen, onClose, onTodoCreated }: NewTodoModalPro
         label: finalLabel,
         description: finalDescription || null,
         deadline: deadline ? new Date(deadline).toISOString() : null,
-        isCompleted: false,
+        isCompleted: initialTodo ? initialTodo.isCompleted : false,
       }
 
-      const { data } = await apiRequest<CreateTodoResponse>('/api/todos', {
-        method: 'POST',
-        body: JSON.stringify(input),
-      })
+      if (initialTodo) {
+        const { data } = await apiRequest<{ todo: TodoItem }>(`/api/todos/${initialTodo.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify(input),
+        })
+        onTodoUpdated?.(data.todo)
+        showToast('To-do task updated successfully!')
+      } else {
+        const { data } = await apiRequest<CreateTodoResponse>('/api/todos', {
+          method: 'POST',
+          body: JSON.stringify(input),
+        })
+        onTodoCreated(data.todo)
+        showToast('To-do task created successfully!')
+      }
 
-      onTodoCreated(data.todo)
-      showToast('To-do task created successfully!')
       resetForm()
       onClose()
     } catch (err) {
@@ -145,10 +230,10 @@ export function NewTodoModal({ isOpen, onClose, onTodoCreated }: NewTodoModalPro
         <div className="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-slate-700">
           <div>
             <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 font-mono">
-              task.create
+              {initialTodo ? 'task.edit' : 'task.create'}
             </span>
             <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-              New To-Do Item
+              {initialTodo ? 'Edit To-Do Item' : 'New To-Do Item'}
             </h3>
           </div>
           <button
@@ -321,7 +406,9 @@ export function NewTodoModal({ isOpen, onClose, onTodoCreated }: NewTodoModalPro
               disabled={isSubmitting || !title.trim()}
               className="rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 disabled:opacity-50"
             >
-              {isSubmitting ? 'Creating…' : 'Create To-Do'}
+              {isSubmitting
+                ? (initialTodo ? 'Saving…' : 'Creating…')
+                : (initialTodo ? 'Save Changes' : 'Create To-Do')}
             </button>
           </div>
         </form>

@@ -50,18 +50,10 @@ function getDaysRemaining(targetDate: string): number {
   const target = new Date(targetDate)
   const now = new Date()
 
-  const targetStartOfDay = new Date(
-    target.getFullYear(),
-    target.getMonth(),
-    target.getDate(),
-  ).getTime()
-  const nowStartOfDay = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate(),
-  ).getTime()
+  target.setHours(0, 0, 0, 0)
+  now.setHours(0, 0, 0, 0)
 
-  const diffMs = targetStartOfDay - nowStartOfDay
+  const diffMs = target.getTime() - now.getTime()
   return Math.round(diffMs / (1000 * 60 * 60 * 24))
 }
 
@@ -202,15 +194,11 @@ function isSameCalendarDate(d1: Date, d2: Date): boolean {
       }
     }
 
-    // Filter items due today, ongoing, or upcoming within next 14 days
-    const relevant = consolidated.filter((c) => {
-      const startDays = getDaysRemaining(c.startDate)
-      const endDays = c.endDate ? getDaysRemaining(c.endDate) : startDays
-      return endDays >= 0 && startDays <= 14
+    // Strict Urgent-Only Window (Today: 0, Tomorrow: 1, In 2 days: 2; excluding overdue < 0 and > 2)
+    return consolidated.filter((c) => {
+      const daysRemaining = getDaysRemaining(c.startDate)
+      return daysRemaining >= 0 && daysRemaining <= 2
     })
-
-    // If no events in next 14 days, show up to 5 closest upcoming events
-    return relevant.length > 0 ? relevant : consolidated.slice(0, 5)
   }, [countdowns])
 
   // Upcoming class calculation for iPod Mini Timetable

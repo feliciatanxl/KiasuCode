@@ -225,6 +225,54 @@ router.get(
   },
 )
 
+interface BreakdownRow extends RowDataPacket {
+  label: string
+  total_minutes: number | string
+  session_count: number | string
+}
+
+router.get(
+  '/study_sessions/breakdown',
+  authenticateRequest,
+  gamificationRateLimiter,
+  async (request: Request, response: Response) => {
+    try {
+      const date = String(request.query.date || '').trim()
+      const userId = getUserId(response)
+
+      let query = `
+        SELECT COALESCE(m.module_code, s.custom_category, 'General') AS label,
+               SUM(s.duration_minutes) AS total_minutes,
+               COUNT(s.id) AS session_count
+          FROM study_sessions AS s
+          LEFT JOIN modules AS m ON m.id = s.module_id
+         WHERE s.user_id = ?
+      `
+      const params: string[] = [userId]
+
+      if (date) {
+        query += ` AND DATE_FORMAT(s.created_at, '%Y-%m-%d') = ?`
+        params.push(date)
+      }
+
+      query += ` GROUP BY label ORDER BY total_minutes DESC`
+
+      const [rows] = await db.execute<BreakdownRow[]>(query, params)
+
+      const breakdown = rows.map((row) => ({
+        label: row.label,
+        minutes: Number(row.total_minutes),
+        sessionCount: Number(row.session_count),
+      }))
+
+      response.status(200).json({ date, breakdown })
+    } catch (error) {
+      console.error('Unable to load study session breakdown: %o', error)
+      response.status(500).json({ error: 'Unable to load study session breakdown.' })
+    }
+  },
+)
+
 router.post(
   '/study/session',
   authenticateRequest,
