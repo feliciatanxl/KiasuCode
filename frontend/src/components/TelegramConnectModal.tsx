@@ -6,7 +6,7 @@ interface TelegramConnectModalProps {
 }
 
 const pairingCode = 'KIASU-W8-4A7C'
-const botName = import.meta.env.VITE_TELEGRAM_BOT_NAME || 'KiasuCodeBot'
+const botName = 'KiasuCodeBot'
 const botLink = `https://t.me/${botName}?start=${pairingCode}`
 
 export function TelegramConnectModal({

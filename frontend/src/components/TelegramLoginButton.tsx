@@ -48,12 +48,8 @@ export function TelegramLoginButton({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
-  // Bot username from environment variable VITE_TELEGRAM_BOT_NAME
-  const botName = (
-    (typeof import.meta.env.VITE_TELEGRAM_BOT_NAME === 'string' && import.meta.env.VITE_TELEGRAM_BOT_NAME.trim())
-      ? import.meta.env.VITE_TELEGRAM_BOT_NAME.trim().replace(/^@/, '')
-      : 'KiasuCodeBot'
-  )
+  // Hardcoded bot username for reliable widget rendering across environments
+  const botName = 'KiasuCodeBot'
 
   const handleTelegramAuth = useCallback(async (authData: TelegramAuthData | string) => {
     setIsSubmitting(true)
