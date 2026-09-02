@@ -7,6 +7,8 @@ import { apiRequest, formatApiError, getApiBaseUrl, isAbortError } from '../util
 interface ModuleFilesListProps {
   moduleId: string
   moduleCode?: string
+  disabled?: boolean
+  onDisabledAttempt?: () => void
 }
 
 interface FilesResponse {
@@ -24,10 +26,14 @@ function formatFileSize(kb: number): string {
   return `${kb} KB`
 }
 
-export function ModuleFilesList({ moduleId, moduleCode = 'Module' }: ModuleFilesListProps) {
-
+export function ModuleFilesList({
+  moduleId,
+  moduleCode = 'Module',
+  disabled = false,
+  onDisabledAttempt,
+}: ModuleFilesListProps) {
   const [files, setFiles] = useState<ModuleFile[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(Boolean(moduleId && !disabled))
   const [isUploading, setIsUploading] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -35,7 +41,14 @@ export function ModuleFilesList({ moduleId, moduleCode = 'Module' }: ModuleFiles
   const { showToast } = useToast()
 
   useEffect(() => {
+    if (!moduleId || disabled) {
+      setFiles([])
+      setIsLoading(false)
+      return
+    }
+
     const controller = new AbortController()
+    setIsLoading(true)
 
     void apiRequest<FilesResponse>(`/api/modules/${moduleId}/files`, {
       signal: controller.signal,
@@ -56,7 +69,7 @@ export function ModuleFilesList({ moduleId, moduleCode = 'Module' }: ModuleFiles
       })
 
     return () => controller.abort()
-  }, [moduleId])
+  }, [disabled, moduleId])
 
 
   const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -145,18 +158,32 @@ export function ModuleFilesList({ moduleId, moduleCode = 'Module' }: ModuleFiles
             ref={fileInputRef}
             onChange={(e) => void handleFileChange(e)}
             className="hidden"
-            id={`file-upload-${moduleId}`}
-            disabled={isUploading}
+            id={`file-upload-${moduleId || 'none'}`}
+            disabled={disabled || isUploading}
           />
-          <label
-            htmlFor={`file-upload-${moduleId}`}
-            className={`button button--primary inline-flex cursor-pointer items-center gap-1.5 ${
-              isUploading ? 'cursor-not-allowed opacity-60' : ''
+          <button
+            type="button"
+            disabled={disabled || isUploading}
+            onClick={(e) => {
+              if (disabled) {
+                e.preventDefault()
+                showToast('Please select a module before uploading files.')
+                onDisabledAttempt?.()
+                return
+              }
+              fileInputRef.current?.click()
+            }}
+            className={`button button--primary inline-flex items-center gap-1.5 ${
+              disabled
+                ? 'opacity-50 cursor-not-allowed'
+                : isUploading
+                  ? 'cursor-not-allowed opacity-60'
+                  : 'cursor-pointer'
             }`}
           >
             <span aria-hidden="true">{isUploading ? '⏳' : '↑'}</span>
             <span>{isUploading ? 'Uploading…' : 'Attach File'}</span>
-          </label>
+          </button>
         </div>
       </div>
 
@@ -248,7 +275,9 @@ export function ModuleFilesList({ moduleId, moduleCode = 'Module' }: ModuleFiles
         ) : (
           <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/50 px-4 py-6 text-center dark:border-slate-700 dark:bg-slate-900/30">
             <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">
-              No files attached to {moduleCode} yet.
+              {disabled
+                ? 'Please select a module from the dropdown above to view and attach files.'
+                : `No files attached to ${moduleCode} yet.`}
             </p>
             <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
               Upload PDF slides, notes, or code archives up to 15 MB.

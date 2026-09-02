@@ -19,6 +19,14 @@ const customTargetPrefix = 'custom:'
 const customTargetValue = 'custom'
 const STORAGE_KEY_CUSTOM_CATEGORIES = 'kiasu_custom_categories'
 
+const DEV_LINGUA_MESSAGES = [
+  'Git push and chiong!',
+  'LGTM, steady pom pi pi!',
+  'Compile your focus, do not slack hor!',
+  'Commit to this sprint lah!',
+  'No merge conflicts today, just pure focus.',
+]
+
 function loadSavedCustomCategories(): string[] {
   try {
     const saved = localStorage.getItem(STORAGE_KEY_CUSTOM_CATEGORIES)
@@ -39,12 +47,22 @@ export function TimerView() {
   const [modules, setModules] = useState<Module[]>([])
   const [customCategories, setCustomCategories] = useState<string[]>(loadSavedCustomCategories)
   const [selectedTarget, setSelectedTarget] = useState<string>('')
+  const [encouragingMessage, setEncouragingMessage] = useState('')
   const [isCreatingCustom, setIsCreatingCustom] = useState(false)
   const [customName, setCustomName] = useState('')
   const [heatmapRefreshKey, setHeatmapRefreshKey] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const { showToast } = useToast()
+
+  useEffect(() => {
+    if (selectedTarget) {
+      const randomMsg = DEV_LINGUA_MESSAGES[Math.floor(Math.random() * DEV_LINGUA_MESSAGES.length)]
+      setEncouragingMessage(randomMsg)
+    } else {
+      setEncouragingMessage('')
+    }
+  }, [selectedTarget])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -304,13 +322,10 @@ export function TimerView() {
                         <span className="font-mono text-xs font-bold text-blue-600 dark:text-blue-400">
                           {selectedModule.moduleCode}
                         </span>
-                        <span className="text-xs text-slate-500 dark:text-slate-400">
-                          {selectedModule.creditUnits} MCs / Units
+                        <span className="text-xs font-bold italic text-blue-600 dark:text-blue-300">
+                          {encouragingMessage}
                         </span>
                       </div>
-                      <strong className="mt-1 block text-sm font-bold text-gray-900 dark:text-white">
-                        {selectedModule.moduleName}
-                      </strong>
                     </div>
                   )}
 
@@ -318,15 +333,12 @@ export function TimerView() {
                     <div className="mt-4 rounded-xl border border-purple-100 bg-purple-50/50 p-4 dark:border-purple-900/40 dark:bg-purple-950/20">
                       <div className="flex items-center justify-between">
                         <span className="font-mono text-xs font-bold text-purple-600 dark:text-purple-400">
-                          CUSTOM CATEGORY
+                          {selectedCustomCategory}
                         </span>
-                        <span className="text-xs text-slate-500 dark:text-slate-400">
-                          Personal Target
+                        <span className="text-xs font-bold italic text-purple-600 dark:text-purple-300">
+                          {encouragingMessage}
                         </span>
                       </div>
-                      <strong className="mt-1 block text-sm font-bold text-gray-900 dark:text-white">
-                        {selectedCustomCategory}
-                      </strong>
                     </div>
                   )}
 

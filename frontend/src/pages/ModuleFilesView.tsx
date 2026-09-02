@@ -5,6 +5,7 @@ import type { Module } from '@kiasucode/shared'
 import { ModuleFilesList } from '../components/ModuleFilesList'
 import { Navbar } from '../components/Navbar'
 import { TelegramConnectModal } from '../components/TelegramConnectModal'
+import { useToast } from '../context/ToastContext'
 import { apiRequest, formatApiError, isAbortError } from '../utils/api'
 
 interface ModulesResponse {
@@ -17,6 +18,7 @@ export function ModuleFilesView() {
   const [selectedModuleId, setSelectedModuleId] = useState<string>('')
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const { showToast } = useToast()
 
   useEffect(() => {
     const controller = new AbortController()
@@ -24,9 +26,6 @@ export function ModuleFilesView() {
     void apiRequest<ModulesResponse>('/api/modules', { signal: controller.signal })
       .then(({ data }) => {
         setModules(data.modules)
-        if (data.modules.length > 0) {
-          setSelectedModuleId(data.modules[0].id)
-        }
       })
       .catch((err: unknown) => {
         if (!isAbortError(err)) {
@@ -117,33 +116,31 @@ export function ModuleFilesView() {
           </section>
         </div>
 
-        {/* ATTACHMENTS LIST OR EMPTY STATE */}
+        {/* ATTACHMENTS LIST OR DISABLED/EMPTY STATE */}
         <div className="mt-6">
-          {selectedModule ? (
-            <ModuleFilesList
-              key={selectedModule.id}
-              moduleId={selectedModule.id}
-              moduleCode={selectedModule.moduleCode}
-            />
-          ) : (
+          {modules.length === 0 && !isLoading ? (
             <section className="rounded-2xl border border-dashed border-slate-200 bg-white p-12 text-center shadow-sm dark:border-slate-700 dark:bg-slate-800">
               <span className="text-5xl" role="img" aria-label="Documents">📁</span>
               <h3 className="mt-4 text-lg font-bold text-slate-900 dark:text-slate-100">
-                {modules.length === 0 ? 'No Modules Found' : 'No Module Selected'}
+                No Modules Found
               </h3>
               <p className="mx-auto mt-2 max-w-md text-sm text-slate-500 dark:text-slate-400">
-                {modules.length === 0
-                  ? 'Add at least one module under an institution and semester on your Dashboard to start uploading notes and cheatsheets.'
-                  : 'Please select a module from the dropdown above to view, upload, or download documents.'}
+                Add at least one module under an institution and semester on your Dashboard to start uploading notes and cheatsheets.
               </p>
-              {modules.length === 0 && (
-                <div className="mt-6">
-                  <Link to="/dashboard" className="button button--primary inline-flex">
-                    Go to Dashboard
-                  </Link>
-                </div>
-              )}
+              <div className="mt-6">
+                <Link to="/dashboard" className="button button--primary inline-flex">
+                  Go to Dashboard
+                </Link>
+              </div>
             </section>
+          ) : (
+            <ModuleFilesList
+              key={selectedModule?.id || 'no-module'}
+              moduleId={selectedModule?.id || ''}
+              moduleCode={selectedModule?.moduleCode || ''}
+              disabled={!selectedModule}
+              onDisabledAttempt={() => showToast('Please select a module before uploading files.')}
+            />
           )}
         </div>
       </main>

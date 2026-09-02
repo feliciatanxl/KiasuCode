@@ -23,15 +23,36 @@ interface CountdownRow extends RowDataPacket {
   target_date: Date | string
   category: CountdownCategory
   color: string | null
+  is_annual: number | boolean
   created_at: Date | string
 }
 
 type ParsedCountdownInput = Omit<CreateCountdownInput, 'color'> & {
   color: string
+  isAnnual: boolean
 }
 
 const router = Router()
 const defaultCountdownColor = '#3b82f6'
+
+async function ensureCountdownsTable() {
+  try {
+    await db.execute(`
+      ALTER TABLE academic_countdowns
+        ADD COLUMN IF NOT EXISTS is_annual BOOLEAN NOT NULL DEFAULT FALSE
+    `)
+  } catch {
+    try {
+      await db.execute(`
+        ALTER TABLE academic_countdowns
+          ADD COLUMN is_annual BOOLEAN NOT NULL DEFAULT FALSE
+      `)
+    } catch {
+      // already exists
+    }
+  }
+}
+void ensureCountdownsTable()
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
@@ -69,6 +90,7 @@ function serializeCountdown(row: CountdownRow): AcademicCountdown {
     targetDate: toIsoString(row.target_date),
     category: row.category,
     color: row.color || defaultCountdownColor,
+    isAnnual: Boolean(row.is_annual),
     createdAt: toIsoString(row.created_at),
   }
 }
@@ -91,6 +113,7 @@ function parseCreateCountdownInput(body: unknown): ParsedCountdownInput {
   const moduleId = typeof rawModuleId === 'string' && rawModuleId.trim()
     ? rawModuleId.trim()
     : null
+  const isAnnual = Boolean(body.isAnnual ?? body.is_annual)
 
   if (!title || title.length > 255) {
     throw new AppError(
@@ -133,6 +156,7 @@ function parseCreateCountdownInput(body: unknown): ParsedCountdownInput {
     category,
     color,
     moduleId,
+    isAnnual,
   }
 }
 
@@ -142,7 +166,7 @@ router.get(
   async (_request: Request, response: Response, next: NextFunction) => {
     try {
       const [rows] = await db.execute<CountdownRow[]>(
-        `SELECT id, module_id, title, target_date, category, color, created_at
+        `SELECT id, module_id, title, target_date, category, color, is_annual, created_at
            FROM academic_countdowns
           WHERE user_id = ?
           ORDER BY target_date ASC, created_at ASC`,
@@ -183,8 +207,8 @@ router.post(
       const countdownId = uuidv4()
       await db.execute<ResultSetHeader>(
         `INSERT INTO academic_countdowns
-          (id, user_id, module_id, title, target_date, category, color)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          (id, user_id, module_id, title, target_date, category, color, is_annual)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           countdownId,
           userId,
@@ -193,11 +217,12 @@ router.post(
           new Date(input.targetDate),
           input.category,
           input.color,
+          input.isAnnual ? 1 : 0,
         ],
       )
 
       const [rows] = await db.execute<CountdownRow[]>(
-        `SELECT id, module_id, title, target_date, category, color, created_at
+        `SELECT id, module_id, title, target_date, category, color, is_annual, created_at
            FROM academic_countdowns
           WHERE id = ? AND user_id = ?
           LIMIT 1`,
@@ -214,76 +239,80 @@ router.post(
   },
 )
 
-router.put(
-  '/countdowns/:id',
-  authenticateRequest,
-  async (request: Request, response: Response, next: NextFunction) => {
-    try {
-      const input = parseCreateCountdownInput(request.body)
-      const countdownId = getCountdownId(request)
-      const userId = getUserId(response)
-      const [existingRows] = await db.execute<CountdownRow[]>(
-        `SELECT id, module_id, title, target_date, category, color, created_at
-           FROM academic_countdowns
-          WHERE id = ? AND user_id = ?
-          LIMIT 1`,
-        [countdownId, userId],
-      )
+const updateCountdownHandler = async (
+  request: Request,
+  response: Response,
+  next: NextFunction,
+) => {
+  try {
+    const input = parseCreateCountdownInput(request.body)
+    const countdownId = getCountdownId(request)
+    const userId = getUserId(response)
+    const [existingRows] = await db.execute<CountdownRow[]>(
+      `SELECT id, module_id, title, target_date, category, color, is_annual, created_at
+         FROM academic_countdowns
+        WHERE id = ? AND user_id = ?
+        LIMIT 1`,
+      [countdownId, userId],
+    )
 
-      if (!existingRows[0]) {
-        throw new AppError(404, 'Countdown not found.', 'COUNTDOWN_NOT_FOUND')
-      }
-
-      if (input.moduleId) {
-        const [moduleRows] = await db.execute<RowDataPacket[]>(
-          `SELECT m.id
-             FROM modules AS m
-             INNER JOIN semesters AS s ON s.id = m.semester_id
-             INNER JOIN institutions AS i ON i.id = s.institution_id
-            WHERE m.id = ? AND i.user_id = ?
-            LIMIT 1`,
-          [input.moduleId, userId],
-        )
-
-        if (!moduleRows[0]) {
-          throw new AppError(404, 'Module not found.', 'MODULE_NOT_FOUND')
-        }
-      }
-
-      await db.execute<ResultSetHeader>(
-        `UPDATE academic_countdowns
-            SET title = ?, target_date = ?, category = ?, color = ?, module_id = ?
-          WHERE id = ? AND user_id = ?`,
-        [
-          input.title,
-          new Date(input.targetDate),
-          input.category,
-          input.color,
-          input.moduleId,
-          countdownId,
-          userId,
-        ],
-      )
-
-      const [rows] = await db.execute<CountdownRow[]>(
-        `SELECT id, module_id, title, target_date, category, color, created_at
-           FROM academic_countdowns
-          WHERE id = ? AND user_id = ?
-          LIMIT 1`,
-        [countdownId, userId],
-      )
-      const countdown = rows[0]
-
-      if (!countdown) {
-        throw new AppError(404, 'Countdown not found.', 'COUNTDOWN_NOT_FOUND')
-      }
-
-      response.status(200).json({ countdown: serializeCountdown(countdown) })
-    } catch (error) {
-      next(error)
+    if (!existingRows[0]) {
+      throw new AppError(404, 'Countdown not found.', 'COUNTDOWN_NOT_FOUND')
     }
-  },
-)
+
+    if (input.moduleId) {
+      const [moduleRows] = await db.execute<RowDataPacket[]>(
+        `SELECT m.id
+           FROM modules AS m
+           INNER JOIN semesters AS s ON s.id = m.semester_id
+           INNER JOIN institutions AS i ON i.id = s.institution_id
+          WHERE m.id = ? AND i.user_id = ?
+          LIMIT 1`,
+        [input.moduleId, userId],
+      )
+
+      if (!moduleRows[0]) {
+        throw new AppError(404, 'Module not found.', 'MODULE_NOT_FOUND')
+      }
+    }
+
+    await db.execute<ResultSetHeader>(
+      `UPDATE academic_countdowns
+          SET title = ?, target_date = ?, category = ?, color = ?, module_id = ?, is_annual = ?
+        WHERE id = ? AND user_id = ?`,
+      [
+        input.title,
+        new Date(input.targetDate),
+        input.category,
+        input.color,
+        input.moduleId,
+        input.isAnnual ? 1 : 0,
+        countdownId,
+        userId,
+      ],
+    )
+
+    const [rows] = await db.execute<CountdownRow[]>(
+      `SELECT id, module_id, title, target_date, category, color, is_annual, created_at
+         FROM academic_countdowns
+        WHERE id = ? AND user_id = ?
+        LIMIT 1`,
+      [countdownId, userId],
+    )
+    const countdown = rows[0]
+
+    if (!countdown) {
+      throw new AppError(404, 'Countdown not found.', 'COUNTDOWN_NOT_FOUND')
+    }
+
+    response.status(200).json({ countdown: serializeCountdown(countdown) })
+  } catch (error) {
+    next(error)
+  }
+}
+
+router.put('/countdowns/:id', authenticateRequest, updateCountdownHandler)
+router.patch('/countdowns/:id', authenticateRequest, updateCountdownHandler)
 
 router.delete(
   '/countdowns/:id',

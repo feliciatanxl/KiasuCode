@@ -7,6 +7,7 @@ import {
   defaultCountdownColor,
   resolveCountdownColor,
 } from '../utils/colors'
+import { withEffectiveTargetDate } from '../utils/countdowns'
 import { CountdownCard } from './CountdownCard'
 
 interface CountdownsResponse {
@@ -50,6 +51,7 @@ export function CountdownSection({
   const [targetDate, setTargetDate] = useState('')
   const [category, setCategory] = useState('Exam')
   const [color, setColor] = useState(defaultCountdownColor)
+  const [isAnnual, setIsAnnual] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const { showToast } = useToast()
   const STANDARD_CATEGORIES = ['Exam', 'Assignment', 'Project', 'Quiz', 'Lab', 'Course', 'Personal', 'CCA']
@@ -91,6 +93,7 @@ export function CountdownSection({
     setTargetDate('')
     setCategory('Exam')
     setColor(defaultCountdownColor)
+    setIsAnnual(false)
     setError(null)
     setIsModalOpen(true)
   }
@@ -103,6 +106,7 @@ export function CountdownSection({
     setTargetDate(formatDateTimeLocal(countdown.targetDate))
     setCategory(countdown.category)
     setColor(resolveCountdownColor(countdown.color || defaultCountdownColor))
+    setIsAnnual(Boolean(countdown.isAnnual))
     setError(null)
     setIsModalOpen(true)
   }
@@ -129,6 +133,7 @@ export function CountdownSection({
             targetDate: new Date(targetDate).toISOString(),
             category: category.trim(),
             color,
+            isAnnual,
             moduleId: existingCountdown?.moduleId ?? null,
           }),
         },
@@ -147,6 +152,7 @@ export function CountdownSection({
       setTargetDate('')
       setCategory('Exam')
       setColor(defaultCountdownColor)
+      setIsAnnual(false)
       setEditingId(null)
       showToast(
         currentEditingId
@@ -311,6 +317,18 @@ export function CountdownSection({
                 </div>
               </div>
 
+              <div className="mt-4">
+                <label className="inline-flex items-center gap-2 cursor-pointer text-xs font-bold text-gray-700 dark:text-gray-300">
+                  <input
+                    type="checkbox"
+                    checked={isAnnual}
+                    onChange={(e) => setIsAnnual(e.target.checked)}
+                    className="size-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span>🔁 Repeats Yearly (Annual Event)</span>
+                </label>
+              </div>
+
               <div className="mt-6 flex justify-end gap-2">
                 <button
                   className="button button--ghost"
@@ -347,7 +365,7 @@ export function CountdownSection({
         </div>
       ) : countdowns.length > 0 ? (
         <div className="mt-5 flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2">
-          {countdowns.map((countdown) => (
+          {countdowns.map(withEffectiveTargetDate).map((countdown) => (
             <CountdownCard
               countdown={countdown}
               isDeleting={deletingId === countdown.id}

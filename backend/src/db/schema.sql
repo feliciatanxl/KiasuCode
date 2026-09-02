@@ -157,6 +157,7 @@ CREATE TABLE IF NOT EXISTS academic_countdowns (
   target_date DATETIME NOT NULL,
   category VARCHAR(50) NOT NULL,
   color VARCHAR(30) DEFAULT 'bg-blue-500',
+  is_annual BOOLEAN NOT NULL DEFAULT FALSE,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_academic_countdowns_user_target (user_id, target_date),

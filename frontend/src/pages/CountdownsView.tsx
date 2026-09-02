@@ -7,6 +7,8 @@ import { TelegramConnectModal } from '../components/TelegramConnectModal'
 import { useToast } from '../context/ToastContext'
 import { apiRequest, formatApiError, isAbortError } from '../utils/api'
 import { defaultCountdownColor, resolveCountdownColor } from '../utils/colors'
+import { withEffectiveTargetDate } from '../utils/countdowns'
+import { fetchSingaporePublicHolidays } from '../utils/holidays'
 
 interface CountdownsResponse {
   countdowns: AcademicCountdown[]
@@ -51,6 +53,7 @@ export function CountdownsView() {
   const [currentDate, setCurrentDate] = useState(() => new Date())
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [countdowns, setCountdowns] = useState<AcademicCountdown[]>([])
+  const [publicHolidays, setPublicHolidays] = useState<AcademicCountdown[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
   // Create / Edit Modal State
@@ -60,6 +63,7 @@ export function CountdownsView() {
   const [title, setTitle] = useState('')
   const [isAllDay, setIsAllDay] = useState(false)
   const [isMultipleDays, setIsMultipleDays] = useState(false)
+  const [isAnnual, setIsAnnual] = useState(false)
   const [startDate, setStartDate] = useState(() => formatDateInput(new Date()))
   const [endDate, setEndDate] = useState(() => formatDateInput(new Date()))
   const [startTime, setStartTime] = useState('09:00')
@@ -90,6 +94,16 @@ export function CountdownsView() {
     return () => controller.abort()
   }, [])
 
+  useEffect(() => {
+    const controller = new AbortController()
+
+    void fetchSingaporePublicHolidays(currentYear, controller.signal).then((holidays) => {
+      setPublicHolidays(holidays)
+    })
+
+    return () => controller.abort()
+  }, [currentYear])
+
   // Navigation handlers
   const handlePrevMonth = () => {
     setCurrentDate(new Date(currentYear, currentMonth - 1, 1))
@@ -106,6 +120,11 @@ export function CountdownsView() {
     setCurrentDate(now)
     setSelectedDate(now)
   }
+
+  // Combined countdowns with Singapore Public Holidays & annual rollover dates
+  const allCountdowns = useMemo(() => {
+    return [...countdowns, ...publicHolidays].map(withEffectiveTargetDate)
+  }, [countdowns, publicHolidays])
 
   // Calendar Grid computation
   const calendarCells = useMemo(() => {
@@ -127,7 +146,7 @@ export function CountdownsView() {
     for (let i = firstDayIndex - 1; i >= 0; i--) {
       const dayNumber = totalDaysInPrevMonth - i
       const date = new Date(currentYear, currentMonth - 1, dayNumber)
-      const dayCountdowns = countdowns.filter((c) =>
+      const dayCountdowns = allCountdowns.filter((c) =>
         isSameCalendarDay(new Date(c.targetDate), date),
       )
       cells.push({
@@ -142,7 +161,7 @@ export function CountdownsView() {
     // 2. Current month days
     for (let dayNumber = 1; dayNumber <= totalDaysInMonth; dayNumber++) {
       const date = new Date(currentYear, currentMonth, dayNumber)
-      const dayCountdowns = countdowns.filter((c) =>
+      const dayCountdowns = allCountdowns.filter((c) =>
         isSameCalendarDay(new Date(c.targetDate), date),
       )
       cells.push({
@@ -158,7 +177,7 @@ export function CountdownsView() {
     const remainingCells = (7 - (cells.length % 7)) % 7
     for (let dayNumber = 1; dayNumber <= remainingCells; dayNumber++) {
       const date = new Date(currentYear, currentMonth + 1, dayNumber)
-      const dayCountdowns = countdowns.filter((c) =>
+      const dayCountdowns = allCountdowns.filter((c) =>
         isSameCalendarDay(new Date(c.targetDate), date),
       )
       cells.push({
@@ -171,15 +190,15 @@ export function CountdownsView() {
     }
 
     return cells
-  }, [currentYear, currentMonth, countdowns])
+  }, [currentYear, currentMonth, allCountdowns])
 
   const monthName = currentDate.toLocaleString('default', { month: 'long' })
 
   // Selected date countdowns
   const selectedDateCountdowns = useMemo(() => {
     if (!selectedDate) return []
-    return countdowns.filter((c) => isSameCalendarDay(new Date(c.targetDate), selectedDate))
-  }, [selectedDate, countdowns])
+    return allCountdowns.filter((c) => isSameCalendarDay(new Date(c.targetDate), selectedDate))
+  }, [selectedDate, allCountdowns])
 
   const openCreateForm = () => {
     if (isSubmitting) return
@@ -189,6 +208,7 @@ export function CountdownsView() {
     setTitle('')
     setIsAllDay(false)
     setIsMultipleDays(false)
+    setIsAnnual(false)
     setStartDate(todayStr)
     setEndDate(todayStr)
     setStartTime('09:00')
@@ -199,7 +219,7 @@ export function CountdownsView() {
   }
 
   const openEditForm = (item: AcademicCountdown) => {
-    if (isSubmitting) return
+    if (isSubmitting || item.isReadOnly || item.category === 'PH') return
 
     const targetDateObj = new Date(item.targetDate)
     const dateStr = formatDateInput(targetDateObj)
@@ -211,6 +231,7 @@ export function CountdownsView() {
     setTitle(item.title)
     setIsAllDay(isAllDayEvent)
     setIsMultipleDays(false)
+    setIsAnnual(Boolean(item.isAnnual))
     setStartDate(dateStr)
     setEndDate(dateStr)
     setStartTime(`${hours}:${minutes}`)
@@ -274,6 +295,7 @@ export function CountdownsView() {
             category: 'General',
             color,
             moduleId: null,
+            isAnnual,
           }),
         })
 
@@ -313,6 +335,7 @@ export function CountdownsView() {
               category: 'General',
               color,
               moduleId: null,
+              isAnnual,
             }),
           })
           createdList.push(data.countdown)
@@ -486,34 +509,45 @@ export function CountdownsView() {
                           style={{ backgroundColor: resolveCountdownColor(item.color || defaultCountdownColor) }}
                         />
                         <strong className="text-slate-900 dark:text-slate-100 truncate">{item.title}</strong>
-                        {item.category && item.category !== 'General' && (
+                        {item.category === 'PH' ? (
+                          <span className="rounded bg-rose-100 px-1.5 py-0.5 text-[10px] font-bold text-rose-700 dark:bg-rose-950/60 dark:text-rose-300">
+                            PH
+                          </span>
+                        ) : item.category && item.category !== 'General' ? (
                           <span className="text-slate-400 uppercase text-[10px]">({item.category})</span>
+                        ) : null}
+                        {item.isAnnual && (
+                          <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-300">
+                            🔁 Yearly
+                          </span>
                         )}
                       </div>
                       <div className="flex items-center gap-2 shrink-0 ml-3">
                         <time className="font-mono text-slate-500">
                           {new Date(item.targetDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </time>
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => openEditForm(item)}
-                            className="size-6 flex items-center justify-center rounded text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 dark:hover:text-blue-400 transition-colors"
-                            title="Edit event"
-                            aria-label="Edit event"
-                          >
-                            ✏️
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => void handleDeleteCountdown(item.id, item.title)}
-                            className="size-6 flex items-center justify-center rounded text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 dark:hover:text-red-400 transition-colors"
-                            title="Delete event"
-                            aria-label="Delete event"
-                          >
-                            🗑️
-                          </button>
-                        </div>
+                        {!item.isReadOnly && item.category !== 'PH' && (
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => openEditForm(item)}
+                              className="size-6 flex items-center justify-center rounded text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 dark:hover:text-blue-400 transition-colors"
+                              title="Edit event"
+                              aria-label="Edit event"
+                            >
+                              ✏️
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void handleDeleteCountdown(item.id, item.title)}
+                              className="size-6 flex items-center justify-center rounded text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 dark:hover:text-red-400 transition-colors"
+                              title="Delete event"
+                              aria-label="Delete event"
+                            >
+                              🗑️
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </li>
                   ))}
@@ -610,6 +644,19 @@ export function CountdownsView() {
                   >
                     <span>📅</span>
                     <span>Multiple days</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsAnnual((prev) => !prev)}
+                    className={`inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold transition-all ${
+                      isAnnual
+                        ? 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-500/30'
+                        : 'border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
+                    }`}
+                  >
+                    <span>🔁</span>
+                    <span>Repeats Yearly</span>
                   </button>
                 </div>
               </div>

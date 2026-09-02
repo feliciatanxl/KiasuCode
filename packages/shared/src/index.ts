@@ -74,6 +74,8 @@ export interface AcademicCountdown {
   endDate?: string
   category: CountdownCategory
   color?: string
+  isAnnual?: boolean
+  isReadOnly?: boolean
   createdAt: string
 }
 
@@ -84,6 +86,7 @@ export interface CreateCountdownInput {
   endDate?: string
   category: CountdownCategory
   color?: string
+  isAnnual?: boolean
 }
 
 export interface ModuleFile {

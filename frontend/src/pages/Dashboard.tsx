@@ -11,6 +11,8 @@ import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { apiRequest, formatApiError, isAbortError } from '../utils/api'
 import { defaultCountdownColor, resolveCountdownColor } from '../utils/colors'
+import { withEffectiveTargetDate } from '../utils/countdowns'
+import { fetchSingaporePublicHolidays } from '../utils/holidays'
 import { getPetConfig } from '../utils/petRoster'
 
 interface CountdownsResponse {
@@ -80,6 +82,7 @@ export function Dashboard() {
 
   // Countdowns State (Today's Agenda)
   const [countdowns, setCountdowns] = useState<AcademicCountdown[]>([])
+  const [publicHolidays, setPublicHolidays] = useState<AcademicCountdown[]>([])
   const [isLoadingCountdowns, setIsLoadingCountdowns] = useState(true)
   const [countdownsError, setCountdownsError] = useState<string | null>(null)
 
@@ -106,6 +109,10 @@ export function Dashboard() {
       .finally(() => {
         if (!controller.signal.aborted) setIsLoadingCountdowns(false)
       })
+
+    void fetchSingaporePublicHolidays(new Date().getFullYear(), controller.signal)
+      .then((holidays) => setPublicHolidays(holidays))
+      .catch((err) => console.warn('Could not load public holidays for dashboard:', err))
 
     void apiRequest<{ schedules: ClassScheduleItem[] }>('/api/schedules', {
       signal: controller.signal,
@@ -140,6 +147,8 @@ interface AgendaItem {
   startDate: string
   endDate?: string
   daysRemaining: number
+  isAnnual?: boolean
+  isReadOnly?: boolean
 }
 
 function isSameCalendarDate(d1: Date, d2: Date): boolean {
@@ -152,7 +161,8 @@ function isSameCalendarDate(d1: Date, d2: Date): boolean {
 
   // Filter countdowns relevant today/soon (upcoming within next 14 days or closest deadlines)
   const todaysAgenda = useMemo(() => {
-    const sorted = [...countdowns].sort(
+    const all = [...countdowns, ...publicHolidays].map(withEffectiveTargetDate)
+    const sorted = [...all].sort(
       (a, b) => new Date(a.targetDate).getTime() - new Date(b.targetDate).getTime(),
     )
 
@@ -190,6 +200,8 @@ function isSameCalendarDate(d1: Date, d2: Date): boolean {
           startDate: itemStart,
           endDate: item.endDate && !isSameCalendarDate(new Date(itemStart), new Date(item.endDate)) ? item.endDate : undefined,
           daysRemaining: getDaysRemaining(itemStart),
+          isAnnual: item.isAnnual,
+          isReadOnly: item.isReadOnly,
         })
       }
     }
@@ -199,7 +211,7 @@ function isSameCalendarDate(d1: Date, d2: Date): boolean {
       const daysRemaining = getDaysRemaining(c.startDate)
       return daysRemaining >= 0 && daysRemaining <= 2
     })
-  }, [countdowns])
+  }, [countdowns, publicHolidays])
 
   // Upcoming class calculation for iPod Mini Timetable
   const upcomingClassInfo = useMemo(() => {
@@ -408,9 +420,20 @@ function isSameCalendarDate(d1: Date, d2: Date): boolean {
                             <strong className="text-sm font-bold text-slate-900 dark:text-white truncate block">
                               {item.title}
                             </strong>
-                            <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 bg-white dark:bg-slate-800 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700">
-                              {item.category}
-                            </span>
+                            {item.category === 'PH' ? (
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-rose-700 bg-rose-100 dark:bg-rose-950/60 dark:text-rose-300 px-1.5 py-0.5 rounded border border-rose-200 dark:border-rose-800">
+                                PH
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 bg-white dark:bg-slate-800 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700">
+                                {item.category}
+                              </span>
+                            )}
+                            {item.isAnnual && (
+                              <span className="text-[10px] font-semibold tracking-wider text-indigo-600 bg-indigo-50 dark:bg-indigo-950/50 dark:text-indigo-300 px-1.5 py-0.5 rounded border border-indigo-200 dark:border-indigo-800">
+                                🔁 Yearly
+                              </span>
+                            )}
                           </div>
                           <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
                             {dateDisplay}
