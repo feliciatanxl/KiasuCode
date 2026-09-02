@@ -54,17 +54,6 @@ export function TimerView() {
         setModules(data.modules)
         const savedCats = loadSavedCustomCategories()
         setCustomCategories(savedCats)
-
-        if (data.modules.length > 0) {
-          setSelectedTarget(`${moduleTargetPrefix}${data.modules[0].id}`)
-          setIsCreatingCustom(false)
-        } else if (savedCats.length > 0) {
-          setSelectedTarget(`${customTargetPrefix}${savedCats[0]}`)
-          setIsCreatingCustom(false)
-        } else {
-          setSelectedTarget(customTargetValue)
-          setIsCreatingCustom(true)
-        }
       })
       .catch((err: unknown) => {
         if (!isAbortError(err)) {
@@ -169,28 +158,16 @@ export function TimerView() {
         <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8 items-stretch">
           {/* LEFT COLUMN: POMODORO TIMER (H-FULL DIRECT CARD) */}
           <div className="h-full w-full flex flex-col">
-            {selectedTargetLabel ? (
-              <PomodoroTimer
-                key={selectedTarget}
-                moduleId={selectedModule?.id ?? null}
-                customCategory={selectedCustomCategory}
-                targetLabel={selectedTargetLabel}
-                onSessionCompleted={(coinsEarned, coinsBalance) => {
-                  showToast(`Session completed! +${coinsEarned} coins (Balance: ${coinsBalance}).`)
-                  setHeatmapRefreshKey((current) => current + 1)
-                }}
-              />
-            ) : (
-              <div className="h-full flex flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white p-8 sm:p-12 text-center shadow-sm dark:border-slate-700 dark:bg-slate-800 w-full">
-                <span className="text-5xl" role="img" aria-label="Timer">⏱️</span>
-                <h3 className="mt-4 text-xl font-bold text-gray-900 dark:text-white">
-                  Select a Study Target First Lah
-                </h3>
-                <p className="mx-auto mt-2 max-w-sm text-sm text-slate-500 dark:text-slate-400">
-                  Choose an academic module or enter a custom category on the right before you chiong your focus sprint.
-                </p>
-              </div>
-            )}
+            <PomodoroTimer
+              key={selectedTarget || 'no-target'}
+              moduleId={selectedModule?.id ?? null}
+              customCategory={selectedCustomCategory}
+              targetLabel={selectedTargetLabel || ''}
+              onSessionCompleted={(coinsEarned, coinsBalance) => {
+                showToast(`Session completed! +${coinsEarned} coins (Balance: ${coinsBalance}).`)
+                setHeatmapRefreshKey((current) => current + 1)
+              }}
+            />
           </div>
 
           {/* RIGHT COLUMN: ACTIVE STUDY TARGET PANEL */}
@@ -224,6 +201,7 @@ export function TimerView() {
                           onChange={(e) => handleTargetChange(e.target.value)}
                           className="h-12 w-full appearance-none truncate rounded-xl border border-slate-200 bg-slate-50 pl-4 pr-12 text-sm font-bold text-gray-900 shadow-sm transition-colors focus:border-blue-500 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:focus:bg-slate-900"
                         >
+                          <option value="" disabled>Choose Module / Category</option>
                           {modules.length > 0 && (
                             <optgroup label="Academic Modules">
                               {modules.map((module) => (

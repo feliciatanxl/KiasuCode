@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+import { useToast } from '../context/ToastContext'
 import { apiRequest, formatApiError } from '../utils/api'
 
 interface StudySessionResponse {
@@ -73,6 +74,8 @@ export function PomodoroTimer({
   customCategory,
   onSessionCompleted,
 }: PomodoroTimerProps) {
+  const { showToast } = useToast()
+  const hasTarget = Boolean(targetLabel.trim() && (moduleId || customCategory))
   const [mode, setMode] = useState<TimerMode>('focus')
   const [selectedDurationMinutes, setSelectedDurationMinutes] = useState(
     defaultDurationMinutes,
@@ -195,6 +198,12 @@ export function PomodoroTimer({
   }, [mode, recordCompletedSession, remainingSeconds, status])
 
   const startTimer = () => {
+    if (mode === 'focus' && !hasTarget) {
+      showToast('Please select a module or category first!')
+      setMessage('Please select a module or category first!')
+      return
+    }
+
     if (remainingSeconds <= 0) return
 
     endAtRef.current = Date.now() + remainingSeconds * 1000
@@ -276,7 +285,7 @@ export function PomodoroTimer({
               className="mt-1 text-xl font-extrabold text-slate-900 dark:text-white"
               id="pomodoro-title"
             >
-              {targetLabel} Pomodoro
+              {targetLabel ? `${targetLabel} Pomodoro` : 'Solo Pomodoro'}
             </h2>
             <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
               Ready to commit? Deploy a focus sprint and earn coins.
@@ -431,10 +440,18 @@ export function PomodoroTimer({
             </button>
           ) : (
             <button
-              className="button button--primary px-6"
+              className={`button button--primary px-6 ${
+                mode === 'focus' && !hasTarget && status === 'idle'
+                  ? 'opacity-50 cursor-not-allowed'
+                  : ''
+              }`}
               type="button"
               onClick={startTimer}
-              disabled={status === 'saving' || status === 'completed'}
+              disabled={
+                status === 'saving'
+                || status === 'completed'
+                || (mode === 'focus' && !hasTarget && status === 'idle')
+              }
             >
               {status === 'paused'
                 ? 'Resume'
