@@ -7,7 +7,6 @@ import { TelegramConnectModal } from '../components/TelegramConnectModal'
 import { useToast } from '../context/ToastContext'
 import { apiRequest, formatApiError, isAbortError } from '../utils/api'
 import { defaultCountdownColor, resolveCountdownColor } from '../utils/colors'
-import { withEffectiveTargetDate } from '../utils/countdowns'
 import { fetchSingaporePublicHolidays } from '../utils/holidays'
 
 interface CountdownsResponse {
@@ -26,6 +25,40 @@ function isSameCalendarDay(d1: Date, d2: Date): boolean {
     && d1.getMonth() === d2.getMonth()
     && d1.getDate() === d2.getDate()
   )
+}
+
+function matchesCalendarDay(event: AcademicCountdown, cellDate: Date): boolean {
+  const eventDate = new Date(event.targetDate)
+  if (event.isAnnual) {
+    return (
+      eventDate.getMonth() === cellDate.getMonth()
+      && eventDate.getDate() === cellDate.getDate()
+    )
+  }
+  return (
+    eventDate.getFullYear() === cellDate.getFullYear()
+    && eventDate.getMonth() === cellDate.getMonth()
+    && eventDate.getDate() === cellDate.getDate()
+  )
+}
+
+function getEventForCalendarDate(event: AcademicCountdown, cellDate: Date): AcademicCountdown {
+  if (!event.isAnnual) return event
+
+  const orig = new Date(event.targetDate)
+  const adjusted = new Date(
+    cellDate.getFullYear(),
+    orig.getMonth(),
+    orig.getDate(),
+    orig.getHours(),
+    orig.getMinutes(),
+    orig.getSeconds(),
+    orig.getMilliseconds(),
+  )
+  return {
+    ...event,
+    targetDate: adjusted.toISOString(),
+  }
 }
 
 function sortCountdowns(countdowns: AcademicCountdown[]): AcademicCountdown[] {
@@ -121,9 +154,9 @@ export function CountdownsView() {
     setSelectedDate(now)
   }
 
-  // Combined countdowns with Singapore Public Holidays & annual rollover dates
+  // Combined countdowns with Singapore Public Holidays
   const allCountdowns = useMemo(() => {
-    return [...countdowns, ...publicHolidays].map(withEffectiveTargetDate)
+    return [...countdowns, ...publicHolidays]
   }, [countdowns, publicHolidays])
 
   // Calendar Grid computation
@@ -146,9 +179,9 @@ export function CountdownsView() {
     for (let i = firstDayIndex - 1; i >= 0; i--) {
       const dayNumber = totalDaysInPrevMonth - i
       const date = new Date(currentYear, currentMonth - 1, dayNumber)
-      const dayCountdowns = allCountdowns.filter((c) =>
-        isSameCalendarDay(new Date(c.targetDate), date),
-      )
+      const dayCountdowns = allCountdowns
+        .filter((c) => matchesCalendarDay(c, date))
+        .map((c) => getEventForCalendarDate(c, date))
       cells.push({
         date,
         isCurrentMonth: false,
@@ -161,9 +194,9 @@ export function CountdownsView() {
     // 2. Current month days
     for (let dayNumber = 1; dayNumber <= totalDaysInMonth; dayNumber++) {
       const date = new Date(currentYear, currentMonth, dayNumber)
-      const dayCountdowns = allCountdowns.filter((c) =>
-        isSameCalendarDay(new Date(c.targetDate), date),
-      )
+      const dayCountdowns = allCountdowns
+        .filter((c) => matchesCalendarDay(c, date))
+        .map((c) => getEventForCalendarDate(c, date))
       cells.push({
         date,
         isCurrentMonth: true,
@@ -177,9 +210,9 @@ export function CountdownsView() {
     const remainingCells = (7 - (cells.length % 7)) % 7
     for (let dayNumber = 1; dayNumber <= remainingCells; dayNumber++) {
       const date = new Date(currentYear, currentMonth + 1, dayNumber)
-      const dayCountdowns = allCountdowns.filter((c) =>
-        isSameCalendarDay(new Date(c.targetDate), date),
-      )
+      const dayCountdowns = allCountdowns
+        .filter((c) => matchesCalendarDay(c, date))
+        .map((c) => getEventForCalendarDate(c, date))
       cells.push({
         date,
         isCurrentMonth: false,
@@ -197,7 +230,9 @@ export function CountdownsView() {
   // Selected date countdowns
   const selectedDateCountdowns = useMemo(() => {
     if (!selectedDate) return []
-    return allCountdowns.filter((c) => isSameCalendarDay(new Date(c.targetDate), selectedDate))
+    return allCountdowns
+      .filter((c) => matchesCalendarDay(c, selectedDate))
+      .map((c) => getEventForCalendarDate(c, selectedDate))
   }, [selectedDate, allCountdowns])
 
   const openCreateForm = () => {

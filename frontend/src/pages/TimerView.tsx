@@ -47,7 +47,7 @@ export function TimerView() {
   const [modules, setModules] = useState<Module[]>([])
   const [customCategories, setCustomCategories] = useState<string[]>(loadSavedCustomCategories)
   const [selectedTarget, setSelectedTarget] = useState<string>('')
-  const [encouragingMessage, setEncouragingMessage] = useState('')
+  const [encouragingMessage, setEncouragingMessage] = useState('Select a target above to lock in your focus branch.')
   const [isCreatingCustom, setIsCreatingCustom] = useState(false)
   const [customName, setCustomName] = useState('')
   const [heatmapRefreshKey, setHeatmapRefreshKey] = useState(0)
@@ -60,7 +60,7 @@ export function TimerView() {
       const randomMsg = DEV_LINGUA_MESSAGES[Math.floor(Math.random() * DEV_LINGUA_MESSAGES.length)]
       setEncouragingMessage(randomMsg)
     } else {
-      setEncouragingMessage('')
+      setEncouragingMessage('Select a target above to lock in your focus branch.')
     }
   }, [selectedTarget])
 
@@ -315,30 +315,57 @@ export function TimerView() {
                     </div>
                   )}
 
-                  {/* MODULE OR CUSTOM CATEGORY PREVIEW CARD */}
-                  {selectedModule && (
-                    <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50/50 p-4 dark:border-blue-900/40 dark:bg-blue-950/20">
+                  {/* MODULE OR CUSTOM CATEGORY PREVIEW CARD (PERSISTENT BOXED DESIGN) */}
+                  {selectedModule ? (
+                    <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-700 dark:bg-slate-800/50">
                       <div className="flex items-center justify-between">
                         <span className="font-mono text-xs font-bold text-blue-600 dark:text-blue-400">
                           {selectedModule.moduleCode}
                         </span>
-                        <span className="text-xs font-bold italic text-blue-600 dark:text-blue-300">
-                          {encouragingMessage}
+                        <span className="text-xs text-slate-500 dark:text-slate-400">
+                          {selectedModule.creditUnits} MCs / Units
                         </span>
                       </div>
+                      <strong className="mt-1 block text-sm font-bold text-slate-900 dark:text-white">
+                        {selectedModule.moduleName}
+                      </strong>
+                      <p className="mt-2 text-xs font-medium italic text-blue-600 dark:text-blue-400">
+                        {encouragingMessage}
+                      </p>
                     </div>
-                  )}
-
-                  {selectedCustomCategory && (
-                    <div className="mt-4 rounded-xl border border-purple-100 bg-purple-50/50 p-4 dark:border-purple-900/40 dark:bg-purple-950/20">
+                  ) : selectedCustomCategory ? (
+                    <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-700 dark:bg-slate-800/50">
                       <div className="flex items-center justify-between">
                         <span className="font-mono text-xs font-bold text-purple-600 dark:text-purple-400">
-                          {selectedCustomCategory}
+                          CUSTOM CATEGORY
                         </span>
-                        <span className="text-xs font-bold italic text-purple-600 dark:text-purple-300">
-                          {encouragingMessage}
+                        <span className="text-xs text-slate-500 dark:text-slate-400">
+                          Personal Target
                         </span>
                       </div>
+                      <strong className="mt-1 block text-sm font-bold text-slate-900 dark:text-white">
+                        {selectedCustomCategory}
+                      </strong>
+                      <p className="mt-2 text-xs font-medium italic text-purple-600 dark:text-purple-400">
+                        {encouragingMessage}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="mt-4 rounded-xl border border-dashed border-slate-200 bg-slate-50/40 p-4 dark:border-slate-700 dark:bg-slate-800/30">
+                      <div className="flex items-center justify-between">
+                        <span className="font-mono text-xs font-bold text-slate-400 dark:text-slate-500">
+                          --
+                        </span>
+                        <span className="text-xs text-slate-400 dark:text-slate-500">
+                          -- MCs / Units
+                        </span>
+                      </div>
+                      <strong className="mt-1 block text-sm font-bold text-slate-400 dark:text-slate-500">
+                        --
+                      </strong>
+                      <p className="mt-2 text-xs italic text-slate-400 dark:text-slate-500">
+                        Select a target above to lock in your focus branch.
+                      </p>
                     </div>
                   )}
 
