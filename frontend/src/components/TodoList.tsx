@@ -264,7 +264,7 @@ export function TodoList({ className = '' }: { className?: string } = {}) {
                 <button
                   type="button"
                   onClick={(e) => void handleDelete(todo.id, e)}
-                  className="opacity-0 group-hover:opacity-100 size-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40 dark:hover:text-red-400 transition-all shrink-0"
+                  className="size-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40 dark:hover:text-red-400 transition-all shrink-0"
                   title="Delete task"
                   aria-label="Delete task"
                 >

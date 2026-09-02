@@ -47,10 +47,22 @@ function clampLevel(value: number): number {
 }
 
 function getDaysRemaining(targetDate: string): number {
-  const target = new Date(targetDate).getTime()
-  const now = new Date().getTime()
-  const diffMs = target - now
-  return Math.ceil(diffMs / (1000 * 60 * 60 * 24))
+  const target = new Date(targetDate)
+  const now = new Date()
+
+  const targetStartOfDay = new Date(
+    target.getFullYear(),
+    target.getMonth(),
+    target.getDate(),
+  ).getTime()
+  const nowStartOfDay = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+  ).getTime()
+
+  const diffMs = targetStartOfDay - nowStartOfDay
+  return Math.round(diffMs / (1000 * 60 * 60 * 24))
 }
 
 function getUrgencyBadge(daysRemaining: number) {

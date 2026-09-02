@@ -40,6 +40,12 @@ function formatDateInput(d: Date): string {
   return `${year}-${month}-${day}`
 }
 
+function parseLocalDate(dateStr: string, timeStr = '00:00'): Date {
+  const [year, month, day] = dateStr.split('-').map(Number)
+  const [hours, minutes] = timeStr.split(':').map(Number)
+  return new Date(year, month - 1, day, hours || 0, minutes || 0, 0, 0)
+}
+
 export function CountdownsView() {
   const [isTelegramOpen, setIsTelegramOpen] = useState(false)
   const [currentDate, setCurrentDate] = useState(() => new Date())
@@ -255,15 +261,10 @@ export function CountdownsView() {
 
     try {
       if (editingCountdownId) {
-        let targetDateIso: string
-        if (isAllDay) {
-          const [y, m, d] = startDate.split('-').map(Number)
-          targetDateIso = new Date(y, m - 1, d, 0, 0, 0).toISOString()
-        } else {
-          const [y, m, d] = startDate.split('-').map(Number)
-          const [h, min] = startTime.split(':').map(Number)
-          targetDateIso = new Date(y, m - 1, d, h || 0, min || 0, 0).toISOString()
-        }
+        const targetDateIso = parseLocalDate(
+          startDate,
+          isAllDay ? '00:00' : startTime,
+        ).toISOString()
 
         const { data } = await apiRequest<CountdownResponse>(`/api/countdowns/${editingCountdownId}`, {
           method: 'PUT',
@@ -287,35 +288,18 @@ export function CountdownsView() {
         const datesToCreate: string[] = []
 
         if (isMultipleDays && endDate && endDate >= startDate) {
-          const [startY, startM, startD] = startDate.split('-').map(Number)
-          const [endY, endM, endD] = endDate.split('-').map(Number)
-
-          const startObj = new Date(startY, startM - 1, startD)
-          const endObj = new Date(endY, endM - 1, endD)
+          const startObj = parseLocalDate(startDate, isAllDay ? '00:00' : startTime)
+          const endObj = parseLocalDate(endDate, isAllDay ? '00:00' : startTime)
 
           const curr = new Date(startObj)
           while (curr <= endObj) {
-            const y = curr.getFullYear()
-            const m = curr.getMonth()
-            const d = curr.getDate()
-
-            if (isAllDay) {
-              datesToCreate.push(new Date(y, m, d, 0, 0, 0).toISOString())
-            } else {
-              const [h, min] = startTime.split(':').map(Number)
-              datesToCreate.push(new Date(y, m, d, h || 0, min || 0, 0).toISOString())
-            }
-
+            datesToCreate.push(curr.toISOString())
             curr.setDate(curr.getDate() + 1)
           }
         } else {
-          const [y, m, d] = startDate.split('-').map(Number)
-          if (isAllDay) {
-            datesToCreate.push(new Date(y, m, d, 0, 0, 0).toISOString())
-          } else {
-            const [h, min] = startTime.split(':').map(Number)
-            datesToCreate.push(new Date(y, m, d, h || 0, min || 0, 0).toISOString())
-          }
+          datesToCreate.push(
+            parseLocalDate(startDate, isAllDay ? '00:00' : startTime).toISOString(),
+          )
         }
 
         const createdList: AcademicCountdown[] = []
@@ -510,7 +494,7 @@ export function CountdownsView() {
                         <time className="font-mono text-slate-500">
                           {new Date(item.targetDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </time>
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex items-center gap-1">
                           <button
                             type="button"
                             onClick={() => openEditForm(item)}
