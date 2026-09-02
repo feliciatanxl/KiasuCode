@@ -1,7 +1,5 @@
 ﻿<div align="center">
 
-<img src="./frontend/public/favicon.svg" alt="KiasuCode Logo" height="120" />
-
 # 🚀 KiasuCode
 
 ### **Ship your semester. Zero merge conflicts.**
@@ -31,8 +29,6 @@ All without maintaining another cursed Excel spreadsheet.
 [Legacy Bot](#-where-it-started)
 
 <br />
-
-<img src="./frontend/src/assets/hero.png" alt="KiasuCode Dashboard Preview" width="900" />
 
 </div>
 
