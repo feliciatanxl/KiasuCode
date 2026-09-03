@@ -58,7 +58,7 @@ export const GRADING_SCALES: Record<string, GradeScale> = {
   ITE: {
     max: 4.0,
     points: { 
-      'DIST': 4.0, 'A': 4.0, 'B': 3.0, 'C': 2.0, 'D': 1.0, 'F': 0.0, 'P': 0.0 
+      'DIST': 4.0, 'A': 4.0, 'B': 3.0, 'C': 2.0, 'D': 1.0, 'F': 0.0, 'P': 0.0, 'S': 0.0 
     }
   },
   UNI: {

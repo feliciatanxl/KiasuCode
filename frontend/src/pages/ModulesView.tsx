@@ -152,6 +152,7 @@ export function ModulesView({
           </section>
         ) : (
           <ModulePipeline
+            availableGrades={availableGrades}
             modules={modules}
             onDeleteModule={onDeleteModule}
             onRequestAdd={openModal}

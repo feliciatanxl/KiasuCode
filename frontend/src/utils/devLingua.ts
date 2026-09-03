@@ -3,6 +3,8 @@ import type {
   ModuleStatus,
 } from '@kiasucode/shared'
 
+import { formatGpa } from './gpa'
+
 export interface DevLinguaContext {
   gpa?: number
   targetGpa?: number
@@ -47,7 +49,7 @@ const messagePresets: Record<DevLinguaFlavor, MessageFactory[]> = {
   positive: [
     () => 'Git commit early, kiasu a bit better than lose code lah.',
     () => 'LGTM! Pull request merged without conflict, damn swee lah.',
-    ({ gpa = 4 }) => `LGTM, GPA ${gpa.toFixed(2)} steady lah! All checks green.`,
+    ({ gpa = 4 }) => `LGTM, GPA ${formatGpa(gpa)} steady lah! All checks green.`,
     () => 'All unit tests passing, CI/CD pipeline green green steady pom pi pi!',
     ({ moduleCode = 'this sprint' }) =>
       `${moduleCode} merged cleanly. Shiok sia, keep shipping!`,
@@ -55,7 +57,7 @@ const messagePresets: Record<DevLinguaFlavor, MessageFactory[]> = {
     () => 'Fast forward merge successful, no merge conflict at all, steady lah!',
     () => 'Clean commit history, your tech lead see already also cry happy tears.',
     ({ targetGpa = 4 }) =>
-      `Target GPA ${targetGpa.toFixed(2)} deployed to production! Swee!`,
+      `Target GPA ${formatGpa(targetGpa)} deployed to production! Swee!`,
   ],
   negative: [
     () => 'Merge conflict? Alamak, rebase first before you push.',
@@ -79,7 +81,7 @@ const messagePresets: Record<DevLinguaFlavor, MessageFactory[]> = {
     () => "Stash your distractions, checkout to focus branch, let's ship it!",
     () => 'Pipeline still running—relak one corner, just keep shipping.',
     ({ targetGpa = 4 }) =>
-      `Target ${targetGpa.toFixed(2)} queued. One tutorial at a time lah.`,
+      `Target ${formatGpa(targetGpa)} queued. One tutorial at a time lah.`,
     () => 'Keep shipping and stay kiasu, continuous integration continuous improvement.',
   ],
 }

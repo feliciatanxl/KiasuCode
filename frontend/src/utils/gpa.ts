@@ -17,6 +17,7 @@ export const GRADING_SCALES: Record<string, GradeScale> = {
       E: 1.0,
       NGP: 1.0,
       F: 0.0,
+      S: 0.0,
     },
   },
   NYP: {
@@ -238,7 +239,12 @@ export function calculateWeightedGpa(
     const upperGrade = rawGrade.toUpperCase()
 
     // Grades explicitly excluded from GPA calculation (Pass / Exemption / Satisfactory non-GPA)
-    if (upperGrade === 'P' || upperGrade === 'CP' || upperGrade === 'EX') {
+    if (
+      upperGrade === 'P' ||
+      upperGrade === 'CP' ||
+      upperGrade === 'EX' ||
+      upperGrade === 'S'
+    ) {
       continue
     }
 
@@ -263,5 +269,8 @@ export function calculateWeightedGpa(
 }
 
 export function formatGpa(gpa: number): string {
-  return gpa.toFixed(2)
+  if (gpa === null || gpa === undefined || Number.isNaN(gpa) || !Number.isFinite(gpa)) {
+    return '0.000'
+  }
+  return gpa.toFixed(3)
 }

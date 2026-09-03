@@ -26,6 +26,29 @@ export type GradeLetter =
   | 'S'
   | 'U'
 
+export type ITEGradeLetter =
+  | 'DIST'
+  | 'A'
+  | 'B'
+  | 'C'
+  | 'D'
+  | 'E'
+  | 'NGP'
+  | 'F'
+  | 'S'
+
+export const ITE_GRADE_OPTIONS: GradeLetter[] = [
+  'DIST',
+  'A',
+  'B',
+  'C',
+  'D',
+  'E',
+  'NGP',
+  'F',
+  'S',
+]
+
 export type ModuleStatus = 'backlog' | 'in-progress' | 'merged'
 
 export interface Module {

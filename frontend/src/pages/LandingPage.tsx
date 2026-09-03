@@ -89,7 +89,7 @@ export function LandingPage() {
                 </div>
               </div>
               <div className="marketing-terminal__stats">
-                <div><span>CURRENT GPA</span><strong>3.82</strong><small>+0.14 ↗</small></div>
+                <div><span>CURRENT GPA</span><strong>3.820</strong><small>+0.140 ↗</small></div>
                 <div><span>FOCUS COINS</span><strong>145</strong><small>100% happy</small></div>
                 <div><span>NEXT DEADLINE</span><strong>14d 6h</strong><small>CS2103T</small></div>
               </div>
@@ -340,14 +340,14 @@ export function LandingPage() {
               <div className="simulator-preview__score mt-4">
                 <div>
                   <small className="text-slate-500 dark:text-slate-400">CURRENT</small>
-                  <strong className="text-slate-900 dark:text-slate-100">3.55</strong>
+                  <strong className="text-slate-900 dark:text-slate-100">3.550</strong>
                 </div>
                 <span className="text-slate-400 dark:text-slate-500">→</span>
                 <div>
                   <small className="text-slate-500 dark:text-slate-400">STAGED</small>
-                  <strong>3.73</strong>
+                  <strong>3.730</strong>
                 </div>
-                <em>+0.18 GPA</em>
+                <em>+0.180 GPA</em>
               </div>
               <div className="grade-sliders mt-4 space-y-2">
                 {[

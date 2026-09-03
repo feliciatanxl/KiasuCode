@@ -8,6 +8,7 @@ import type {
 import { GRADE_OPTIONS } from '../utils/gpa'
 
 interface ModulePipelineProps {
+  availableGrades?: (GradeLetter | string)[]
   modules: Module[]
   onDeleteModule: (id: string) => Promise<void>
   onRequestAdd: () => void
@@ -26,6 +27,7 @@ const statusLabels: Record<ModuleStatus, string> = {
 }
 
 export function ModulePipeline({
+  availableGrades,
   modules,
   onDeleteModule,
   onRequestAdd,
@@ -43,6 +45,12 @@ export function ModulePipeline({
         : modules.filter((module) => module.status === filter),
     [filter, modules],
   )
+
+  const gradeOptions = useMemo(() => {
+    return availableGrades && availableGrades.length > 0
+      ? availableGrades
+      : GRADE_OPTIONS
+  }, [availableGrades])
 
   useEffect(
     () => () => {
@@ -171,9 +179,12 @@ export function ModulePipeline({
                   }).catch(() => undefined)
                 }
               >
-                {GRADE_OPTIONS.map((grade) => (
-                  <option key={grade}>{grade}</option>
+                {gradeOptions.map((grade) => (
+                  <option key={grade} value={grade}>{grade}</option>
                 ))}
+                {module.targetGrade && !gradeOptions.includes(module.targetGrade) && (
+                  <option value={module.targetGrade}>{module.targetGrade}</option>
+                )}
               </select>
             </label>
             <label className="compact-field whitespace-nowrap" role="cell">
@@ -193,9 +204,12 @@ export function ModulePipeline({
                 }}
               >
                 <option value="">—</option>
-                {GRADE_OPTIONS.map((grade) => (
-                  <option key={grade}>{grade}</option>
+                {gradeOptions.map((grade) => (
+                  <option key={grade} value={grade}>{grade}</option>
                 ))}
+                {module.actualGrade && !gradeOptions.includes(module.actualGrade) && (
+                  <option value={module.actualGrade}>{module.actualGrade}</option>
+                )}
               </select>
             </label>
             <div role="cell" className="whitespace-nowrap">
