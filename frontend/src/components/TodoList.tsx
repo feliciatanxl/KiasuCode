@@ -15,7 +15,7 @@ interface UpdateTodoResponse {
 export function TodoList({ className = '' }: { className?: string } = {}) {
   const [todos, setTodos] = useState<TodoItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [filter, setFilter] = useState<'all' | 'active' | 'completed'>('all')
+  const [filter, setFilter] = useState<'active' | 'completed'>('active')
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [editingTodo, setEditingTodo] = useState<TodoItem | null>(null)
   const [togglingId, setTogglingId] = useState<string | null>(null)
@@ -99,9 +99,8 @@ export function TodoList({ className = '' }: { className?: string } = {}) {
   const completedCount = todos.filter((t) => t.isCompleted).length
 
   const filteredTodos = todos.filter((t) => {
-    if (filter === 'active') return !t.isCompleted
     if (filter === 'completed') return t.isCompleted
-    return true
+    return !t.isCompleted
   })
 
   return (
@@ -143,17 +142,6 @@ export function TodoList({ className = '' }: { className?: string } = {}) {
       <div className="flex items-center gap-1.5 pt-4 pb-3">
         <button
           type="button"
-          onClick={() => setFilter('all')}
-          className={`rounded-lg px-3 py-1 text-xs font-bold transition-all ${
-            filter === 'all'
-              ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 shadow-2xs'
-              : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700/60'
-          }`}
-        >
-          All ({todos.length})
-        </button>
-        <button
-          type="button"
           onClick={() => setFilter('active')}
           className={`rounded-lg px-3 py-1 text-xs font-bold transition-all ${
             filter === 'active'
@@ -188,9 +176,7 @@ export function TodoList({ className = '' }: { className?: string } = {}) {
             <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
               {filter === 'completed'
                 ? 'No completed tasks yet.'
-                : filter === 'active'
-                  ? 'All caught up! No active tasks.'
-                  : 'No tasks on your radar.'}
+                : 'All caught up! No active tasks.'}
             </p>
             <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
               Click &quot;+ New Task&quot; above to organize your academic workflow.
