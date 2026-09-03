@@ -112,13 +112,8 @@ export function TodoList({ className = '' }: { className?: string } = {}) {
             ✓
           </div>
           <div>
-            <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+            <h2 className="text-base font-bold text-slate-900 dark:text-white">
               Action Items & To-Dos
-              {activeCount > 0 && (
-                <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-extrabold text-blue-700 dark:bg-blue-900/60 dark:text-blue-300">
-                  {activeCount} pending
-                </span>
-              )}
             </h2>
             <p className="text-xs text-slate-500 dark:text-slate-400">
               Stay ahead of submissions, labs, and study checkpoints.
