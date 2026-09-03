@@ -292,6 +292,7 @@ export function TodoList({ className = '' }: { className?: string } = {}) {
       <NewTodoModal
         isOpen={isCreateModalOpen}
         initialTodo={editingTodo}
+        existingTodos={todos}
         onClose={() => {
           setIsCreateModalOpen(false)
           setEditingTodo(null)

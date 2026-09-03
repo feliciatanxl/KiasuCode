@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import type { CreateTodoInput, Module, TodoItem } from '@kiasucode/shared'
 import { apiRequest, formatApiError, isAbortError } from '../utils/api'
 import { useToast } from '../context/ToastContext'
@@ -9,6 +9,26 @@ interface NewTodoModalProps {
   onTodoCreated: (todo: TodoItem) => void
   onTodoUpdated?: (todo: TodoItem) => void
   initialTodo?: TodoItem | null
+  existingTodos?: TodoItem[]
+}
+
+function SelectChevron() {
+  return (
+    <svg
+      className="pointer-events-none absolute right-3.5 top-1/2 size-4 -translate-y-1/2 text-slate-400"
+      viewBox="0 0 20 20"
+      fill="none"
+      aria-hidden="true"
+    >
+      <path
+        d="m6 8 4 4 4-4"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
 }
 
 interface CreateTodoResponse {
@@ -41,6 +61,7 @@ export function NewTodoModal({
   onTodoCreated,
   onTodoUpdated,
   initialTodo,
+  existingTodos,
 }: NewTodoModalProps) {
   const [title, setTitle] = useState('')
   const [labelType, setLabelType] = useState<'Course' | 'Custom'>('Course')
@@ -48,6 +69,8 @@ export function NewTodoModal({
   const [selectedCourse, setSelectedCourse] = useState('')
   const [isLoadingModules, setIsLoadingModules] = useState(false)
   const [customLabel, setCustomLabel] = useState('')
+  const [isCreatingNewLabel, setIsCreatingNewLabel] = useState(false)
+  const [selectedCustomLabel, setSelectedCustomLabel] = useState('')
   const [description, setDescription] = useState('')
   const [deadline, setDeadline] = useState('')
   const [subtasks, setSubtasks] = useState<string[]>([])
@@ -55,12 +78,30 @@ export function NewTodoModal({
   const [error, setError] = useState<string | null>(null)
   const { showToast } = useToast()
 
+  const previousCustomLabels = useMemo(() => {
+    const moduleCodes = new Set(modules.map((m) => m.moduleCode.trim().toUpperCase()))
+    const rawList = (existingTodos || [])
+      .map((t) => (t as any).custom_category || t.label)
+      .filter((l): l is string => Boolean(l && typeof l === 'string'))
+      .map((l) => l.trim())
+      .filter(
+        (l) =>
+          l.length > 0 &&
+          !moduleCodes.has(l.toUpperCase()) &&
+          l !== 'Course' &&
+          l !== 'Custom',
+      )
+    return Array.from(new Set(rawList))
+  }, [existingTodos, modules])
+
   useEffect(() => {
     if (!isOpen) {
       setTitle('')
       setLabelType('Course')
       setSelectedCourse('')
       setCustomLabel('')
+      setSelectedCustomLabel('')
+      setIsCreatingNewLabel(false)
       setDescription('')
       setDeadline('')
       setSubtasks([])
@@ -88,16 +129,40 @@ export function NewTodoModal({
         setDescription('')
         setSubtasks([])
       }
+
+      if (initialTodo.label) {
+        const isModule = modules.some((m) => m.moduleCode === initialTodo.label)
+        if (isModule) {
+          setLabelType('Course')
+          setSelectedCourse(initialTodo.label)
+        } else {
+          setLabelType('Custom')
+          if (previousCustomLabels.includes(initialTodo.label)) {
+            setSelectedCustomLabel(initialTodo.label)
+            setIsCreatingNewLabel(false)
+          } else {
+            setCustomLabel(initialTodo.label)
+            setIsCreatingNewLabel(true)
+          }
+        }
+      }
     } else {
       setTitle('')
       setLabelType('Course')
-      setCustomLabel('')
+      setSelectedCourse('')
+      if (previousCustomLabels.length > 0) {
+        setSelectedCustomLabel(previousCustomLabels[0])
+        setIsCreatingNewLabel(false)
+      } else {
+        setCustomLabel('')
+        setIsCreatingNewLabel(true)
+      }
       setDescription('')
       setDeadline('')
       setSubtasks([])
       setError(null)
     }
-  }, [isOpen, initialTodo])
+  }, [isOpen, initialTodo, modules, previousCustomLabels])
 
   useEffect(() => {
     if (!isOpen) return
@@ -116,8 +181,6 @@ export function NewTodoModal({
             setLabelType('Custom')
             setCustomLabel(initialTodo.label)
           }
-        } else if (fetched.length > 0 && !selectedCourse) {
-          setSelectedCourse(fetched[0].moduleCode)
         }
       })
       .catch((err: unknown) => {
@@ -155,8 +218,10 @@ export function NewTodoModal({
   const resetForm = () => {
     setTitle('')
     setLabelType('Course')
-    setSelectedCourse(modules[0]?.moduleCode || '')
+    setSelectedCourse('')
     setCustomLabel('')
+    setSelectedCustomLabel(previousCustomLabels[0] || '')
+    setIsCreatingNewLabel(previousCustomLabels.length === 0)
     setDescription('')
     setDeadline('')
     setSubtasks([])
@@ -167,13 +232,26 @@ export function NewTodoModal({
     e.preventDefault()
     if (!title.trim()) return
 
+    if (labelType === 'Course' && !selectedCourse) {
+      showToast('Please select a course module.')
+      return
+    }
+
+    if (labelType === 'Custom' && isCreatingNewLabel && !customLabel.trim()) {
+      showToast('Please enter a custom label.')
+      return
+    }
+
     setIsSubmitting(true)
     setError(null)
 
     try {
-      const finalLabel = labelType === 'Course'
-        ? (selectedCourse || modules[0]?.moduleCode || 'Course')
-        : (customLabel.trim() || 'Custom')
+      const finalLabel =
+        labelType === 'Course'
+          ? selectedCourse
+          : isCreatingNewLabel
+            ? customLabel.trim() || 'Custom'
+            : selectedCustomLabel || 'Custom'
 
       // Combine description and subtasks if any
       let finalDescription = description.trim()
@@ -217,6 +295,13 @@ export function NewTodoModal({
       setIsSubmitting(false)
     }
   }
+
+  const isSubmitDisabled =
+    isSubmitting ||
+    !title.trim() ||
+    (labelType === 'Course' && !selectedCourse) ||
+    (labelType === 'Custom' &&
+      (isCreatingNewLabel ? !customLabel.trim() : !selectedCustomLabel))
 
   return (
     <div
@@ -275,14 +360,17 @@ export function NewTodoModal({
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
                 Label Type
               </label>
-              <select
-                value={labelType}
-                onChange={(e) => setLabelType(e.target.value as 'Course' | 'Custom')}
-                className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3.5 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-              >
-                <option value="Course">📚 Course</option>
-                <option value="Custom">🏷️ Custom</option>
-              </select>
+              <div className="relative">
+                <select
+                  value={labelType}
+                  onChange={(e) => setLabelType(e.target.value as 'Course' | 'Custom')}
+                  className="h-11 w-full appearance-none rounded-xl border border-slate-300 bg-white pl-3.5 pr-10 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                >
+                  <option value="Course">📚 Course</option>
+                  <option value="Custom">🏷️ Custom</option>
+                </select>
+                <SelectChevron />
+              </div>
             </div>
 
             {labelType === 'Course' ? (
@@ -290,35 +378,101 @@ export function NewTodoModal({
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
                   Course Module
                 </label>
-                <select
-                  value={selectedCourse}
-                  onChange={(e) => setSelectedCourse(e.target.value)}
-                  className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3.5 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder-slate-500"
-                >
-                  {isLoadingModules ? (
-                    <option value="">Loading saved modules…</option>
-                  ) : modules.length > 0 ? (
-                    modules.map((mod) => (
-                      <option key={mod.id} value={mod.moduleCode}>
-                        {mod.moduleCode}{mod.moduleName ? ` - ${mod.moduleName}` : ''}
+                <div className="relative">
+                  <select
+                    value={selectedCourse}
+                    onChange={(e) => setSelectedCourse(e.target.value)}
+                    className="h-11 w-full appearance-none rounded-xl border border-slate-300 bg-white pl-3.5 pr-10 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder-slate-500"
+                  >
+                    <option value="" disabled>
+                      Select Module
+                    </option>
+                    {isLoadingModules ? (
+                      <option value="" disabled>
+                        Loading saved modules…
                       </option>
-                    ))
-                  ) : (
-                    <option value="Course">No saved modules found</option>
-                  )}
-                </select>
+                    ) : modules.length > 0 ? (
+                      modules.map((mod) => (
+                        <option key={mod.id} value={mod.moduleCode}>
+                          {mod.moduleCode}
+                          {mod.moduleName ? ` - ${mod.moduleName}` : ''}
+                        </option>
+                      ))
+                    ) : (
+                      <option value="" disabled>
+                        No saved modules found
+                      </option>
+                    )}
+                  </select>
+                  <SelectChevron />
+                </div>
+              </div>
+            ) : previousCustomLabels.length > 0 && !isCreatingNewLabel ? (
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                    Custom Label
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCreatingNewLabel(true)
+                      setCustomLabel('')
+                    }}
+                    className="text-[11px] font-bold text-blue-600 hover:text-blue-500 dark:text-blue-400 cursor-pointer"
+                  >
+                    + New Label
+                  </button>
+                </div>
+                <div className="relative">
+                  <select
+                    value={selectedCustomLabel}
+                    onChange={(e) => {
+                      if (e.target.value === '__CREATE_NEW__') {
+                        setIsCreatingNewLabel(true)
+                        setCustomLabel('')
+                      } else {
+                        setSelectedCustomLabel(e.target.value)
+                      }
+                    }}
+                    className="h-11 w-full appearance-none rounded-xl border border-slate-300 bg-white pl-3.5 pr-10 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  >
+                    {previousCustomLabels.map((lbl) => (
+                      <option key={lbl} value={lbl}>
+                        {lbl}
+                      </option>
+                    ))}
+                    <option value="__CREATE_NEW__">+ Create New Label...</option>
+                  </select>
+                  <SelectChevron />
+                </div>
               </div>
             ) : (
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
-                  Custom Label
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                    Custom Label
+                  </label>
+                  {previousCustomLabels.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsCreatingNewLabel(false)
+                        setSelectedCustomLabel(previousCustomLabels[0] || '')
+                      }}
+                      className="text-[11px] font-bold text-blue-600 hover:text-blue-500 dark:text-blue-400 cursor-pointer"
+                    >
+                      ← Choose Existing
+                    </button>
+                  )}
+                </div>
                 <input
                   type="text"
                   value={customLabel}
                   onChange={(e) => setCustomLabel(e.target.value)}
                   placeholder="e.g. Project, CCA, Urgent"
                   className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3.5 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder-slate-500"
+                  autoFocus={previousCustomLabels.length > 0}
                 />
               </div>
             )}
@@ -403,7 +557,7 @@ export function NewTodoModal({
             </button>
             <button
               type="submit"
-              disabled={isSubmitting || !title.trim()}
+              disabled={isSubmitDisabled}
               className="rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 disabled:opacity-50"
             >
               {isSubmitting

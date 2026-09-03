@@ -787,6 +787,41 @@ router.get('/user/presence', authenticateRequest, (_request: Request, response: 
   }
 })
 
+// GET /api/auth/me - Retrieve current user profile and password status
+router.get('/auth/me', async (_request: Request, response: Response) => {
+  try {
+    const userId = getUserId(response)
+    const [rows] = await db.execute<RowDataPacket[]>(
+      'SELECT id, provider, provider_id, email, password_hash, name, photo_url, has_consented FROM users WHERE id = ? LIMIT 1',
+      [userId],
+    )
+    const user = rows[0]
+    if (!user) {
+      response.status(404).json({ error: 'User not found.' })
+      return
+    }
+
+    const hasPassword = Boolean(user.password_hash)
+    response.status(200).json({
+      user: {
+        id: user.id,
+        provider: user.provider,
+        name: user.name,
+        email: user.email,
+        photoUrl: user.photo_url,
+        hasConsented: Boolean(user.has_consented),
+        has_password: hasPassword,
+        hasPassword,
+      },
+      has_password: hasPassword,
+      hasPassword,
+    })
+  } catch (error) {
+    console.error('Unable to fetch user profile: %o', error)
+    response.status(500).json({ error: 'Unable to fetch user profile.' })
+  }
+})
+
 router.post('/auth/set-password', async (request: Request, response: Response) => {
   let connection: PoolConnection | undefined
 

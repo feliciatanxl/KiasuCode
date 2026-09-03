@@ -21,6 +21,7 @@ export interface AuthUser {
   photoUrl?: string
   provider: AuthProviderName
   hasConsented?: boolean
+  has_password?: boolean
   telegramChatId?: string
   googleId?: string
 }
@@ -62,6 +63,7 @@ export function isAuthUser(value: unknown): value is AuthUser {
     && (user.email === undefined || typeof user.email === 'string')
     && (user.photoUrl === undefined || typeof user.photoUrl === 'string')
     && (user.hasConsented === undefined || typeof user.hasConsented === 'boolean')
+    && (user.has_password === undefined || typeof user.has_password === 'boolean')
     && (user.telegramChatId === undefined || typeof user.telegramChatId === 'string')
     && (user.googleId === undefined || typeof user.googleId === 'string')
     && isAuthProvider(user.provider)

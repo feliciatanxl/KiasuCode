@@ -61,6 +61,8 @@ interface AuthUser {
   email?: string
   photoUrl?: string
   hasConsented?: boolean
+  has_password?: boolean
+  hasPassword?: boolean
   telegramChatId?: string
   googleId?: string
 }
@@ -175,6 +177,8 @@ function serializeUser(row: UserRow): AuthUser {
     ...(row.email ? { email: row.email } : {}),
     ...(row.photo_url ? { photoUrl: row.photo_url } : {}),
     hasConsented: Boolean(row.has_consented),
+    has_password: Boolean(row.password_hash),
+    hasPassword: Boolean(row.password_hash),
     ...(row.telegram_chat_id ? { telegramChatId: row.telegram_chat_id } : {}),
     ...(row.google_id ? { googleId: row.google_id } : {}),
   }
@@ -578,10 +582,44 @@ router.get(
       }
 
       response.set('Cache-Control', 'no-store')
-      response.status(200).json({ user: serializeUser(userRow) })
+      response.status(200).json({
+        user: serializeUser(userRow),
+        has_password: Boolean(userRow.password_hash),
+        hasPassword: Boolean(userRow.password_hash),
+      })
     } catch (error) {
       console.error('Unable to restore authentication session: %o', error)
       response.status(500).json({ error: 'Unable to restore authentication session.' })
+    }
+  },
+)
+
+router.get(
+  '/me',
+  authenticateRequest,
+  async (request: Request, response: Response) => {
+    try {
+      const [rows] = await db.execute<UserRow[]>(
+        'SELECT * FROM users WHERE id = ? LIMIT 1',
+        [response.locals.userId as string],
+      )
+      const userRow = rows[0]
+
+      if (!userRow) {
+        clearSessionCookie(request, response)
+        response.status(401).json({ error: 'The session user no longer exists.' })
+        return
+      }
+
+      response.set('Cache-Control', 'no-store')
+      response.status(200).json({
+        user: serializeUser(userRow),
+        has_password: Boolean(userRow.password_hash),
+        hasPassword: Boolean(userRow.password_hash),
+      })
+    } catch (error) {
+      console.error('Unable to fetch user profile: %o', error)
+      response.status(500).json({ error: 'Unable to fetch user profile.' })
     }
   },
 )

@@ -1,5 +1,5 @@
 import { GoogleOAuthProvider, useGoogleLogin } from '@react-oauth/google'
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
 import { Navbar } from '../components/Navbar'
@@ -64,7 +64,24 @@ function SettingsPageContent() {
 
   const [isTelegramOpen, setIsTelegramOpen] = useState(false)
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false)
-  const [hasLocalPassword, setHasLocalPassword] = useState(false)
+  const [hasLocalPassword, setHasLocalPassword] = useState(
+    Boolean(user?.has_password || (user as unknown as { hasPassword?: boolean })?.hasPassword || user?.provider === 'local'),
+  )
+
+  useEffect(() => {
+    if (typeof user?.has_password === 'boolean') {
+      setHasLocalPassword(user.has_password)
+    }
+    apiRequest<{ has_password?: boolean; user?: { has_password?: boolean } }>('/api/auth/me')
+      .then(({ data }) => {
+        if (typeof data.has_password === 'boolean') {
+          setHasLocalPassword(data.has_password)
+        } else if (typeof data.user?.has_password === 'boolean') {
+          setHasLocalPassword(data.user.has_password)
+        }
+      })
+      .catch(() => {})
+  }, [user])
 
   // Google Linking State
   const [isLinkingGoogle, setIsLinkingGoogle] = useState(false)
@@ -148,7 +165,7 @@ function SettingsPageContent() {
       setIsPasswordModalOpen(false)
       setNewPassword('')
       setConfirmPassword('')
-      showToast('Local password configured successfully.')
+      showToast(hasLocalPassword ? 'Local password updated successfully.' : 'Local password configured successfully.')
     } catch (error) {
       setPasswordError(formatApiError(error))
     } finally {
@@ -268,10 +285,24 @@ function SettingsPageContent() {
                 </div>
                 <div>
                   {provider === 'local' || hasLocalPassword ? (
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
-                      <span className="size-1.5 rounded-full bg-emerald-500" />
-                      {provider === 'local' ? 'Primary' : 'Configured'}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                        <span className="size-1.5 rounded-full bg-emerald-500" />
+                        {provider === 'local' ? 'Primary' : 'Configured'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPasswordError(null)
+                          setNewPassword('')
+                          setConfirmPassword('')
+                          setIsPasswordModalOpen(true)
+                        }}
+                        className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                      >
+                        Change Password
+                      </button>
+                    </div>
                   ) : (
                     <button
                       type="button"
@@ -551,7 +582,7 @@ function SettingsPageContent() {
           <div className="flex justify-end">
             <button
               type="submit"
-              className="rounded-xl bg-blue-600 px-6 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+              className="shrink-0 rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
             >
               Save Preferences
             </button>
@@ -559,13 +590,13 @@ function SettingsPageContent() {
         </form>
       </main>
 
-      {/* Set Password Modal */}
+      {/* Set / Change Password Modal */}
       {isPasswordModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-700 dark:bg-slate-800">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-700">
               <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
-                Set Local Password
+                {hasLocalPassword ? 'Change Local Password' : 'Set Local Password'}
               </h3>
               <button
                 type="button"
@@ -577,7 +608,9 @@ function SettingsPageContent() {
             </div>
 
             <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
-              Link a local password to enable standard email and password sign-in for your account.
+              {hasLocalPassword
+                ? 'Update your password for standard email and password sign-in.'
+                : 'Link a local password to enable standard email and password sign-in for your account.'}
             </p>
 
             <form onSubmit={handleSetPassword} className="mt-4 space-y-4">
@@ -648,22 +681,40 @@ function SettingsPageContent() {
                 </div>
               </div>
 
-              <div className="mt-6 flex items-center justify-end gap-3 pt-2">
+              <div className="mt-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-2">
                 <button
                   type="button"
-                  onClick={() => setIsPasswordModalOpen(false)}
-                  disabled={isSettingPassword}
-                  className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                  onClick={() => {
+                    setIsPasswordModalOpen(false)
+                    navigate('/forgot-password')
+                  }}
+                  className="text-left text-xs font-semibold text-blue-600 hover:underline dark:text-blue-400"
                 >
-                  Cancel
+                  Forgot password? Reset via OTP →
                 </button>
-                <button
-                  type="submit"
-                  disabled={isSettingPassword}
-                  className="rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {isSettingPassword ? 'Setting Password…' : 'Set Password'}
-                </button>
+                <div className="flex items-center justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsPasswordModalOpen(false)}
+                    disabled={isSettingPassword}
+                    className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSettingPassword}
+                    className="rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isSettingPassword
+                      ? hasLocalPassword
+                        ? 'Updating Password…'
+                        : 'Setting Password…'
+                      : hasLocalPassword
+                        ? 'Change Password'
+                        : 'Set Password'}
+                  </button>
+                </div>
               </div>
             </form>
           </div>
