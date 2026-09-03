@@ -409,21 +409,9 @@ export function NewTodoModal({
               </div>
             ) : previousCustomLabels.length > 0 && !isCreatingNewLabel ? (
               <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                    Custom Label
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsCreatingNewLabel(true)
-                      setCustomLabel('')
-                    }}
-                    className="text-[11px] font-bold text-blue-600 hover:text-blue-500 dark:text-blue-400 cursor-pointer"
-                  >
-                    + New Label
-                  </button>
-                </div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+                  Custom Label
+                </label>
                 <div className="relative">
                   <select
                     value={selectedCustomLabel}
@@ -449,10 +437,20 @@ export function NewTodoModal({
               </div>
             ) : (
               <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                    Custom Label
-                  </label>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+                  Custom Label
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={customLabel}
+                    onChange={(e) => setCustomLabel(e.target.value)}
+                    placeholder="e.g. Project, CCA, Urgent"
+                    className={`h-11 w-full rounded-xl border border-slate-300 bg-white pl-3.5 ${
+                      previousCustomLabels.length > 0 ? 'pr-10' : 'pr-3.5'
+                    } text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder-slate-500`}
+                    autoFocus={previousCustomLabels.length > 0}
+                  />
                   {previousCustomLabels.length > 0 && (
                     <button
                       type="button"
@@ -460,20 +458,25 @@ export function NewTodoModal({
                         setIsCreatingNewLabel(false)
                         setSelectedCustomLabel(previousCustomLabels[0] || '')
                       }}
-                      className="text-[11px] font-bold text-blue-600 hover:text-blue-500 dark:text-blue-400 cursor-pointer"
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 flex size-6 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700 dark:hover:text-slate-200 transition-colors"
+                      title="Switch back to existing labels"
+                      aria-label="Switch back to existing labels"
                     >
-                      ← Choose Existing
+                      <svg
+                        className="size-3.5"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                      </svg>
                     </button>
                   )}
                 </div>
-                <input
-                  type="text"
-                  value={customLabel}
-                  onChange={(e) => setCustomLabel(e.target.value)}
-                  placeholder="e.g. Project, CCA, Urgent"
-                  className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3.5 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder-slate-500"
-                  autoFocus={previousCustomLabels.length > 0}
-                />
               </div>
             )}
           </div>
